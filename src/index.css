@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+	--font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+	--color-primary-50: #eaf7f4;
+	--color-primary-100: #d0eee7;
+	--color-primary-500: #168575;
+	--color-primary-600: #116e62;
+	--color-primary-700: #0f5b52;
+	--color-accent-50: #fff7e8;
+	--color-accent-400: #f5b84b;
+	--color-accent-500: #e99a20;
+	--color-ink-900: #17312f;
+	--color-ink-700: #385451;
+	--color-ink-500: #758884;
+	--color-danger-600: #c83e3e;
+}
+
+:root {
+	font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+	color: #17312f;
+	background: #f7faf8;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; @apply bg-stone-50 text-ink-900; }
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { text-decoration: none; }
+:focus-visible { outline: 3px solid #e99a20; outline-offset: 3px; }
+::selection { background: #d0eee7; color: #0f5b52; }
+
+.page-enter { animation: page-enter 220ms ease-out both; }
+@keyframes page-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
