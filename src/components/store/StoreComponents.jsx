@@ -40,11 +40,11 @@ export function PriceTag({ product, price = product.price, className = "" }) {
   return <span className={`inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${className}`}><strong className="font-extrabold text-ink-900">{price} EGP</strong>{product.oldPrice && <><span className="text-xs text-ink-500 line-through">{product.oldPrice} EGP</span><span className="text-[10px] font-extrabold text-danger-600">-{discount}%</span></>}</span>;
 }
 
-export function QuantityStepper({ value, onChange, label = "Quantity", compact = false }) {
+export function QuantityStepper({ value, onChange, label = "Quantity", compact = false, max = Number.POSITIVE_INFINITY }) {
   return <div className={`inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white p-1 ${compact ? "h-9" : "h-11"}`} aria-label={label}>
     <button type="button" aria-label={`Decrease ${label.toLowerCase()}`} disabled={value <= 1} onClick={() => onChange(Math.max(1, value - 1))} className="grid size-7 place-items-center rounded-md text-ink-700 hover:bg-stone-100 disabled:opacity-35"><Minus size={14} /></button>
     <span aria-live="polite" className="min-w-7 text-center text-sm font-bold">{value}</span>
-    <button type="button" aria-label={`Increase ${label.toLowerCase()}`} onClick={() => onChange(value + 1)} className="grid size-7 place-items-center rounded-md text-ink-700 hover:bg-stone-100"><Plus size={14} /></button>
+    <button type="button" aria-label={`Increase ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} className="grid size-7 place-items-center rounded-md text-ink-700 hover:bg-stone-100 disabled:opacity-35"><Plus size={14} /></button>
   </div>;
 }
 
@@ -76,7 +76,7 @@ export function ProductCard({ product, horizontal = false }) {
     <Rating value={product.rating} count={product.reviewsCount} className="mt-2 text-xs" />
     <PriceTag product={product} className="mt-2 text-sm" />
     <div className="mt-auto pt-3">
-      {product.stock === 0 ? <button disabled className={`${btn2} pointer-events-auto min-h-10 w-full cursor-not-allowed text-xs opacity-60`}>Out of stock</button> : inCart ? <div className="pointer-events-auto flex items-center justify-between gap-2"><button type="button" aria-label={`Remove one ${product.name} from cart`} onClick={() => updateCartQuantity(product.id, -1, cartEntry?.variant?.id)} className="grid size-10 place-items-center rounded-lg border border-stone-200 text-ink-700 hover:bg-stone-50"><Minus size={15} /></button><span aria-live="polite" className="text-sm font-bold">{inCart} in cart</span><button type="button" aria-label={`Add one ${product.name} to cart`} onClick={addExistingVariant} className="grid size-10 place-items-center rounded-lg bg-primary-600 text-white hover:bg-primary-700"><Plus size={15} /></button></div> : <button type="button" className={`${btn} pointer-events-auto min-h-10 w-full px-2 text-xs sm:text-sm`} onClick={add}><ShoppingBag size={15} /> Add to cart</button>}
+      {product.stock === 0 ? <button disabled className={`${btn2} pointer-events-auto min-h-10 w-full cursor-not-allowed text-xs opacity-60`}>Out of stock</button> : inCart ? <div className="pointer-events-auto flex items-center justify-between gap-2"><button type="button" aria-label={`Remove one ${product.name} from cart`} onClick={() => updateCartQuantity(product.id, -1, cartEntry?.variant?.id)} className="grid size-10 place-items-center rounded-lg border border-stone-200 text-ink-700 hover:bg-stone-50"><Minus size={15} /></button><span aria-live="polite" className="text-sm font-bold">{inCart} in cart</span><button type="button" aria-label={`Add one ${product.name} to cart`} disabled={inCart >= product.stock} onClick={addExistingVariant} className="grid size-10 place-items-center rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40"><Plus size={15} /></button></div> : <button type="button" disabled={product.stock <= 0} className={`${btn} pointer-events-auto min-h-10 w-full px-2 text-xs sm:text-sm`} onClick={add}><ShoppingBag size={15} /> Add to cart</button>}
     </div>
     </div>
   </article>;

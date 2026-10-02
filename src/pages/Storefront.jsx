@@ -8,9 +8,9 @@ import { Badge, EmptyState, Rating, SectionTitle, Skeleton } from "../components
 import { CategoryIcon, CategoryTile, PetTile, ProductCard, ProductRow } from "../components/store/StoreComponents.jsx";
 import { FilterDrawer, FilterSidebar } from "../components/store/FilterPanels.jsx";
 
-const filterKeys = ["q", "pet", "category", "brand", "min", "max", "age", "rating", "stock", "sale"];
+const filterKeys = ["q", "pet", "category", "brand", "min", "max", "age", "rating", "stock", "sale", "bestSeller"];
 const sortOptions = [["featured", "Featured"], ["price-asc", "Price low to high"], ["price-desc", "Price high to low"], ["rating", "Top rated"], ["newest", "Newest"]];
-const readFilters = (params) => ({ q: params.get("q") || "", pet: params.get("pet") || "", category: params.get("category") || "", brand: params.get("brand") || "", min: params.get("min") || "", max: params.get("max") || "", age: params.get("age") || "", rating: params.get("rating") || "", stock: params.get("stock") === "1", sale: params.get("sale") === "1" });
+const readFilters = (params) => ({ q: params.get("q") || "", pet: params.get("pet") || "", category: params.get("category") || "", brand: params.get("brand") || "", min: params.get("min") || "", max: params.get("max") || "", age: params.get("age") || "", rating: params.get("rating") || "", stock: params.get("stock") === "1", sale: params.get("sale") === "1", bestSeller: params.get("bestSeller") === "1" });
 
 function sortList(list, sort) {
   const result = [...list];
@@ -67,10 +67,11 @@ export default function Storefront() {
       if (filters.rating && product.rating < Number(filters.rating)) return false;
       if (filters.stock && product.stock <= 0) return false;
       if (filters.sale && !product.oldPrice) return false;
+      if (filters.bestSeller && !product.badges.includes("Best seller")) return false;
       return true;
     });
     return sortList(matches, sort);
-  }, [filters.q, filters.pet, filters.category, filters.brand, filters.min, filters.max, filters.age, filters.rating, filters.stock, filters.sale, sort]);
+  }, [filters.q, filters.pet, filters.category, filters.brand, filters.min, filters.max, filters.age, filters.rating, filters.stock, filters.sale, filters.bestSeller, sort]);
 
   const browseMode = filterKeys.every((key) => !searchParams.get(key));
   const suggestions = useMemo(() => {
@@ -92,7 +93,7 @@ export default function Storefront() {
   const choosePet = (pet) => updateFilters({ pet });
   const handleSort = (value) => { setStoreSort(value); updateUrl({ sort: value }); };
   const activeChips = [
-    filters.q && ["q", `Search: ${filters.q}`], filters.pet && ["pet", `Pet: ${({ dog: "Dogs", cat: "Cats", bird: "Birds", fish: "Fish", small: "Small pets" })[filters.pet] || filters.pet}`], filters.category && ["category", filters.category], filters.brand && ["brand", filters.brand],
+    filters.q && ["q", `Search: ${filters.q}`], filters.pet && ["pet", `Pet: ${({ dog: "Dogs", cat: "Cats", bird: "Birds", fish: "Fish", small: "Small pets" })[filters.pet] || filters.pet}`], filters.category && ["category", filters.category], filters.brand && ["brand", filters.brand], filters.bestSeller && ["bestSeller", "Best sellers"],
     (filters.min || filters.max) && [["min", "max"], `Price: ${filters.min || 0}–${filters.max || "any"} EGP`], filters.age && ["age", `Age: ${filters.age}`], filters.rating && ["rating", `${filters.rating}+ stars`], filters.stock && ["stock", "In stock"], filters.sale && ["sale", "On sale"],
   ].filter(Boolean);
   const recentProducts = recentlyViewed.map((id) => storeProducts.find((product) => product.id === id)).filter(Boolean);
@@ -121,7 +122,7 @@ export default function Storefront() {
     {browseMode ? <div className="space-y-16">
       <section><SectionTitle title="Shop by pet" /><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{petShopTiles.map((tile) => <PetTile key={tile.value} tile={tile} onSelect={choosePet} />)}</div></section>
       <section><SectionTitle title="Shop by category" /><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">{storeCategories.map((category) => <CategoryTile key={category.name} category={category} count={storeProducts.filter((product) => product.category === category.name).length} onSelect={chooseCategory} />)}</div></section>
-      <ProductRow title="Best sellers" products={bestSellers} to="/store?category=Food" />
+      <ProductRow title="Best sellers" products={bestSellers} to="/store?bestSeller=1" />
       <ProductRow title="New arrivals" products={arrivals} to="/store?sort=newest" />
       <ProductRow title="Deals" products={deals} to="/store?sale=1" />
       {!!recentProducts.length && <ProductRow title="Recently viewed" products={recentProducts} to="/store" />}

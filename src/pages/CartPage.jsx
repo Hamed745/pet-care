@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from "lucide-react";
 import { useApp } from "../store.jsx";
+import { products as storeProducts } from "../storeCatalog.js";
 import { btn, btn2, card, input } from "../ui.js";
 import { EmptyState } from "../components/ui.jsx";
 import { PriceTag, ProductImage } from "../components/store/StoreComponents.jsx";
 
 const fieldNames = ["name", "phone", "city", "address"];
+const cartItemStock = (item) => item.stock ?? storeProducts.find((product) => product.id === item.id)?.stock ?? Number.POSITIVE_INFINITY;
 export default function CartPage() {
   const { cart, updateCartQuantity, removeCartProduct, clearCart, createStoreOrder, user } = useApp();
   const navigate = useNavigate();
@@ -40,7 +42,7 @@ export default function CartPage() {
       <section aria-label="Cart items" className="space-y-3">{cart.map((item) => <article key={`${item.id}-${item.variant?.id || "default"}`} className={`${card} flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap`}>
         <Link to={`/store/${item.id}`} className="shrink-0"><ProductImage src={item.images?.[0] || item.image} alt={item.name} category={item.category || item.cat} className="size-20 rounded-xl object-cover" /></Link>
         <div className="min-w-0 flex-1"><Link to={`/store/${item.id}`} className="font-extrabold hover:text-primary-700">{item.name}</Link><p className="mt-1 text-xs text-ink-500">{item.brand || "PetCare"}{item.variant?.label ? ` · ${item.variant.label}` : ""}</p><PriceTag product={item} className="mt-2 text-sm" /></div>
-        <div className="flex items-center gap-2"><button type="button" aria-label={`Decrease quantity of ${item.name}`} disabled={item.qty <= 1} className={`${btn2} size-9 min-h-9 p-0`} onClick={() => updateCartQuantity(item.id, -1, item.variant?.id)}><Minus size={14} /></button><span aria-live="polite" className="w-6 text-center text-sm font-bold">{item.qty}</span><button type="button" aria-label={`Increase quantity of ${item.name}`} className={`${btn2} size-9 min-h-9 p-0`} onClick={() => updateCartQuantity(item.id, 1, item.variant?.id)}><Plus size={14} /></button></div>
+        <div className="flex items-center gap-2"><button type="button" aria-label={`Decrease quantity of ${item.name}`} disabled={item.qty <= 1} className={`${btn2} size-9 min-h-9 p-0`} onClick={() => updateCartQuantity(item.id, -1, item.variant?.id)}><Minus size={14} /></button><span aria-live="polite" className="w-6 text-center text-sm font-bold">{item.qty}</span><button type="button" aria-label={`Increase quantity of ${item.name}`} disabled={cart.filter((entry) => entry.id === item.id).reduce((sum, entry) => sum + entry.qty, 0) >= cartItemStock(item)} className={`${btn2} size-9 min-h-9 p-0`} onClick={() => updateCartQuantity(item.id, 1, item.variant?.id)}><Plus size={14} /></button></div>
         <span className="w-24 text-right text-sm font-extrabold">{item.price * item.qty} EGP</span>
         <button type="button" aria-label={`Remove ${item.name} from cart`} className="grid size-9 place-items-center rounded-lg text-ink-500 hover:bg-red-50 hover:text-danger-600" onClick={() => removeCartProduct(item.id, item.variant?.id)}><Trash2 size={16} /></button>
       </article>)}</section>

@@ -16,16 +16,19 @@ const demoReviews = [
 export default function ProductDetails() {
   const { id } = useParams();
   const product = storeProducts.find((item) => String(item.id) === id);
-  const { markProductViewed, favorites, toggleFavorite, addCartProduct, showToast } = useApp();
+  const { cart, markProductViewed, favorites, toggleFavorite, addCartProduct, showToast } = useApp();
   const [activeTab, setActiveTab] = useState("Description");
   const [variantId, setVariantId] = useState(product?.variants?.[0]?.id || "");
   const [quantity, setQuantity] = useState(1);
   const selectedVariant = product?.variants?.find((variant) => variant.id === variantId);
   const priceProduct = product && selectedVariant ? { ...product, price: selectedVariant.price } : product;
   const isFavorite = product ? favorites.includes(product.id) : false;
+  const quantityInCart = product ? cart.filter((item) => item.id === product.id).reduce((total, item) => total + item.qty, 0) : 0;
+  const remainingStock = product ? Math.max(0, product.stock - quantityInCart) : 0;
   useEffect(() => { if (product) markProductViewed(product.id); }, [product?.id]);
+  useEffect(() => { setQuantity((current) => Math.min(current, Math.max(1, remainingStock))); }, [product?.id, remainingStock]);
   if (!product) return <div className="mx-auto max-w-xl py-8"><EmptyState title="Product not found" description="This item may have moved or is no longer available." icon={ArrowLeft} action={<Link className={btn} to="/store">Back to store</Link>} /></div>;
-  const add = async () => { await addCartProduct(product, selectedVariant, quantity); showToast(`${product.name} added to your cart.`, "success", { label: "View cart", to: "/cart" }); };
+  const add = async () => { if (remainingStock <= 0) return; await addCartProduct(product, selectedVariant, Math.min(quantity, remainingStock)); setQuantity(1); showToast(`${product.name} added to your cart.`, "success", { label: "View cart", to: "/cart" }); };
   const related = storeProducts.filter((item) => item.id !== product.id && (item.category === product.category || item.petType === product.petType)).slice(0, 4);
   const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
   const tabItems = ["Description", "Details", "Reviews"];
@@ -38,7 +41,7 @@ export default function ProductDetails() {
         <div className="mt-4 flex flex-wrap items-center gap-3"><PriceTag product={product} price={priceProduct.price} className="text-xl" />{product.oldPrice && <Badge variant="danger">Save {discount}%</Badge>}</div>
         {product.variants?.length > 0 && <fieldset className="mt-6"><legend className="text-sm font-extrabold">Choose size</legend><div className="mt-2 flex flex-wrap gap-2">{product.variants.map((variant) => <button key={variant.id} type="button" aria-pressed={variantId === variant.id} onClick={() => setVariantId(variant.id)} className={`min-h-10 rounded-lg border px-4 text-sm font-bold ${variantId === variant.id ? "border-primary-600 bg-primary-50 text-primary-800" : "border-stone-300 text-ink-700 hover:bg-stone-50"}`}>{variant.label} · {variant.price} EGP</button>)}</div></fieldset>}
         <p className={`mt-5 text-sm font-bold ${product.stock === 0 ? "text-danger-600" : product.stock <= 3 ? "text-accent-500" : "text-primary-700"}`}>{product.stock === 0 ? "Out of stock" : product.stock <= 3 ? `Only ${product.stock} left` : "In stock"}</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3"><QuantityStepper value={quantity} onChange={setQuantity} label={`${product.name} quantity`} /><button type="button" disabled={product.stock === 0} onClick={add} className={`${btn} min-w-44 flex-1 sm:flex-none`}><Check size={17} /> Add to cart</button></div>
+        <div className="mt-4 flex flex-wrap items-center gap-3"><QuantityStepper value={quantity} onChange={setQuantity} max={Math.max(1, remainingStock)} label={`${product.name} quantity`} /><button type="button" disabled={product.stock === 0 || remainingStock === 0} onClick={add} className={`${btn} min-w-44 flex-1 sm:flex-none`}><Check size={17} /> Add to cart</button></div>
         <div className="mt-6 grid grid-cols-3 gap-3 border-y border-stone-100 py-4 text-center text-[11px] font-semibold text-ink-500"><span className="flex flex-col items-center gap-2"><RotateCcw size={18} className="text-primary-700" />Free returns</span><span className="flex flex-col items-center gap-2"><ShieldCheck size={18} className="text-primary-700" />Secure checkout</span><span className="flex flex-col items-center gap-2"><Truck size={18} className="text-primary-700" />Fast delivery</span></div>
       </section>
     </div>
