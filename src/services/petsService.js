@@ -6,3 +6,5 @@ export async function addVaccination(currentPets, id, vaccination) { return curr
 export async function deleteVaccination(currentPets, id, index) { return currentPets.map((pet) => pet.id === id ? { ...pet, vaccines: pet.vaccines.filter((_, itemIndex) => itemIndex !== index) } : pet); }
 export async function addMedication(currentPets, id, medication) { return currentPets.map((pet) => pet.id === id ? { ...pet, meds: [...pet.meds, medication] } : pet); }
 export async function deleteMedication(currentPets, id, index) { return currentPets.map((pet) => pet.id === id ? { ...pet, meds: pet.meds.filter((_, itemIndex) => itemIndex !== index) } : pet); }
+export async function addMedicalVisit(currentPets, id, visit) { return currentPets.map((pet) => pet.id === id ? { ...pet, medicalVisits: [...(pet.medicalVisits || []), { ...visit, id: visit.id || `visit-${Date.now()}` }] } : pet); }
+export async function deleteMedicalVisit(currentPets, id, visitId) { return currentPets.map((pet) => pet.id === id ? { ...pet, medicalVisits: (pet.medicalVisits || []).filter((visit) => visit.id !== visitId) } : pet); }

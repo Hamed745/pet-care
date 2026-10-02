@@ -18,7 +18,12 @@ const MyPets = lazy(() => import("./pages/Pets.jsx").then((module) => ({ default
 const AddPet = lazy(() => import("./pages/Pets.jsx").then((module) => ({ default: module.AddPet })));
 const PetProfile = lazy(() => import("./pages/Pets.jsx").then((module) => ({ default: module.PetProfile })));
 const Bookings = lazy(() => import("./pages/Bookings.jsx"));
-const Adoption = lazy(() => import("./pages/Community.jsx").then((module) => ({ default: module.Adoption })));
+const Calendar = lazy(() => import("./pages/Calendar.jsx"));
+const Notifications = lazy(() => import("./pages/Notifications.jsx"));
+const Adoption = lazy(() => import("./pages/AdoptionPages.jsx").then((module) => ({ default: module.AdoptionHub })));
+const AdoptionDetails = lazy(() => import("./pages/AdoptionPages.jsx").then((module) => ({ default: module.AdoptionDetails })));
+const AdoptionNew = lazy(() => import("./pages/AdoptionPages.jsx").then((module) => ({ default: module.AdoptionNew })));
+const MyAdoptionListings = lazy(() => import("./pages/AdoptionPages.jsx").then((module) => ({ default: module.MyAdoptionListings })));
 const LostFound = lazy(() => import("./pages/Community.jsx").then((module) => ({ default: module.LostFound })));
 const Emergency = lazy(() => import("./pages/Extras.jsx").then((module) => ({ default: module.Emergency })));
 const AI = lazy(() => import("./pages/Extras.jsx").then((module) => ({ default: module.AI })));
@@ -50,7 +55,12 @@ export default function App() {
           <Route path="/pets/new" element={<AddPet />} />
           <Route path="/pets/:id" element={<PetProfile />} />
           <Route path="/bookings" element={<Bookings />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/adoption" element={<Adoption />} />
+          <Route path="/adoption/new" element={<AdoptionNew />} />
+          <Route path="/adoption/my-listings" element={<MyAdoptionListings />} />
+          <Route path="/adoption/:id" element={<AdoptionDetails />} />
           <Route path="/lost-found" element={<LostFound />} />
           <Route path="/emergency" element={<Emergency />} />
           <Route path="/ai" element={<AI />} />

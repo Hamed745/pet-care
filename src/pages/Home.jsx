@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, BadgeCheck, CalendarCheck, Cat, Check, ChevronDown, Clock3, Dog, Heart, House, MapPin, PawPrint, Scissors, Search, ShoppingBag, Siren, Stethoscope, Star, Tag, Bird, HandHeart } from "lucide-react";
+import { ArrowRight, BadgeCheck, Bell, CalendarCheck, CalendarDays, Cat, Check, ChevronDown, Clock3, Dog, Heart, House, MapPin, PawPrint, Scissors, Search, ShoppingBag, Siren, Stethoscope, Star, Tag, Bird, HandHeart } from "lucide-react";
 import { adoptions, products, providers } from "../data.js";
 import { useApp } from "../store.jsx";
 import Media from "../components/Media.jsx";
 import { Button, Card, Rating, SectionTitle } from "../components/ui.jsx";
-import { btn } from "../ui.js";
+import { btn, btn2 } from "../ui.js";
 import PetAvatar from "../components/PetAvatar.jsx";
 
 const serviceTiles = [
@@ -123,13 +123,18 @@ function HeroPhoto({ src }) {
 }
 
 export default function Home() {
-  const { user, pets, bookings } = useApp();
+  const { user, pets, bookings, calendarEvents, notifications } = useApp();
   const navigate = useNavigate();
   const [service, setService] = useState("vet");
   const [city, setCity] = useState("");
   const [petType, setPetType] = useState("");
   const [openDropdown, setOpenDropdown] = useState(null);
   const nextBooking = bookings.find((booking) => booking.status === "Upcoming");
+  const healthReminders = pets.flatMap((pet) => [
+    ...(pet.vaccines || []).filter((vaccine) => vaccine.next).map((vaccine, index) => ({ id: `home-vaccine-${pet.id}-${index}`, title: `${vaccine.name} vaccination`, date: vaccine.next, petName: pet.name })),
+    ...(pet.meds || []).filter((medication) => medication.time).map((medication, index) => ({ id: `home-medication-${pet.id}-${index}`, title: `${medication.name} medication`, date: medication.end || "Daily", petName: pet.name })),
+  ]);
+  const homeReminders = [...calendarEvents, ...healthReminders].sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(0, 2);
   const featuredProviders = providers.slice(0, 3);
   const featuredProducts = products.slice(0, 4);
   const featuredAdoptions = adoptions.slice(0, 4);
@@ -254,7 +259,8 @@ export default function Home() {
     </Band>
 
     <Band id="my-space" tone="bg-stone-50" className="home-reveal">
-      <Intro id="my-space-title" eyebrow="A place for your family" title="Your pet's little corner" subtitle="Keep the important details close and the next good day in sight." action={user && <Link to="/pets" className="text-sm font-bold text-primary-700">View all pets <ArrowRight size={15} className="ml-1 inline" /></Link>} />
+      <Intro id="my-space-title" eyebrow="A place for your family" title="Your pet's little corner" subtitle="Keep the important details close and the next good day in sight." action={user && <div className="flex flex-wrap gap-3"><Link to="/calendar" className="text-sm font-bold text-primary-700">Calendar</Link><Link to="/notifications" className="text-sm font-bold text-primary-700">Notifications</Link><Link to="/pets" className="text-sm font-bold text-primary-700">View all pets <ArrowRight size={15} className="ml-1 inline" /></Link></div>} />
+      {user && <Card className="mb-5 !p-4 sm:!p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">Upcoming reminders</p><p className="mt-1 text-sm text-ink-500">{homeReminders.length ? `${homeReminders.length} care dates coming up` : "No reminders yet"}{notifications.some((item) => !item.read) ? ` · ${notifications.filter((item) => !item.read).length} unread updates` : ""}</p></div><div className="flex gap-2"><Link to="/calendar" className={`${btn2} min-h-9 px-3 text-xs`}><CalendarDays size={14} /> Calendar</Link><Link to="/notifications" className={`${btn2} min-h-9 px-3 text-xs`}><Bell size={14} /> Notifications</Link></div></div>{homeReminders.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{homeReminders.map((event) => <span key={event.id} className="rounded-lg bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-800">{event.title} · {event.petName || pets.find((pet) => String(pet.id) === String(event.petId))?.name || "Pet"} · {event.date}</span>)}</div>}</Card>}
       {user ? <div className="grid gap-5 lg:grid-cols-2">
         <Card className="!p-5 sm:!p-6"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">My family</p><h3 className="mt-1 text-lg font-extrabold">My pets</h3></div><Link to="/pets/new" className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700"><PawPrint size={16} /> Add pet</Link></div>{pets.length ? <div className="mt-5 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">{pets.map((pet) => <Link key={pet.id} to={`/pets/${pet.id}`} className="flex min-w-36 snap-start flex-col items-center rounded-xl border border-stone-100 bg-stone-50 p-4 text-center transition hover:border-primary-100 hover:bg-primary-50"><PetAvatar name={pet.name} photo={pet.photo} alt={`${pet.name}, ${pet.type}`} className="size-16" /><b className="mt-3 text-sm">{pet.name}</b><span className="mt-0.5 text-xs text-ink-500">{pet.type}</span></Link>)}</div> : <div className="mt-5 rounded-xl bg-stone-50 p-5"><p className="text-sm text-ink-500">Add a profile for your pet to keep their care details together.</p><Link to="/pets/new" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary-700">Add your first pet <ArrowRight size={15} /></Link></div>}</Card>
         <Card className="flex flex-col !p-5 sm:!p-6"><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">Coming up</p><h3 className="mt-1 text-lg font-extrabold">Next booking</h3>{nextBooking ? <div className="mt-5 flex flex-1 items-start gap-4 rounded-xl bg-primary-50 p-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-primary-700"><CalendarCheck size={21} /></span><div className="min-w-0"><b className="block truncate text-sm">{nextBooking.provider.name}</b><p className="mt-1 text-sm text-ink-700">{nextBooking.date} at {nextBooking.time}</p><p className="mt-1 text-xs text-ink-500">For {nextBooking.pet?.name || "your pet"}</p><Link to="/bookings" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-primary-700">View booking <ArrowRight size={15} /></Link></div></div> : <div className="mt-5 flex flex-1 flex-col items-start justify-center rounded-xl bg-white p-5"><span className="grid size-10 place-items-center rounded-xl bg-accent-50 text-amber-800"><CalendarCheck size={19} /></span><p className="mt-3 text-sm text-ink-500">Nothing booked yet. Find a time that works for you.</p><Link to="/services" className={`${btn} mt-4`}><CalendarCheck size={16} /> Book now</Link></div>}</Card>
