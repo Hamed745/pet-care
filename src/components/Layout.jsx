@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Activity, ChevronDown, Heart, Home, Menu, PawPrint, Search, ShoppingBag, ShoppingCart, Stethoscope, Scissors, UserRound, X, MapPin, Bot, CalendarDays, LogOut, Phone } from "lucide-react";
+import { Activity, ChevronDown, Heart, Home, Menu, PawPrint, ShoppingBag, Stethoscope, Scissors, UserRound, X, MapPin, Bot, CalendarDays, LogOut, Phone } from "lucide-react";
 import { useApp } from "../store.jsx";
-import { btn, btn2, btnDanger, btnGhost } from "../ui.js";
+import { btn, btn2, btnGhost } from "../ui.js";
+import FloatingChat, { ChatProvider } from "./ChatWidget.jsx";
+import PetAvatar from "./PetAvatar.jsx";
+import PetBagIcon from "./icons/PetBagIcon.jsx";
+import { ToastStack } from "./ui.jsx";
 
 const serviceLinks = [
   ["/services/vet", "Veterinary", "Trusted health care and checkups.", Stethoscope],
@@ -44,7 +48,7 @@ function Navbar() {
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onPointer); };
   }, []);
 
-  const mainLink = ({ isActive }) => `relative flex min-h-10 items-center px-3 text-sm font-semibold transition hover:text-primary-700 after:absolute after:inset-x-3 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-primary-600 after:transition ${isActive ? "text-primary-700 after:scale-x-100" : "text-ink-700 after:scale-x-0 hover:after:scale-x-100"}`;
+  const mainLink = ({ isActive }) => `relative flex min-h-10 items-center px-3 text-sm font-semibold text-ink-700 transition hover:text-primary-700 after:absolute after:inset-x-3 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-primary-600 after:transition ${isActive ? "after:scale-x-100" : "after:scale-x-0 hover:after:scale-x-100"}`;
   const closeMenus = () => { setServicesOpen(false); setCommunityOpen(false); setUserOpen(false); };
 
   return <>
@@ -54,7 +58,7 @@ function Navbar() {
         <nav aria-label="Main navigation" className="hidden items-center gap-1 lg:flex">
           <NavLink to="/" end className={mainLink}>Home</NavLink>
           <div className="relative" data-menu-root>
-            <button type="button" aria-expanded={servicesOpen} onClick={() => { setServicesOpen(!servicesOpen); setCommunityOpen(false); setUserOpen(false); }} className={`${mainLink({ isActive: location.pathname.startsWith("/services") })} gap-1`}>Services <ChevronDown size={15} className={`transition ${servicesOpen ? "rotate-180" : ""}`} /></button>
+            <button type="button" aria-expanded={servicesOpen} onClick={() => { setServicesOpen(!servicesOpen); setCommunityOpen(false); setUserOpen(false); }} style={{ fontSize: 14, fontWeight: 600, lineHeight: "20px", color: "#385451" }} className={`${mainLink({ isActive: location.pathname.startsWith("/services") })} gap-1`}>Services <ChevronDown size={15} className={`transition ${servicesOpen ? "rotate-180" : ""}`} /></button>
             {servicesOpen && <div className="absolute left-0 top-full z-50 mt-4 w-[340px] rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">
               {serviceLinks.map(([to, title, description, Icon]) => <Link key={to} to={to} onClick={closeMenus} className="flex gap-3 rounded-xl p-3 transition hover:bg-primary-50"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-50 text-primary-700"><Icon size={19} /></span><span><span className="block text-sm font-bold text-ink-900">{title}</span><span className="mt-0.5 block text-xs leading-5 text-ink-500">{description}</span></span></Link>)}
             </div>}
@@ -62,16 +66,14 @@ function Navbar() {
           <NavLink to="/store" className={mainLink}>Store</NavLink>
           <NavLink to="/adoption" className={mainLink}>Adoption</NavLink>
           <div className="relative" data-menu-root>
-            <button type="button" aria-expanded={communityOpen} onClick={() => { setCommunityOpen(!communityOpen); setServicesOpen(false); setUserOpen(false); }} className={`${mainLink({ isActive: location.pathname === "/lost-found" })} gap-1`}>Community <ChevronDown size={15} className={`transition ${communityOpen ? "rotate-180" : ""}`} /></button>
+            <button type="button" aria-expanded={communityOpen} onClick={() => { setCommunityOpen(!communityOpen); setServicesOpen(false); setUserOpen(false); }} style={{ fontSize: 14, fontWeight: 600, lineHeight: "20px", color: "#385451" }} className={`${mainLink({ isActive: location.pathname === "/lost-found" })} gap-1`}>Community <ChevronDown size={15} className={`transition ${communityOpen ? "rotate-180" : ""}`} /></button>
             {communityOpen && <div className="absolute left-0 top-full z-50 mt-4 w-60 rounded-2xl border border-stone-200 bg-white p-2 shadow-xl"><Link to="/lost-found" onClick={closeMenus} className="flex items-center gap-3 rounded-xl p-3 text-sm font-semibold hover:bg-primary-50"><MapPin size={18} className="text-primary-600" /> Lost &amp; Found</Link></div>}
           </div>
         </nav>
-        <div className="hidden items-center gap-2 lg:flex">
-          <Link aria-label="Search services" title="Search services" to="/services" className={`${btnGhost} size-10 min-h-10 p-0`}><Search size={19} /></Link>
-          <Link aria-label={`Cart, ${count} items`} title="Cart" to="/cart" className={`${btnGhost} relative size-10 min-h-10 p-0`}><ShoppingCart size={19} />{count > 0 && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-accent-500 text-[10px] font-bold text-ink-900">{count}</span>}</Link>
-          <Link to="/emergency" className={`${btnDanger} min-h-10 px-3`}><Phone size={16} /> Emergency</Link>
-          {user ? <div className="relative" data-menu-root><button type="button" aria-expanded={userOpen} onClick={() => { setUserOpen(!userOpen); setServicesOpen(false); setCommunityOpen(false); }} className="ml-1 flex items-center gap-2 rounded-full p-1.5 pr-3 transition hover:bg-stone-100"><span className="grid size-9 place-items-center rounded-full bg-primary-100 font-bold text-primary-700">{user.name?.slice(0, 1).toUpperCase()}</span><span className="max-w-24 truncate text-sm font-semibold">{user.name}</span><ChevronDown size={14} /></button>
-            {userOpen && <div className="absolute right-0 top-full z-50 mt-3 w-52 rounded-2xl border border-stone-200 bg-white p-2 shadow-xl"><Link to="/profile" onClick={closeMenus} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-stone-50"><UserRound size={17} /> Profile</Link><Link to="/pets" onClick={closeMenus} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-stone-50"><PawPrint size={17} /> My Pets</Link><Link to="/bookings" onClick={closeMenus} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-stone-50"><CalendarDays size={17} /> Bookings</Link><button onClick={() => { setUser(null); setUserOpen(false); navigate("/"); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-danger-600 hover:bg-red-50"><LogOut size={17} /> Log out</button></div>}
+        <div className="hidden items-center gap-3 lg:flex">
+          <Link aria-label={count > 0 ? `Cart, ${count} items` : "Cart"} title="Cart" to="/cart" className="relative grid size-10 shrink-0 scale-100 place-items-center rounded-full bg-stone-100 text-stone-800 transition hover:scale-[0.97] hover:bg-stone-200 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"><PetBagIcon size={20} className="text-current" />{count > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary-600 px-1 text-[11px] font-semibold leading-none text-white ring-2 ring-white">{count > 9 ? "9+" : count}</span>}</Link>
+          {user ? <div className="relative" data-menu-root><button type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded={userOpen} onClick={() => { setUserOpen(!userOpen); setServicesOpen(false); setCommunityOpen(false); }} className="flex items-center gap-1 rounded-full p-0.5 transition hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"><PetAvatar name={user.name} photo={user.avatar} className="size-10 bg-primary-100 text-primary-800" iconSize={12} /><ChevronDown size={15} className={`me-1 text-ink-700 transition ${userOpen ? "rotate-180" : ""}`} /></button>
+            {userOpen && <div role="menu" aria-label="Account menu" className="absolute right-0 top-full z-50 mt-3 w-72 rounded-2xl border border-stone-200 bg-white p-2 shadow-xl"><div className="flex items-center gap-3 px-3 py-3"><PetAvatar name={user.name} photo={user.avatar} className="size-11 bg-primary-100 text-primary-800" iconSize={13} /><span className="min-w-0"><span className="block max-w-[200px] truncate text-sm font-bold text-ink-900">{user.name || "PetCare member"}</span><span className="mt-0.5 block max-w-[200px] truncate text-xs text-ink-500">{user.email || ""}</span></span></div><div className="border-t border-stone-100 pt-2"><Link role="menuitem" to="/profile" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"><UserRound size={18} /> Profile</Link><Link role="menuitem" to="/pets" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"><PawPrint size={18} /> My Pets</Link><Link role="menuitem" to="/bookings" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"><CalendarDays size={18} /> Bookings</Link><Link role="menuitem" to="/wishlist" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"><Heart size={18} /> Wishlist</Link><Link role="menuitem" to="/orders" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"><ShoppingBag size={18} /> Orders</Link></div><div className="mt-2 border-t border-stone-100 pt-2"><button role="menuitem" onClick={() => { setUser(null); setUserOpen(false); navigate("/"); }} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold text-danger-600 hover:bg-red-50"><LogOut size={18} /> Log out</button></div></div>}
           </div> : <><Link to="/login" className={btnGhost}>Log in</Link><Link to="/register" className={btn}>Sign up</Link></>}
         </div>
         <button type="button" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)} className="grid size-11 place-items-center rounded-xl border border-stone-200 text-ink-900 lg:hidden">{mobileOpen ? <X size={21} /> : <Menu size={21} />}</button>
@@ -84,7 +86,7 @@ function Navbar() {
             {serviceLinks.map(([to, title, , Icon]) => <Link key={to} onClick={() => setMobileOpen(false)} to={to} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-ink-700 hover:bg-stone-50"><Icon size={18} className="text-primary-600" />{title}</Link>)}
             <Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/store">Store</Link><Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/adoption">Adoption</Link><Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/lost-found">Lost &amp; Found</Link>
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-3">{user ? <><Link onClick={() => setMobileOpen(false)} to="/profile" className={btn2}>Profile</Link><Link onClick={() => setMobileOpen(false)} to="/bookings" className={btn2}>Bookings</Link></> : <><Link onClick={() => setMobileOpen(false)} to="/login" className={btn2}>Log in</Link><Link onClick={() => setMobileOpen(false)} to="/register" className={btn}>Sign up</Link></>}<Link onClick={() => setMobileOpen(false)} to="/emergency" className={`${btnDanger} col-span-2`}><Phone size={17} /> Emergency care</Link></div>
+          <div className="mt-5 grid grid-cols-2 gap-3">{user ? <><Link onClick={() => setMobileOpen(false)} to="/profile" className={btn2}>Profile</Link><Link onClick={() => setMobileOpen(false)} to="/bookings" className={btn2}>Bookings</Link><Link onClick={() => setMobileOpen(false)} to="/wishlist" className={btn2}>Wishlist</Link><Link onClick={() => setMobileOpen(false)} to="/orders" className={btn2}>Orders</Link></> : <><Link onClick={() => setMobileOpen(false)} to="/login" className={btn2}>Log in</Link><Link onClick={() => setMobileOpen(false)} to="/register" className={btn}>Sign up</Link></>}</div>
         </div>
       </div>}
     </header>
@@ -95,7 +97,7 @@ function Navbar() {
 }
 
 function Footer() {
-  return <footer className="mt-16 border-t border-stone-200 bg-white">
+  return <footer data-site-footer="true" className="mt-16 border-t border-stone-200 bg-white">
     <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr] lg:px-8">
       <div><Brand /><p className="mt-4 max-w-xs text-sm leading-6 text-ink-500">Thoughtful care, trusted services, and a happier everyday for the pets we love.</p><div className="mt-5 flex gap-2"><a aria-label="Instagram" href="https://instagram.com" className="grid size-9 place-items-center rounded-full bg-stone-100 text-ink-700 hover:bg-primary-50 hover:text-primary-700"><Heart size={17} /></a><a aria-label="Contact" href="mailto:hello@petcare.example" className="grid size-9 place-items-center rounded-full bg-stone-100 text-ink-700 hover:bg-primary-50 hover:text-primary-700"><Phone size={16} /></a></div></div>
       <div><h2 className="text-sm font-bold">Explore</h2><div className="mt-4 grid gap-3 text-sm text-ink-500"><Link className="hover:text-primary-700" to="/services">Services</Link><Link className="hover:text-primary-700" to="/store">Store</Link><Link className="hover:text-primary-700" to="/adoption">Adoption</Link><Link className="hover:text-primary-700" to="/lost-found">Lost &amp; Found</Link></div></div>
@@ -107,7 +109,10 @@ function Footer() {
 }
 
 export default function Layout({ children }) {
+  const { storageError, dismissStorageError, notice, dismissToast } = useApp();
   const location = useLocation();
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [location.pathname]);
-  return <div className="min-h-screen"><Navbar /><main key={location.pathname} className="page-enter mx-auto min-h-[60vh] max-w-7xl px-4 py-8 pb-24 sm:px-6 md:py-10 lg:px-8 lg:pb-10">{children}</main><Footer /></div>;
+  const toastItems = [...notice, ...(storageError ? [{ id: "storage-error", message: storageError, variant: "danger" }] : [])].slice(0, 3);
+  const dismissNotice = (id) => id === "storage-error" ? dismissStorageError() : dismissToast(id);
+  return <ChatProvider><div className="min-h-screen"><Navbar /><main key={location.pathname} className="page-enter mx-auto min-h-[60vh] max-w-7xl px-4 py-8 pb-24 sm:px-6 md:py-10 lg:px-8 lg:pb-10">{children}</main><Footer /><FloatingChat /><ToastStack items={toastItems} onDismiss={dismissNotice} /></div></ChatProvider>;
 }

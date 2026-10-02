@@ -1,0 +1,3 @@
+export async function createReport(currentReports, report) { return [{ ...report, id: Date.now() }, ...currentReports]; }
+export async function updateReport(currentReports, id, changes) { return currentReports.map((report) => report.id === id ? { ...report, ...changes } : report); }
+export async function deleteReport(currentReports, id) { return currentReports.filter((report) => report.id !== id); }

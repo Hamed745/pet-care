@@ -7,8 +7,13 @@ const Home = lazy(() => import("./pages/Home.jsx"));
 const ServicesHome = lazy(() => import("./pages/Services.jsx").then((module) => ({ default: module.ServicesHome })));
 const ServiceList = lazy(() => import("./pages/Services.jsx").then((module) => ({ default: module.ServiceList })));
 const ServiceDetails = lazy(() => import("./pages/Services.jsx").then((module) => ({ default: module.ServiceDetails })));
-const Store = lazy(() => import("./pages/Store.jsx").then((module) => ({ default: module.Store })));
-const Cart = lazy(() => import("./pages/Store.jsx").then((module) => ({ default: module.Cart })));
+const Store = lazy(() => import("./pages/Storefront.jsx"));
+const ProductDetails = lazy(() => import("./pages/ProductDetails.jsx"));
+const Cart = lazy(() => import("./pages/CartPage.jsx"));
+const Wishlist = lazy(() => import("./pages/Wishlist.jsx"));
+const Orders = lazy(() => import("./pages/Orders.jsx").then((module) => ({ default: module.Orders })));
+const OrderDetails = lazy(() => import("./pages/Orders.jsx").then((module) => ({ default: module.OrderDetails })));
+const OrderConfirmed = lazy(() => import("./pages/Orders.jsx").then((module) => ({ default: module.OrderConfirmed })));
 const MyPets = lazy(() => import("./pages/Pets.jsx").then((module) => ({ default: module.MyPets })));
 const AddPet = lazy(() => import("./pages/Pets.jsx").then((module) => ({ default: module.AddPet })));
 const PetProfile = lazy(() => import("./pages/Pets.jsx").then((module) => ({ default: module.PetProfile })));
@@ -35,7 +40,12 @@ export default function App() {
           <Route path="/services/:type" element={<ServiceList />} />
           <Route path="/services/:type/:id" element={<ServiceDetails />} />
           <Route path="/store" element={<Store />} />
+          <Route path="/store/:id" element={<ProductDetails />} />
           <Route path="/cart" element={<Cart />} />
+          <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/orders" element={<Orders />} />
+          <Route path="/orders/:id" element={<OrderDetails />} />
+          <Route path="/order-confirmed/:id" element={<OrderConfirmed />} />
           <Route path="/pets" element={<MyPets />} />
           <Route path="/pets/new" element={<AddPet />} />
           <Route path="/pets/:id" element={<PetProfile />} />
