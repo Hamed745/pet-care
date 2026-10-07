@@ -3,24 +3,48 @@
 
 @theme {
 	--font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-	--color-primary-50: #eaf7f4;
-	--color-primary-100: #d0eee7;
-	--color-primary-500: #168575;
-	--color-primary-600: #116e62;
-	--color-primary-700: #0f5b52;
-	--color-accent-50: #fff7e8;
-	--color-accent-400: #f5b84b;
-	--color-accent-500: #e99a20;
-	--color-ink-900: #17312f;
-	--color-ink-700: #385451;
-	--color-ink-500: #758884;
-	--color-danger-600: #c83e3e;
+	--color-primary-50: #f0fdfa;
+	--color-primary-100: #ccfbf1;
+	--color-primary-200: #99f6e4;
+	--color-primary-300: #5eead4;
+	--color-primary-400: #2dd4bf;
+	--color-primary-500: #14b8a6;
+	--color-primary-600: #0f766e;
+	--color-primary-700: #115e59;
+	--color-primary-800: #134e4a;
+	--color-primary-900: #042f2e;
+	--color-accent-50: #fff7ed;
+	--color-accent-400: #fb923c;
+	--color-accent-500: #f97316;
+	--color-ink-900: #0f172a;
+	--color-ink-800: #1e293b;
+	--color-ink-700: #334155;
+	--color-ink-600: #475569;
+	--color-ink-500: #64748b;
+	--color-ink-400: #94a3b8;
+	--color-danger-600: #ef4444;
+	--color-red-50: #fee2e2;
+	--color-red-100: #fee2e2;
+	--color-red-600: #ef4444;
+	--color-red-700: #dc2626;
+	--color-green-100: #dcfce7;
+	--color-green-600: #16a34a;
+	--color-amber-100: #fef3c7;
+	--color-amber-500: #f59e0b;
+	--color-blue-100: #dbeafe;
+	--color-blue-600: #2563eb;
+	--color-stone-50: #f8fafc;
+	--color-stone-100: #f1f5f9;
+	--color-stone-200: #e2e8f0;
+	--color-stone-300: #cbd5e1;
+	--color-stone-400: #94a3b8;
+	--color-stone-500: #64748b;
 }
 
 :root {
 	font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-	color: #17312f;
-	background: #f7faf8;
+	color: #0f172a;
+	background: #f8fafc;
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
@@ -33,8 +57,8 @@ body { margin: 0; min-width: 320px; @apply bg-stone-50 text-ink-900; }
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { text-decoration: none; }
-:focus-visible { outline: 3px solid #e99a20; outline-offset: 3px; }
-::selection { background: #d0eee7; color: #0f5b52; }
+:focus-visible { outline: 3px solid #14b8a6; outline-offset: 3px; }
+::selection { background: #ccfbf1; color: #115e59; }
 
 .page-enter { animation: page-enter 220ms ease-out both; }
 @keyframes page-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
@@ -42,4 +66,182 @@ a { text-decoration: none; }
 @keyframes toast-enter { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.calendar-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1.25rem;
+	align-items: start;
+}
+.calendar-sidebar, .calendar-main { min-width: 0; }
+@media (min-width: 1024px) {
+	.calendar-layout {
+		grid-template-columns: 240px minmax(0, 1fr);
+		gap: 24px;
+	}
+	.calendar-sidebar {
+		position: sticky;
+		top: 6rem;
+		min-height: calc(100vh - 190px);
+	}
+}
+
+.pet-order-tracker { min-width: 0; }
+.pet-order-track-desktop {
+	--order-progress: 0%;
+	position: relative;
+	display: none;
+	height: 126px;
+	margin: 0 8px;
+}
+.pet-order-track-base, .pet-order-track-fill {
+	position: absolute;
+	top: 53px;
+	left: 12.5%;
+	width: 75%;
+	height: 3px;
+	border-radius: 999px;
+}
+.pet-order-track-base { background: #e2e8f0; }
+.pet-order-track-fill {
+	width: var(--order-progress);
+	background: #0f766e;
+	transition: width 850ms cubic-bezier(.2,.75,.25,1);
+}
+.pet-order-courier-position {
+	position: absolute;
+	z-index: 2;
+	top: -2px;
+	left: calc(12.5% + var(--order-progress));
+	transform: translateX(-50%);
+	transition: left 850ms cubic-bezier(.2,.75,.25,1);
+	animation: pet-courier-arrive 360ms ease-out both;
+}
+.pet-courier { display: block; width: 54px; height: 44px; overflow: visible; }
+.pet-courier-package { transform-origin: 16px 36px; }
+.pet-courier-preparing .pet-courier-package { animation: pet-package-ready 1.8s ease-in-out infinite; }
+.pet-order-paw {
+	position: absolute;
+	z-index: 1;
+	top: 47px;
+	color: #cbd5e1;
+	background: #fff;
+	padding: 1px;
+	transform: translateX(-50%) rotate(-18deg);
+	transition: color 400ms ease, transform 400ms ease;
+}
+.pet-order-paw:nth-of-type(even) { transform: translateX(-50%) rotate(18deg); }
+.pet-order-paw.is-complete { color: #0f766e; }
+.pet-order-paw.is-recent { animation: pet-paw-reveal 700ms ease-out both; }
+.pet-order-steps {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.pet-order-step {
+	position: relative;
+	display: flex;
+	align-items: center;
+	flex-direction: column;
+	padding-top: 37px;
+	text-align: center;
+}
+.pet-order-node, .pet-order-mobile-node {
+	position: relative;
+	z-index: 2;
+	display: grid;
+	width: 34px;
+	height: 34px;
+	flex: 0 0 auto;
+	place-items: center;
+	border: 2px solid #cbd5e1;
+	border-radius: 50%;
+	background: #fff;
+	color: #64748b;
+	font-size: 12px;
+	font-weight: 800;
+	transition: background-color 350ms ease, border-color 350ms ease, color 350ms ease, transform 350ms ease;
+}
+.pet-order-step.is-complete .pet-order-node, .pet-order-mobile-step.is-complete .pet-order-mobile-node {
+	border-color: #0f766e;
+	background: #0f766e;
+	color: #fff;
+}
+.pet-order-step.is-active .pet-order-node, .pet-order-mobile-step.is-active .pet-order-mobile-node {
+	border-color: #0f766e;
+	background: #0f766e;
+	color: #fff;
+	box-shadow: 0 0 0 5px #ccfbf1;
+	animation: pet-order-active 2s ease-out infinite;
+}
+.pet-order-step.is-delivered .pet-order-node { animation: pet-order-delivered 420ms ease-out both; }
+.pet-order-step-label { margin-top: 9px; color: #64748b; font-size: 12px; font-weight: 700; }
+.pet-order-step.is-complete .pet-order-step-label, .pet-order-step.is-active .pet-order-step-label,
+.pet-order-mobile-step.is-complete .pet-order-step-label, .pet-order-mobile-step.is-active .pet-order-step-label { color: #115e59; }
+.pet-order-status-message {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 2px 0 0;
+	border-radius: 12px;
+	background: #f0fdfa;
+	padding: 11px 13px;
+	color: #134e4a;
+	font-size: 13px;
+	font-weight: 700;
+}
+.pet-order-status-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #14b8a6; }
+.pet-order-track-mobile { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.pet-order-mobile-step { position: relative; display: flex; min-height: 48px; align-items: center; gap: 12px; }
+.pet-order-mobile-node { width: 30px; height: 30px; }
+.pet-order-mobile-step .pet-order-step-label { margin: 0; font-size: 13px; }
+.pet-order-mobile-connector {
+	position: absolute;
+	top: 31px;
+	left: 8px;
+	z-index: 1;
+	display: flex;
+	height: 18px;
+	align-items: center;
+	gap: 2px;
+	color: #cbd5e1;
+	transform: rotate(90deg);
+}
+.pet-order-mobile-connector.is-complete { color: #0f766e; }
+.pet-courier-mobile { width: 48px; height: 40px; margin-left: auto; }
+.pet-order-mobile-step.is-active .pet-order-mobile-node { box-shadow: 0 0 0 4px #ccfbf1; }
+@keyframes pet-order-active {
+	0%, 100% { box-shadow: 0 0 0 4px #ccfbf1; }
+	50% { box-shadow: 0 0 0 7px rgb(204 251 241 / 55%); }
+}
+@keyframes pet-order-delivered {
+	from { opacity: .4; transform: scale(.75); }
+	to { opacity: 1; transform: scale(1); }
+}
+@keyframes pet-courier-arrive {
+	from { opacity: .65; scale: .94; }
+	to { opacity: 1; scale: 1; }
+}
+@keyframes pet-package-ready {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-1.5px); }
+}
+@keyframes pet-paw-reveal {
+	from { opacity: .35; transform: translateX(-50%) rotate(-18deg) scale(.8); }
+	to { opacity: 1; transform: translateX(-50%) rotate(-18deg) scale(1); }
+}
+@media (min-width: 1024px) {
+	.pet-order-track-desktop { display: block; }
+	.pet-order-track-mobile { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.pet-order-track-fill, .pet-order-courier-position, .pet-order-paw, .pet-order-node, .pet-order-mobile-node {
+		animation: none !important;
+		transition: none !important;
+	}
 }

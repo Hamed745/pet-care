@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import usePersistentState from "./hooks/usePersistentState.js";
 import * as petsService from "./services/petsService.js";
 import * as bookingsService from "./services/bookingsService.js";
@@ -14,6 +14,7 @@ const orderLine = (productId, qty) => {
   const product = storeProducts.find((item) => item.id === productId);
   return { id: product.id, name: product.name, image: product.image, price: product.price, qty, variant: null };
 };
+const createVaccinationId = () => `vaccine-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`}`;
 const initialData = {
   user: null,
   cart: [],
@@ -37,7 +38,7 @@ const initialData = {
     { id: "PC-1062", items: [orderLine(2, 1), orderLine(16, 1)], subtotal: 780, discount: 80, deliveryFee: 35, total: 735, address: { name: "Mina Hassan", phone: "01000000001", city: "Cairo", address: "Garden City" }, status: "Shipped", createdAt: "2026-09-18T10:00:00.000Z" },
   ],
   pets: [
-    { id: 1, name: "Luna", type: "Cat", breed: "Persian", age: 2, gender: "Female", weight: 4, healthStatus: "Healthy", notes: "", vaccines: [{ name: "Rabies", date: "2026-05-01", next: "2027-05-01" }], meds: [], medicalVisits: [] },
+    { id: 1, name: "Luna", type: "Cat", breed: "Persian", age: 2, gender: "Female", weight: 4, healthStatus: "Healthy", notes: "", vaccines: [{ id: "vaccine-1-initial-rabies", petId: 1, name: "Rabies", date: "2026-05-01", next: "2027-05-01" }], meds: [], medicalVisits: [] },
   ],
 };
 
@@ -60,6 +61,30 @@ export function AppProvider({ children }) {
     orders: Array.isArray(data?.orders) ? data.orders : initialData.orders,
     storeSort: ["featured", "price-asc", "price-desc", "rating", "newest"].includes(data?.storeSort) ? data.storeSort : initialData.storeSort,
   };
+  useEffect(() => {
+    const usedIds = new Set();
+    let needsMigration = false;
+    pets.forEach((pet) => (pet.vaccines || []).forEach((vaccine) => {
+      if (!vaccine.id || usedIds.has(vaccine.id) || String(vaccine.petId) !== String(pet.id)) needsMigration = true;
+      if (vaccine.id) usedIds.add(vaccine.id);
+    }));
+    if (!needsMigration) return;
+    setData((current) => {
+      const migratedIds = new Set();
+      const sourcePets = Array.isArray(current.pets) ? current.pets : initialData.pets;
+      return {
+        ...current,
+        pets: sourcePets.map((pet) => ({
+          ...pet,
+          vaccines: (pet.vaccines || []).map((vaccine) => {
+            const id = vaccine.id && !migratedIds.has(vaccine.id) ? vaccine.id : createVaccinationId();
+            migratedIds.add(id);
+            return { ...vaccine, id, petId: pet.id };
+          }),
+        })),
+      };
+    });
+  }, [pets, setData]);
   const setUser = (value) => setData((current) => ({ ...current, user: typeof value === "function" ? value(current.user) : value }));
   const saveUser = async (userData) => { const updated = await authService.updateUser(user, userData); setUser(updated); };
   const setCart = (value) => setData((current) => ({ ...current, cart: typeof value === "function" ? value(current.cart) : value }));
@@ -83,11 +108,32 @@ export function AppProvider({ children }) {
   const deletePet = async (id, { cancelBookings = true } = {}) => {
     const nextPets = await petsService.deletePet(pets, id);
     const nextBookings = await bookingsService.deleteBookingsForPet(bookings, id, cancelBookings);
-    setData((current) => ({ ...current, pets: nextPets, bookings: nextBookings }));
+    setData((current) => ({ ...current, pets: nextPets, bookings: nextBookings, calendarEvents: (current.calendarEvents || []).filter((event) => String(event.petId) !== String(id)) }));
   };
   const addVaccine = async (petId, vaccine) => setPets(await petsService.addVaccination(pets, petId, vaccine));
+  const updateVaccine = async (petId, vaccineId, changes) => {
+    const nextPets = await petsService.updateVaccination(pets, petId, vaccineId, changes);
+    const calendarEventsForPet = (current) => (current.calendarEvents || [])
+      .filter((event) => !(String(event.petId) === String(petId) && event.vaccinationId === vaccineId && !changes.next))
+      .map((event) => String(event.petId) === String(petId) && event.vaccinationId === vaccineId
+        ? { ...event, title: changes.name, date: changes.next, type: "Vaccination" }
+        : event);
+    setData((current) => ({
+      ...current,
+      pets: nextPets,
+      calendarEvents: calendarEventsForPet(current),
+    }));
+  };
   const addMedication = async (petId, medication) => setPets(await petsService.addMedication(pets, petId, medication));
-  const deleteVaccine = async (petId, index) => setPets(await petsService.deleteVaccination(pets, petId, index));
+  const deleteVaccine = async (petId, vaccineId) => {
+    const nextPets = await petsService.deleteVaccination(pets, petId, vaccineId);
+    setData((current) => ({
+      ...current,
+      pets: nextPets,
+      calendarEvents: (current.calendarEvents || []).filter((event) =>
+        !(String(event.petId) === String(petId) && event.vaccinationId === vaccineId)),
+    }));
+  };
   const deleteMedication = async (petId, index) => setPets(await petsService.deleteMedication(pets, petId, index));
   const addMedicalVisit = async (petId, visit) => setPets(await petsService.addMedicalVisit(pets, petId, visit));
   const deleteMedicalVisit = async (petId, visitId) => setPets(await petsService.deleteMedicalVisit(pets, petId, visitId));
@@ -117,5 +163,5 @@ export function AppProvider({ children }) {
   const dismissStorageError = () => setStorageError("");
   const showToast = (message, variant = "success", action) => setNotice((current) => [{ id: `${Date.now()}-${Math.random()}`, message, variant, action }, ...current].slice(0, 3));
   const dismissToast = (id) => setNotice((current) => current.filter((item) => item.id !== id));
-  return <Ctx.Provider value={{ user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, addMedication, deleteVaccine, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, updateVaccine, addMedication, deleteVaccine, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
 }

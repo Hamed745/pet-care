@@ -9,16 +9,16 @@ import PetBagIcon from "./icons/PetBagIcon.jsx";
 import { ToastStack } from "./ui.jsx";
 
 const serviceLinks = [
-  ["/services/vet", "Veterinary", "Trusted health care and checkups.", Stethoscope],
+  ["/services/veterinary", "Veterinary", "Trusted health care and checkups.", Stethoscope],
   ["/services/grooming", "Grooming", "Thoughtful care from nose to tail.", Scissors],
-  ["/services/sitting", "Pet Sitting", "Reliable help at home or outdoors.", Home],
+  ["/services/pet-sitting", "Pet Sitting", "Reliable help at home or outdoors.", Home],
   ["/emergency", "Emergency", "Find urgent local care.", Activity],
   ["/ai", "AI Assistant", "Get quick answers for everyday care.", Bot],
 ];
 
 function Brand() {
   return <Link to="/" aria-label="PetCare home" className="flex shrink-0 items-center gap-2.5 text-ink-900">
-    <span className="grid size-10 place-items-center rounded-2xl bg-primary-600 text-white shadow-sm"><PawPrint size={21} strokeWidth={2.4} /></span>
+    <span className="grid size-10 place-items-center rounded-xl bg-primary-600 text-white"><PawPrint size={21} strokeWidth={2.2} /></span>
     <span className="text-lg font-extrabold tracking-normal">PetCare<span className="text-primary-600">.</span></span>
   </Link>;
 }
@@ -49,26 +49,26 @@ function Navbar() {
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onPointer); };
   }, []);
 
-  const mainLink = ({ isActive }) => `relative flex min-h-10 items-center px-3 text-sm font-semibold text-ink-700 transition hover:text-primary-700 after:absolute after:inset-x-3 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-primary-600 after:transition ${isActive ? "after:scale-x-100" : "after:scale-x-0 hover:after:scale-x-100"}`;
+  const mainLink = ({ isActive }) => `relative flex min-h-10 items-center px-3 text-sm font-medium transition-colors hover:text-primary-700 after:absolute after:inset-x-3 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-primary-600 after:transition-transform ${isActive ? "text-primary-700 after:scale-x-100" : "text-ink-700 after:scale-x-0 hover:after:scale-x-100"}`;
   const closeMenus = () => { setServicesOpen(false); setCommunityOpen(false); setUserOpen(false); };
 
   return <>
-    <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/90 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-stone-200 bg-white">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Brand />
         <nav aria-label="Main navigation" className="hidden items-center gap-1 lg:flex">
           <NavLink to="/" end className={mainLink}>Home</NavLink>
           <div className="relative" data-menu-root>
-            <button type="button" aria-expanded={servicesOpen} onClick={() => { setServicesOpen(!servicesOpen); setCommunityOpen(false); setUserOpen(false); }} style={{ fontSize: 14, fontWeight: 600, lineHeight: "20px", color: "#385451" }} className={`${mainLink({ isActive: location.pathname.startsWith("/services") })} gap-1`}>Services <ChevronDown size={15} className={`transition ${servicesOpen ? "rotate-180" : ""}`} /></button>
-            {servicesOpen && <div className="absolute left-0 top-full z-50 mt-4 w-[340px] rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">
+            <button type="button" aria-expanded={servicesOpen} onClick={() => { setServicesOpen(!servicesOpen); setCommunityOpen(false); setUserOpen(false); }} className={`${mainLink({ isActive: location.pathname.startsWith("/services") })} gap-1`}>Services <ChevronDown size={15} className={`transition ${servicesOpen ? "rotate-180" : ""}`} /></button>
+            {servicesOpen && <div className="absolute left-0 top-full z-50 mt-3 w-[340px] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
               {serviceLinks.map(([to, title, description, Icon]) => <Link key={to} to={to} onClick={closeMenus} className="flex gap-3 rounded-xl p-3 transition hover:bg-primary-50"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-50 text-primary-700"><Icon size={19} /></span><span><span className="block text-sm font-bold text-ink-900">{title}</span><span className="mt-0.5 block text-xs leading-5 text-ink-500">{description}</span></span></Link>)}
             </div>}
           </div>
           <NavLink to="/store" className={mainLink}>Store</NavLink>
           <NavLink to="/adoption" className={mainLink}>Adoption</NavLink>
           <div className="relative" data-menu-root>
-            <button type="button" aria-expanded={communityOpen} onClick={() => { setCommunityOpen(!communityOpen); setServicesOpen(false); setUserOpen(false); }} style={{ fontSize: 14, fontWeight: 600, lineHeight: "20px", color: "#385451" }} className={`${mainLink({ isActive: location.pathname === "/lost-found" })} gap-1`}>Community <ChevronDown size={15} className={`transition ${communityOpen ? "rotate-180" : ""}`} /></button>
-            {communityOpen && <div className="absolute left-0 top-full z-50 mt-4 w-60 rounded-2xl border border-stone-200 bg-white p-2 shadow-xl"><Link to="/lost-found" onClick={closeMenus} className="flex items-center gap-3 rounded-xl p-3 text-sm font-semibold hover:bg-primary-50"><MapPin size={18} className="text-primary-600" /> Lost &amp; Found</Link></div>}
+            <button type="button" aria-expanded={communityOpen} onClick={() => { setCommunityOpen(!communityOpen); setServicesOpen(false); setUserOpen(false); }} className={`${mainLink({ isActive: location.pathname.startsWith("/lost-found") })} gap-1`}>Community <ChevronDown size={15} className={`transition ${communityOpen ? "rotate-180" : ""}`} /></button>
+            {communityOpen && <div className="absolute left-0 top-full z-50 mt-3 w-60 rounded-xl border border-stone-200 bg-white p-2 shadow-lg"><Link to="/lost-found" onClick={closeMenus} className="flex items-center gap-3 rounded-lg p-3 text-sm font-medium hover:bg-primary-50"><MapPin size={18} className="text-primary-600" /> Lost &amp; Found</Link></div>}
           </div>
         </nav>
         <div className="hidden items-center gap-3 lg:flex">
@@ -92,15 +92,15 @@ function Navbar() {
         </div>
       </div>}
     </header>
-    <nav aria-label="Quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-stone-200 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur lg:hidden">
+    <nav aria-label="Quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-stone-200 bg-white px-1 pb-[env(safe-area-inset-bottom)] pt-1 lg:hidden">
       {[ ["/", "Home", Home], ["/services", "Services", Stethoscope], ["/store", "Store", ShoppingBag], ["/pets", "My Pets", PawPrint], [user ? "/profile" : "/login", user ? "Profile" : "Sign in", UserRound] ].map(([to, label, Icon]) => <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-semibold ${isActive ? "text-primary-700" : "text-ink-500"}`}><Icon size={19} strokeWidth={2} /><span>{label}</span></NavLink>)}
     </nav>
   </>;
 }
 
 function Footer() {
-  return <footer data-site-footer="true" className="mt-16 border-t border-stone-200 bg-white">
-    <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr] lg:px-8">
+  return <footer data-site-footer="true" className="mt-14 border-t border-stone-200 bg-white">
+    <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr] lg:px-8">
       <div><Brand /><p className="mt-4 max-w-xs text-sm leading-6 text-ink-500">Thoughtful care, trusted services, and a happier everyday for the pets we love.</p><div className="mt-5 flex gap-2"><a aria-label="Instagram" href="https://instagram.com" className="grid size-9 place-items-center rounded-full bg-stone-100 text-ink-700 hover:bg-primary-50 hover:text-primary-700"><Heart size={17} /></a><a aria-label="Contact" href="mailto:hello@petcare.example" className="grid size-9 place-items-center rounded-full bg-stone-100 text-ink-700 hover:bg-primary-50 hover:text-primary-700"><Phone size={16} /></a></div></div>
       <div><h2 className="text-sm font-bold">Explore</h2><div className="mt-4 grid gap-3 text-sm text-ink-500"><Link className="hover:text-primary-700" to="/services">Services</Link><Link className="hover:text-primary-700" to="/store">Store</Link><Link className="hover:text-primary-700" to="/adoption">Adoption</Link><Link className="hover:text-primary-700" to="/lost-found">Lost &amp; Found</Link></div></div>
       <div><h2 className="text-sm font-bold">Your account</h2><div className="mt-4 grid gap-3 text-sm text-ink-500"><Link className="hover:text-primary-700" to="/pets">My Pets</Link><Link className="hover:text-primary-700" to="/bookings">Bookings</Link><Link className="hover:text-primary-700" to="/calendar">Calendar</Link><Link className="hover:text-primary-700" to="/notifications">Notifications</Link><Link className="hover:text-primary-700" to="/profile">Profile</Link><Link className="hover:text-primary-700" to="/login">Sign in</Link></div></div>

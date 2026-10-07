@@ -31,6 +31,7 @@ const Login = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default:
 const Register = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Register })));
 const Forgot = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Forgot })));
 const Profile = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Profile })));
+const Settings = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Profile })));
 
 function LoadingPage() {
   return <div role="status" aria-label="Loading page" aria-busy="true" className="space-y-6 py-8"><Skeleton className="h-3 w-28" /><Skeleton className="h-10 w-64 max-w-full" /><Skeleton className="h-5 w-96 max-w-full" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Skeleton className="h-56" /><Skeleton className="h-56" /><Skeleton className="hidden h-56 lg:block" /></div></div>;
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<Forgot />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<div className="py-20 text-center"><h1 className="text-3xl font-extrabold">Page not found</h1><p className="mt-3 text-ink-500">We couldn’t find that page.</p><Link to="/" className="mt-6 inline-flex rounded-xl bg-primary-600 px-5 py-3 font-semibold text-white">Back home</Link></div>} />
         </Routes></Suspense>
     </Layout>

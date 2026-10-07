@@ -55,7 +55,7 @@ function favoriteBadge(product) {
   return "";
 }
 
-export function ProductCard({ product, horizontal = false }) {
+export function ProductCard({ product, horizontal = false, listing = false }) {
   const { cart, favorites, toggleFavorite, addCartProduct, updateCartQuantity, showToast } = useApp();
   const isFavorite = favorites.includes(product.id);
   const inCart = cart.filter((item) => item.id === product.id).reduce((total, item) => total + item.qty, 0);
@@ -63,12 +63,12 @@ export function ProductCard({ product, horizontal = false }) {
   const badge = favoriteBadge(product);
   const add = async () => { await addCartProduct(product); showToast(`${product.name} added to your cart.`, "success", { label: "View cart", to: "/cart" }); };
   const addExistingVariant = async () => { await addCartProduct(product, cartEntry?.variant); };
-  const cardClass = `${card} relative flex h-full flex-col overflow-hidden p-3 sm:p-4 ${horizontal ? "w-[220px] shrink-0 snap-start sm:w-[244px]" : ""}`;
+  const cardClass = `${card} relative flex h-full flex-col overflow-hidden p-3 sm:p-4 ${listing ? "rounded-2xl border-slate-200 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-md" : ""} ${horizontal ? "w-[220px] shrink-0 snap-start sm:w-[244px]" : ""}`;
   return <article className={cardClass}>
     <Link to={`/store/${product.id}`} aria-label={`View ${product.name}`} className="absolute inset-0 z-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500" />
     <div className="relative z-10 flex h-full min-w-0 flex-1 flex-col pointer-events-none">
     <div className="relative overflow-hidden rounded-xl">
-      <ProductImage src={product.images[0]} alt={product.name} category={product.category} className={`aspect-square w-full object-cover ${product.stock === 0 ? "opacity-45" : ""}`} />
+      <ProductImage src={product.images[0]} alt={product.name} category={product.category} className={`${listing ? "aspect-[4/3] bg-stone-50 object-contain" : "aspect-square object-cover"} w-full ${product.stock === 0 ? "opacity-45" : ""}`} />
       {badge && <Badge variant={product.oldPrice ? "danger" : "neutral"} className="absolute left-2 top-2 max-w-[70%] truncate bg-white/95">{badge}</Badge>}
       <button type="button" aria-label={`${isFavorite ? "Remove from" : "Add to"} wishlist: ${product.name}`} aria-pressed={isFavorite} onClick={() => toggleFavorite(product.id)} className={`pointer-events-auto absolute right-2 top-2 grid size-9 place-items-center rounded-full bg-white/95 shadow-sm transition hover:scale-105 ${isFavorite ? "text-danger-600" : "text-ink-700"}`}><Heart size={17} fill={isFavorite ? "currentColor" : "none"} /></button>
     </div>
@@ -100,7 +100,72 @@ export function Gallery({ images, alt, category }) {
 }
 
 const orderSteps = ["Placed", "Preparing", "Shipped", "Delivered"];
+const orderMessages = {
+  Placed: "Your order has been received.",
+  Preparing: "We're preparing your order.",
+  Shipped: "Your order is on the way.",
+  Delivered: "Your order has been delivered.",
+  Cancelled: "This order was cancelled.",
+};
+
+function PetCourier({ status, className = "" }) {
+  return <svg aria-hidden="true" viewBox="0 0 72 56" className={`pet-courier ${className} ${status === "Preparing" ? "pet-courier-preparing" : ""}`}>
+    <g className="pet-courier-package">
+      <path d="M3 27 16 20l13 7v17l-13 7-13-7Z" fill="#FDE6C8" stroke="#C87936" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="m3 27 13 7 13-7M16 34v17m-7-21 13-7" fill="none" stroke="#C87936" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="m13 23 6 3" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </g>
+    <path d="M33 42c1-9 7-14 17-14 7 0 12 4 13 12v5H34Z" fill="#0F766E" />
+    <path d="M58 28c0-8 4-13 9-13s8 5 8 11c0 7-4 12-10 12s-9-4-9-10Z" fill="#D9A36F" />
+    <path d="M61 18c-5-7-2-12 2-11l6 10m2 2c5-6 8-4 6 2l-4 7" fill="#A66D45" />
+    <path d="M62 25c1-1 2-1 3 0m6 0c1-1 2-1 3 0" fill="none" stroke="#263238" strokeWidth="1.6" strokeLinecap="round" />
+    <ellipse cx="68" cy="30" rx="2.2" ry="1.7" fill="#263238" />
+    <path d="M65 34c2 2 4 2 6 0" fill="none" stroke="#263238" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M40 43v5m13-5v5" stroke="#A66D45" strokeWidth="3" strokeLinecap="round" />
+    <path d="M33 31c-4-4-6-2-5 1" fill="none" stroke="#A66D45" strokeWidth="2.2" strokeLinecap="round" />
+    <circle cx="40" cy="49" r="2" fill="#475569" /><circle cx="55" cy="49" r="2" fill="#475569" />
+  </svg>;
+}
+
 export function OrderTimeline({ status }) {
   const current = status === "Delivered" ? 3 : status === "Shipped" ? 2 : status === "Preparing" || status === "Cancelled" ? 1 : 0;
-  return <ol aria-label="Order status" className="grid grid-cols-4 gap-2">{orderSteps.map((step, index) => <li key={step} className="relative flex flex-col items-center text-center"><span className={`grid size-8 place-items-center rounded-full border-2 ${index <= current ? "border-primary-600 bg-primary-600 text-white" : "border-stone-300 bg-white text-ink-500"}`}>{index < current ? <Check size={15} /> : <span className="text-xs font-bold">{index + 1}</span>}</span><span className={`mt-2 text-[10px] font-bold sm:text-xs ${index <= current ? "text-primary-700" : "text-ink-500"}`}>{step}</span></li>)}</ol>;
+  const progress = current / (orderSteps.length - 1);
+  const message = orderMessages[status] || orderMessages.Placed;
+  const paws = Array.from({ length: 9 }, (_, index) => {
+    const segment = Math.floor(index / 3);
+    const position = 19 + index * 7.75;
+    return { index, segment, position, completed: segment < current, recent: current > 0 && segment === current - 1 };
+  });
+
+  return <div className="pet-order-tracker" data-status={status}>
+    <div className="pet-order-track-desktop" style={{ "--order-progress": `${progress * 75}%` }}>
+      <div className="pet-order-courier-position"><PetCourier status={status} /></div>
+      <div className="pet-order-track-base" />
+      <div className="pet-order-track-fill" />
+      {paws.map((paw) => <PawPrint key={paw.index} aria-hidden="true" size={15} className={`pet-order-paw ${paw.completed ? "is-complete" : ""} ${paw.recent ? "is-recent" : ""}`} style={{ left: `${paw.position}%` }} />)}
+      <ol aria-label="Order delivery progress" className="pet-order-steps">
+        {orderSteps.map((step, index) => {
+          const complete = index < current;
+          const active = index === current;
+          return <li key={step} aria-current={active ? "step" : undefined} className={`pet-order-step ${complete ? "is-complete" : ""} ${active ? "is-active" : ""} ${active && status === "Delivered" ? "is-delivered" : ""}`}>
+            <span className="pet-order-node">{complete ? <Check size={15} strokeWidth={2.8} /> : <span>{index + 1}</span>}</span>
+            <span className="pet-order-step-label">{step}</span>
+          </li>;
+        })}
+      </ol>
+    </div>
+    <ol aria-label="Order delivery progress" className="pet-order-track-mobile">
+      {orderSteps.map((step, index) => {
+        const complete = index < current;
+        const active = index === current;
+        return <li key={step} aria-current={active ? "step" : undefined} className={`pet-order-mobile-step ${complete ? "is-complete" : ""} ${active ? "is-active" : ""}`}>
+          <span className="pet-order-mobile-node">{complete ? <Check size={15} strokeWidth={2.8} /> : <span>{index + 1}</span>}</span>
+          <span className="pet-order-step-label">{step}</span>
+          {active && <PetCourier status={status} className="pet-courier-mobile" />}
+          {index < orderSteps.length - 1 && <span className={`pet-order-mobile-connector ${index < current ? "is-complete" : ""}`}><PawPrint size={13} /><PawPrint size={13} /></span>}
+        </li>;
+      })}
+    </ol>
+    <p aria-live="polite" className="pet-order-status-message"><span className="pet-order-status-dot" />{message}</p>
+  </div>;
 }

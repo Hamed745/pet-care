@@ -3,21 +3,21 @@ import { AlertTriangle, Check, Info, Star, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const buttonStyles = {
-  primary: "bg-primary-600 text-white shadow-sm hover:bg-primary-700 hover:shadow-md",
-  secondary: "border border-primary-100 bg-white text-primary-700 hover:border-primary-500 hover:bg-primary-50",
+  primary: "bg-primary-600 text-white hover:bg-primary-700",
+  secondary: "border border-stone-200 bg-white text-primary-700 hover:border-primary-100 hover:bg-primary-50",
   ghost: "text-ink-700 hover:bg-stone-100",
   danger: "bg-danger-600 text-white hover:bg-red-700",
 };
-const buttonSizes = { sm: "min-h-9 px-3 text-xs", md: "min-h-11 px-5 text-sm", lg: "min-h-12 px-6 text-sm" };
+const buttonSizes = { sm: "min-h-9 rounded-lg px-3 text-xs", md: "min-h-11 px-5 text-sm", lg: "min-h-12 px-6 text-sm" };
 
 export function Button({ variant = "primary", size = "md", loading = false, disabled = false, className = "", children, ...props }) {
-  return <button disabled={disabled || loading} className={`inline-flex items-center justify-center gap-2 rounded-xl font-bold transition duration-200 disabled:pointer-events-none disabled:opacity-50 ${buttonStyles[variant] || buttonStyles.primary} ${buttonSizes[size] || buttonSizes.md} ${className}`} {...props}>{loading && <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent" />}{children}</button>;
+  return <button disabled={disabled || loading} className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 disabled:pointer-events-none disabled:opacity-50 ${buttonStyles[variant] || buttonStyles.primary} ${buttonSizes[size] || buttonSizes.md} ${className}`} {...props}>{loading && <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent" />}{children}</button>;
 }
 
 function FormControl({ as: Element = "input", label, error, id, className = "", ...props }) {
   const generatedId = useId();
   const controlId = id || generatedId;
-  return <div className="w-full"><label htmlFor={controlId} className="mb-2 block text-xs font-bold text-ink-700">{label}</label><Element id={controlId} aria-invalid={Boolean(error)} aria-describedby={error ? `${controlId}-error` : undefined} className={`w-full rounded-xl border bg-white px-4 py-3 text-sm text-ink-900 placeholder:text-stone-400 transition focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-100 ${error ? "border-danger-600" : "border-stone-300"} ${className}`} {...props} />{error && <p id={`${controlId}-error`} className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-danger-600"><AlertCircle size={13} />{error}</p>}</div>;
+  return <div className="w-full"><label htmlFor={controlId} className="mb-2 block text-xs font-semibold text-ink-700">{label}</label><Element id={controlId} aria-invalid={Boolean(error)} aria-describedby={error ? `${controlId}-error` : undefined} className={`w-full rounded-xl border bg-white px-4 py-3 text-sm text-ink-900 placeholder:text-ink-500/70 transition focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-100 ${error ? "border-danger-600" : "border-stone-200"} ${className}`} {...props} />{error && <p id={`${controlId}-error`} className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-danger-600"><AlertTriangle size={13} />{error}</p>}</div>;
 }
 
 export const Input = (props) => <FormControl as="input" {...props} />;
@@ -25,13 +25,13 @@ export const Select = (props) => <FormControl as="select" {...props} />;
 export const Textarea = (props) => <FormControl as="textarea" {...props} />;
 
 export function Card({ as: Element = "div", className = "", children, ...props }) {
-  return <Element className={`rounded-2xl border border-stone-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(23,49,47,0.28)] ${className}`} {...props}>{children}</Element>;
+  return <Element className={`rounded-2xl border border-stone-200 bg-white p-5 shadow-sm ${className}`} {...props}>{children}</Element>;
 }
 
 const badgeStyles = {
-  neutral: "bg-stone-100 text-ink-700",
-  success: "bg-primary-50 text-primary-700",
-  warning: "bg-accent-50 text-amber-800",
+  neutral: "bg-slate-100 text-slate-700",
+  success: "bg-green-100 text-green-700",
+  warning: "bg-amber-100 text-amber-800",
   danger: "bg-red-50 text-danger-600",
 };
 export function Badge({ variant = "neutral", className = "", children, ...props }) {
@@ -39,7 +39,7 @@ export function Badge({ variant = "neutral", className = "", children, ...props 
 }
 
 export function Tabs({ items, value, onChange, label = "Sections", className = "" }) {
-  return <div role="tablist" aria-label={label} className={`inline-flex gap-1 rounded-xl bg-stone-100 p-1 ${className}`}>{items.map((item) => { const itemValue = typeof item === "string" ? item : item.value; const text = typeof item === "string" ? item : item.label; return <button key={itemValue} type="button" role="tab" aria-selected={value === itemValue} onClick={() => onChange(itemValue)} className={`min-h-10 rounded-lg px-4 text-sm font-bold transition ${value === itemValue ? "bg-white text-primary-700 shadow-sm" : "text-ink-500 hover:text-ink-900"}`}>{text}</button>; })}</div>;
+  return <div role="tablist" aria-label={label} className={`inline-flex gap-1 rounded-xl border border-stone-200 bg-stone-100 p-1 ${className}`}>{items.map((item) => { const itemValue = typeof item === "string" ? item : item.value; const text = typeof item === "string" ? item : item.label; return <button key={itemValue} type="button" role="tab" aria-selected={value === itemValue} onClick={() => onChange(itemValue)} className={`min-h-10 rounded-lg px-4 text-sm font-semibold transition-colors ${value === itemValue ? "bg-white text-primary-700 shadow-sm" : "text-ink-500 hover:text-ink-900"}`}>{text}</button>; })}</div>;
 }
 
 export function Modal({ open, onClose, title, children, className = "" }) {

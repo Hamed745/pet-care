@@ -13,14 +13,85 @@ const listingFields = { name: "", type: "Dog", breed: "", age: "", gender: "Fema
 const getPhoto = (animal) => animal.photo || animal.images?.[0] || animal.image;
 
 export function AdoptionHub() {
-  const { adoptionListings } = useApp();
+  const { adoptionListings, user } = useApp();
   const [filters, setFilters] = useState({ q: "", city: "", type: "", breed: "", age: "", gender: "" });
-  const animals = [...adoptionListings, ...adoptions.map((animal) => ({ ...animal, status: "Available", description: animal.description || `${animal.name} is looking for a caring home.`, ownerId: null }))].filter((animal) => animal.status !== "Adopted");
+  const [sort, setSort] = useState("newest");
+  const animals = useMemo(() => [...adoptionListings, ...adoptions.map((animal) => ({ ...animal, status: "Available", description: animal.description || `${animal.name} is looking for a caring home.`, ownerId: null }))].filter((animal) => animal.status !== "Adopted"), [adoptionListings]);
+  const cities = [...new Set(animals.map((animal) => animal.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const types = [...new Set(animals.map((animal) => animal.type).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const breeds = [...new Set(animals.map((animal) => animal.breed).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const genders = [...new Set(animals.map((animal) => animal.gender).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const update = (key) => (event) => setFilters((current) => ({ ...current, [key]: event.target.value }));
-  const list = useMemo(() => animals.filter((animal) => (!filters.q || `${animal.name} ${animal.breed} ${animal.city}`.toLowerCase().includes(filters.q.toLowerCase())) && (!filters.type || animal.type === filters.type) && (!filters.city || animal.city === filters.city) && (!filters.breed || animal.breed.toLowerCase().includes(filters.breed.toLowerCase())) && (!filters.gender || animal.gender === filters.gender) && (!filters.age || Number(animal.age) <= Number(filters.age))), [adoptionListings, filters]);
-  return <div><header className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">Make room for love</p><h1 className="mt-2 text-3xl font-extrabold">Meet your new best friend</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500">Find a good match close to home or share an animal looking for a family.</p></div><div className="flex flex-wrap gap-2"><Link to="/adoption/my-listings" className={btn2}>My listings</Link><Link to="/adoption/new" className={btn}><Plus size={16} /> Publish listing</Link></div></header>
-    <div className="mb-6 grid gap-3 rounded-xl border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-6"><label className="relative sm:col-span-2"><span className="sr-only">Search adoption listings</span><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" /><input aria-label="Search adoption listings" className={`${input} pl-9`} placeholder="Search animals" value={filters.q} onChange={update("q")} /></label><label><span className="sr-only">Animal type</span><select aria-label="Animal type" className={input} value={filters.type} onChange={update("type")}><option value="">All types</option>{animalTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span className="sr-only">City</span><select aria-label="Adoption city" className={input} value={filters.city} onChange={update("city")}><option value="">All cities</option>{[...new Set(animals.map((animal) => animal.city))].filter(Boolean).sort().map((city) => <option key={city}>{city}</option>)}</select></label><label><span className="sr-only">Breed</span><input aria-label="Breed" className={input} placeholder="Breed" value={filters.breed} onChange={update("breed")} /></label><label><span className="sr-only">Maximum age</span><input aria-label="Maximum age" className={input} type="number" min="0" placeholder="Max age" value={filters.age} onChange={update("age")} /></label><label><span className="sr-only">Gender</span><select aria-label="Gender" className={input} value={filters.gender} onChange={update("gender")}><option value="">Any gender</option><option>Female</option><option>Male</option></select></label></div>
-    {list.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{list.map((animal) => <article key={animal.id} className={`${card} flex h-full flex-col overflow-hidden p-0`}><Link to={`/adoption/${animal.id}`} className="relative block h-52 bg-primary-50"><Media src={getPhoto(animal)} alt={`${animal.name}, ${animal.breed || animal.type}`} className="size-full object-cover" /><Badge className="absolute left-3 top-3" variant="success">{animal.status || "Available"}</Badge></Link><div className="flex flex-1 flex-col p-4"><h2 className="text-lg font-extrabold"><Link to={`/adoption/${animal.id}`}>{animal.name}</Link></h2><p className="mt-1 text-sm text-ink-500">{animal.breed || "Mixed breed"} · {animal.age} years · {animal.gender}</p><p className="mt-3 flex items-center gap-1 text-xs text-ink-500"><MapPin size={14} /> {animal.city}</p><p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-500">{animal.description}</p><Link to={`/adoption/${animal.id}`} className={`${btn2} mt-auto w-full`}><Heart size={15} /> View adoption details</Link></div></article>)}</div> : <EmptyState title="No animals match these filters" description="Try changing your search or filters." icon={PawPrint} action={<button className={btn2} onClick={() => setFilters({ q: "", city: "", type: "", breed: "", age: "", gender: "" })}>Clear filters</button>} />}</div>;
+  const filteredAnimals = animals.filter((animal) =>
+    (!filters.q || `${animal.name || ""} ${animal.breed || ""}`.toLowerCase().includes(filters.q.trim().toLowerCase())) &&
+    (!filters.type || animal.type === filters.type) &&
+    (!filters.city || animal.city === filters.city) &&
+    (!filters.breed || animal.breed === filters.breed) &&
+    (!filters.gender || animal.gender === filters.gender) &&
+    (!filters.age || (animal.age !== undefined && animal.age !== null && animal.age !== "" && Number.isFinite(Number(animal.age)) && Number(animal.age) <= Number(filters.age))));
+  const list = [...filteredAnimals].sort((a, b) => {
+    if (sort === "oldest") return (Date.parse(a.createdAt) || Number(a.id) || 0) - (Date.parse(b.createdAt) || Number(b.id) || 0);
+    if (sort === "age") return Number(a.age || 0) - Number(b.age || 0) || String(a.name).localeCompare(String(b.name));
+    if (sort === "name") return String(a.name).localeCompare(String(b.name));
+    return (Date.parse(b.createdAt) || Number(b.id) || 0) - (Date.parse(a.createdAt) || Number(a.id) || 0);
+  });
+  const clearFilters = () => setFilters({ q: "", city: "", type: "", breed: "", age: "", gender: "" });
+
+  return <div className="grid min-w-0 gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-6">
+    <aside aria-label="Adoption filters" className="min-w-0 rounded-2xl border border-stone-200 bg-white p-4">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary-700">Find a companion</p><h2 className="mt-1 text-lg font-extrabold text-ink-900">Filters</h2></div>
+        <button type="button" onClick={clearFilters} className="text-xs font-semibold text-primary-700 hover:text-primary-800">Clear</button>
+      </div>
+      <div className="space-y-3.5">
+        <label className="block text-xs font-bold text-ink-700">Search
+          <span className="relative mt-1.5 block"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" /><input aria-label="Search adoption listings" className={`${input} min-h-10 pl-9 text-sm`} placeholder="Search by name or breed..." value={filters.q} onChange={update("q")} /></span>
+        </label>
+        <label className="block text-xs font-bold text-ink-700">City
+          <select aria-label="Adoption city" className={`${input} mt-1.5 min-h-10 text-sm`} value={filters.city} onChange={update("city")}><option value="">All Cities</option>{cities.map((city) => <option key={city}>{city}</option>)}</select>
+        </label>
+        <label className="block text-xs font-bold text-ink-700">Animal Type
+          <select aria-label="Animal type" className={`${input} mt-1.5 min-h-10 text-sm`} value={filters.type} onChange={update("type")}><option value="">All Types</option>{types.map((type) => <option key={type}>{type}</option>)}</select>
+        </label>
+        <label className="block text-xs font-bold text-ink-700">Breed
+          <select aria-label="Breed" className={`${input} mt-1.5 min-h-10 text-sm`} value={filters.breed} onChange={update("breed")}><option value="">All Breeds</option>{breeds.map((breed) => <option key={breed}>{breed}</option>)}</select>
+        </label>
+        <label className="block text-xs font-bold text-ink-700">Age
+          <span className="relative mt-1.5 block"><input aria-label="Maximum age" className={`${input} min-h-10 pe-14 text-sm`} type="number" min="0" placeholder="Any age" value={filters.age} onChange={update("age")} /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-ink-400">max yrs</span></span>
+        </label>
+        {genders.length > 0 && <label className="block text-xs font-bold text-ink-700">Gender
+          <select aria-label="Gender" className={`${input} mt-1.5 min-h-10 text-sm`} value={filters.gender} onChange={update("gender")}><option value="">Any Gender</option>{genders.map((gender) => <option key={gender}>{gender}</option>)}</select>
+        </label>}
+      </div>
+      <p className="mt-4 border-t border-stone-100 pt-3 text-xs text-ink-500">{list.length} {list.length === 1 ? "animal" : "animals"} found</p>
+    </aside>
+
+    <section className="min-w-0">
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">Make room for love</p><h1 className="mt-1 text-2xl font-extrabold text-ink-900 sm:text-3xl">Animals for Adoption</h1><p className="mt-1 text-sm text-ink-500">{list.length} {list.length === 1 ? "animal" : "animals"} to meet</p></div>
+        <div className="flex flex-wrap items-center gap-2">
+          {user && <Link to="/adoption/my-listings" className={`${btn2} min-h-10 px-3 text-sm`}>My listings</Link>}
+          <Link to="/adoption/new" className={`${btn} min-h-10 px-3 text-sm`}><Plus size={15} />Publish a Pet</Link>
+          <label className="flex items-center gap-2 text-xs font-semibold text-ink-500">Sort by
+            <select aria-label="Sort adoption listings" className={`${input} min-h-10 w-auto py-1.5 text-sm`} value={sort} onChange={(event) => setSort(event.target.value)}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="age">Age</option><option value="name">Name</option></select>
+          </label>
+        </div>
+      </header>
+
+      {list.length ? <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {list.map((animal) => <article key={`${animal.ownerId || "demo"}-${animal.id}`} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+          <Link to={`/adoption/${animal.id}`} aria-label={`View details for ${animal.name}`} className="relative block h-44 shrink-0 overflow-hidden bg-primary-50 sm:h-48"><Media src={getPhoto(animal)} alt={`${animal.name}, ${animal.breed || animal.type}`} className="size-full object-cover" /><Badge className="absolute left-3 top-3" variant={animal.status === "Available" ? "success" : "neutral"}>{animal.status || "Available"}</Badge></Link>
+          <div className="flex flex-1 flex-col p-3.5">
+            <h2 className="truncate text-base font-extrabold text-ink-900"><Link to={`/adoption/${animal.id}`}>{animal.name}</Link></h2>
+            <p className="mt-1 truncate text-xs text-ink-500">{animal.type}{animal.breed ? ` · ${animal.breed}` : ""}{animal.age !== undefined && animal.age !== "" ? ` · ${animal.age} ${Number(animal.age) === 1 ? "year" : "years"}` : ""}{animal.gender ? ` · ${animal.gender}` : ""}</p>
+            {animal.city && <p className="mt-2 flex items-center gap-1 text-xs text-ink-500"><MapPin size={13} />{animal.city}</p>}
+            <div className="mt-2 flex flex-wrap gap-1.5">{animal.health && <Badge variant="neutral">{animal.health}</Badge>}</div>
+            <Link to={`/adoption/${animal.id}`} className={`${btn2} mt-3 min-h-9 w-full px-3 text-xs`}><Heart size={14} />View Details</Link>
+          </div>
+        </article>)}
+      </div> : <EmptyState title="No animals found" description="Try adjusting your filters." icon={PawPrint} action={<button type="button" className={btn2} onClick={clearFilters}>Clear filters</button>} />}
+    </section>
+  </div>;
 }
 
 export function AdoptionDetails() {
