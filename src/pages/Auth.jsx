@@ -6,6 +6,7 @@ import { btn, btn2, card, input } from "../ui.js";
 import Media from "../components/Media.jsx";
 import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
+import { getCurrentAuthUser, loginWithEmail, registerWithEmail, updateAuthDisplayName } from "../services/authService.js";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -64,21 +65,58 @@ export function Login() {
   const { user, saveUser } = useApp();
   const nav = useNavigate();
   const location = useLocation();
-  const [f, setF] = useState({ email: "", password: "" });
+  const [f, setF] = useState({ email: "", password: "", remember: true });
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const loginErrorMessage = (error) => {
+    switch (error?.code) {
+      case "auth/invalid-credential":
+      case "auth/user-not-found":
+      case "auth/wrong-password":
+        return "Invalid email or password.";
+      case "auth/invalid-email":
+        return "Please enter a valid email address.";
+      case "auth/too-many-requests":
+        return "Too many login attempts. Please try again later.";
+      case "auth/network-request-failed":
+        return "Unable to connect. Please check your internet connection.";
+      default:
+        return "Unable to sign in. Please try again.";
+    }
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    setErr("");
+    setSaving(true);
+    try {
+      const credential = await loginWithEmail(f.email, f.password, f.remember);
+      const firebaseUser = credential.user;
+      const savedProfile = user?.uid === firebaseUser.uid ? user : {};
+      await saveUser({
+        uid: firebaseUser.uid,
+        name: firebaseUser.displayName || "",
+        email: firebaseUser.email || "",
+        emailVerified: firebaseUser.emailVerified,
+        photoURL: firebaseUser.photoURL || "",
+        phone: savedProfile.phone || "",
+        city: savedProfile.city || "",
+        avatar: savedProfile.avatar || "",
+      });
+      nav(location.state?.from || "/");
+    } catch (error) {
+      if (!getCurrentAuthUser()) await saveUser(null);
+      setErr(loginErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <AuthShell title="Welcome back" eyebrow="Your pet's care, together">
-      <form className="mt-7 space-y-5" onSubmit={async (event) => {
-        event.preventDefault();
-        setSaving(true);
-        try {
-          await saveUser({ name: user?.name?.trim() || displayNameFromEmail(f.email), email: f.email, phone: user?.phone || "", city: user?.city || "", avatar: user?.avatar || "" });
-          nav(location.state?.from || "/");
-        } finally {
-          setSaving(false);
-        }
-      }}>
+      <form className="mt-7 space-y-5" onSubmit={submit}>
         <label htmlFor="login-email" className="block text-[11px] font-bold text-ink-700">
           Email address
           <span className="relative mt-2 block">
@@ -91,12 +129,13 @@ export function Login() {
 
         <div className="flex items-center justify-between gap-3 text-sm">
           <label className="flex items-center gap-2 text-ink-600">
-            <input type="checkbox" className="accent-primary-600" defaultChecked />
+            <input type="checkbox" className="accent-primary-600" checked={f.remember} onChange={(event) => setF({ ...f, remember: event.target.checked })} />
             Remember me
           </label>
           <Link className="font-bold text-primary-700 hover:underline" to="/forgot-password">Forgot password?</Link>
         </div>
 
+        {err && <p role="alert" className="text-sm font-semibold text-danger-600">{err}</p>}
         <Button disabled={saving} className="w-full">{saving ? "Signing in..." : "Log in"}</Button>
       </form>
 
@@ -106,7 +145,7 @@ export function Login() {
 }
 
 export function Register() {
-  const { saveUser } = useApp();
+  const { saveUser, showToast } = useApp();
   const nav = useNavigate();
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -114,15 +153,49 @@ export function Register() {
 
   const set = (key) => (event) => setF({ ...f, [key]: event.target.type === "checkbox" ? event.target.checked : event.target.value });
 
+  const registrationErrorMessage = (error) => {
+    switch (error?.code) {
+      case "auth/email-already-in-use":
+        return "An account already exists with this email address.";
+      case "auth/invalid-email":
+        return "Enter a valid email address.";
+      case "auth/weak-password":
+        return "Choose a stronger password with at least 6 characters.";
+      case "auth/network-request-failed":
+        return "Could not connect to the server. Check your internet connection and try again.";
+      default:
+        return "We couldn't create your account. Please try again.";
+    }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
+    setErr("");
     if (f.password.length < 6) return setErr("Password must be at least 6 characters.");
     if (f.password !== f.confirm) return setErr("Passwords do not match.");
     if (!f.city.trim()) return setErr("City is required.");
     setSaving(true);
     try {
-      await saveUser({ name: f.name, email: f.email, phone: f.phone, city: f.city });
+      const credential = await registerWithEmail(f.email, f.password);
+      let displayNameSaved = true;
+      try {
+        await updateAuthDisplayName(credential.user, f.name.trim());
+      } catch {
+        displayNameSaved = false;
+      }
+      await saveUser({
+        uid: credential.user.uid,
+        email: credential.user.email || f.email,
+        name: f.name.trim(),
+        phone: f.phone,
+        city: f.city.trim(),
+      });
       nav("/");
+      if (!displayNameSaved) {
+        showToast("Your account was created, but your display name could not be saved to Firebase.", "warning");
+      }
+    } catch (error) {
+      setErr(registrationErrorMessage(error));
     } finally {
       setSaving(false);
     }
