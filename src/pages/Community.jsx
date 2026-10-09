@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ArrowRight, Check, Heart, Image as ImageIcon, MapPin, Phone, Plus, Search, ShieldCheck, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Check, Heart, Image as ImageIcon, MapPin, PawPrint, Phone, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { adoptions, lostItems } from "../data.js";
 import { btn, btn2, card, input } from "../ui.js";
 import Media from "../components/Media.jsx";
@@ -30,6 +31,29 @@ export function Adoption() {
   const list = adoptions.filter((a) => (!type || a.type === type) && (!city || a.city === city));
   return <div><div className="mb-8"><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">Make room for love</p><h1 className="mt-2 text-3xl font-extrabold">Meet your new best friend</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500">These pets are looking for a safe, loving home. Find a good match close to you.</p></div><div className="mb-6 grid gap-3 rounded-2xl border border-stone-200 bg-white p-4 sm:grid-cols-2"><label><span className="sr-only">Filter by animal type</span><select aria-label="Filter by animal type" className={input} value={type} onChange={(e) => setType(e.target.value)}><option value="">All types</option><option>Dog</option><option>Cat</option><option>Bird</option></select></label><label><span className="sr-only">Filter by city</span><select aria-label="Filter by city" className={input} value={city} onChange={(e) => setCity(e.target.value)}><option value="">All cities</option><option>Cairo</option><option>Giza</option><option>Alexandria</option></select></label></div>
     {list.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{list.map((animal) => <article key={animal.id} className={`${card} overflow-hidden p-0`}><div className="relative h-56"><Media src={animal.image} alt={`${animal.name}, ${animal.breed}`} className="h-full w-full object-cover" /><span className="absolute left-3 top-3 rounded-full bg-primary-50 px-3 py-1 text-xs font-extrabold text-primary-700">{animal.health}</span><span className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white text-danger-600"><Heart size={17} /></span></div><div className="p-4"><h2 className="text-lg font-extrabold">{animal.name}</h2><p className="mt-1 text-sm text-ink-500">{animal.breed} · {animal.age} years · {animal.gender}</p><p className="mt-3 flex items-center gap-1 text-xs font-semibold text-ink-500"><MapPin size={14} /> {animal.city}</p><button disabled={sent.includes(animal.id)} onClick={() => setSent([...sent, animal.id])} className={`${btn} mt-4 w-full text-sm disabled:bg-stone-400`}>{sent.includes(animal.id) ? <><Check size={16} /> Request sent</> : <><Heart size={16} /> Ask about adoption</>}</button></div></article>)}</div> : <div className={`${card} py-14 text-center`}><Search className="mx-auto text-ink-500" /><h2 className="mt-3 font-extrabold">No pets match these filters</h2><p className="mt-1 text-sm text-ink-500">Choose another type or city to keep looking.</p><button className={`${btn2} mt-4`} onClick={() => { setType(""); setCity(""); }}>Clear filters</button></div>}</div>;
+}
+
+export function LostFoundComingSoon() {
+  return (
+    <section className="relative isolate flex min-h-[60vh] items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-primary-50 via-white to-teal-100 px-4 py-14 sm:px-8">
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute left-8 top-10 size-12 -rotate-12 text-primary-700/10 sm:left-16 sm:top-14 sm:size-16" />
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute right-8 top-16 size-10 rotate-12 text-primary-700/10 sm:right-20 sm:top-20 sm:size-14" />
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute bottom-10 left-12 size-10 rotate-12 text-primary-700/10 sm:bottom-14 sm:left-24 sm:size-14" />
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute bottom-12 right-10 size-12 -rotate-12 text-primary-700/10 sm:right-20 sm:size-16" />
+      <div className="relative z-10 w-full max-w-xl rounded-3xl border border-stone-200 bg-white/95 px-6 py-9 text-center shadow-[0_20px_60px_rgba(15,118,110,0.10)] sm:px-12 sm:py-12">
+        <span className="relative mx-auto grid size-20 place-items-center rounded-3xl bg-primary-100 text-primary-700">
+          <Search size={42} strokeWidth={1.8} />
+          <PawPrint aria-hidden="true" size={18} className="absolute left-5 top-5 rounded-full bg-primary-100" />
+        </span>
+        <span className="mx-auto mt-6 inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">Coming Soon</span>
+        <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">Lost &amp; Found</h1>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-ink-500 sm:text-base">We&apos;re working on a dedicated space to help lost pets find their way home. Stay tuned!</p>
+        <Link to="/" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary-600 px-6 text-sm font-bold text-white transition hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">
+          Back to Home <ArrowRight size={16} />
+        </Link>
+      </div>
+    </section>
+  );
 }
 
 export function LostFound() {

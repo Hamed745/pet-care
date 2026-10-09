@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, CalendarDays, Eye, EyeOff, Heart, LockKeyhole, LogOut, Mail, MapPin, Phone, Save, Settings2, ShoppingBag, Shield, UserRound } from "lucide-react";
+import { ArrowLeft, Bell, CalendarDays, Check, Eye, EyeOff, Heart, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, PawPrint, Phone, Save, Send, Settings2, ShoppingBag, Shield, UserRound } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { btn, btn2, card, input } from "../ui.js";
 import Media from "../components/Media.jsx";
 import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
-import { getCurrentAuthUser, loginWithEmail, registerWithEmail, updateAuthDisplayName } from "../services/authService.js";
+import { getCurrentAuthUser, loginWithEmail, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -246,36 +246,116 @@ export function Register() {
 }
 
 export function Forgot() {
-  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown === 0) return undefined;
+    const timeout = window.setTimeout(() => setCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timeout);
+  }, [cooldown]);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (saving || cooldown > 0) return;
+    setSaving(true);
+    setError("");
+    try {
+      await sendPasswordReset(email.trim());
+      setSent(true);
+      setCooldown(30);
+    } catch (requestError) {
+      if (requestError?.code === "auth/user-not-found") {
+        setSent(true);
+        setCooldown(30);
+      } else {
+        setError("We couldn’t send a reset email right now. Please wait a moment and try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <AuthShell title="Reset password" eyebrow="Account help">
-      {step === 1 && (
-        <form className="mt-6 space-y-4" onSubmit={(event) => { event.preventDefault(); setStep(2); }}>
-          <p className="text-sm leading-6 text-ink-500">Enter the email address associated with your account.</p>
-          <label className="block text-[11px] font-bold text-ink-700">
-            Email address
-            <input required type="email" className={`${input} mt-2`} placeholder="you@example.com" />
-          </label>
-          <button className={`${btn} w-full`}>Send reset link</button>
-        </form>
-      )}
+    <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(135deg,#ECFDF5_0%,#DFF8EE_52%,#C7F3E6_100%)] px-4 py-8 sm:px-6">
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute left-5 top-8 size-9 -rotate-12 text-[#0F766E]/[0.07] sm:left-12 sm:top-10 sm:size-12" />
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute right-5 top-12 size-8 rotate-12 text-[#0F766E]/[0.07] sm:right-14 sm:top-14 sm:size-11" />
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute bottom-8 left-7 size-8 rotate-12 text-[#0F766E]/[0.07] sm:bottom-10 sm:left-16 sm:size-11" />
+      <PawPrint aria-hidden="true" className="pointer-events-none absolute bottom-8 right-6 size-9 -rotate-12 text-[#0F766E]/[0.07] sm:right-14 sm:size-12" />
 
-      {step === 2 && (
-        <form className="mt-6 space-y-4" onSubmit={(event) => { event.preventDefault(); setStep(3); }}>
-          <p className="text-sm leading-6 text-ink-500">Link sent (demo). Choose a new password to continue.</p>
-          <PasswordInput id="new-password" label="New password" value={""} onChange={() => {}} placeholder="••••••••" />
-          <button className={`${btn} w-full`}>Save password</button>
-        </form>
-      )}
+      <div className="relative z-10 w-full max-w-[460px] rounded-[20px] border border-white/80 bg-white/95 p-6 shadow-[0_16px_48px_rgba(15,118,110,0.09)] sm:p-8">
+        <Link to="/" aria-label="PetCare home" className="mx-auto flex w-fit items-center gap-2 rounded-full text-[#0F766E]">
+          <PawPrint size={18} fill="currentColor" strokeWidth={1.7} />
+          <span className="text-base font-bold tracking-tight text-[#0F172A]">PetCare</span>
+        </Link>
 
-      {step === 3 && (
-        <div className="mt-6 rounded-2xl bg-primary-50 p-4">
-          <p className="flex items-center gap-2 font-bold text-primary-700"><Heart size={17} /> Password updated.</p>
-          <Link className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary-700" to="/login">Back to log in <ArrowLeft size={15} /></Link>
-        </div>
-      )}
-    </AuthShell>
+        {!sent ? (
+          <>
+            <div className="mt-5 text-center">
+              <h1 className="text-[26px] font-bold leading-tight tracking-tight text-[#0F172A] sm:text-[28px]">Forgot your password?</h1>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-5 text-[#64748B]">Enter your email address and we&apos;ll send you a reset link so you can create a new password.</p>
+            </div>
+
+            <form className="mt-5 space-y-4" onSubmit={submit}>
+              <label htmlFor="reset-email" className="block text-sm font-semibold text-[#0F172A]">
+                Email address
+                <span className="relative mt-1.5 block">
+                  <Mail aria-hidden="true" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#64748B]" />
+                  <input
+                    id="reset-email"
+                    required
+                    type="email"
+                    autoComplete="email"
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? "reset-error" : undefined}
+                    className="h-[49px] w-full rounded-[11px] border border-[#E2E8F0] bg-white pl-10 pr-4 text-sm text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] hover:border-[#CBD5E1] focus:border-[#0F766E] focus:ring-4 focus:ring-[#0F766E]/10"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </span>
+              </label>
+              {error && <p id="reset-error" role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700">{error}</p>}
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex h-[49px] w-full items-center justify-center gap-2 rounded-[11px] bg-[#0F766E] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#115E59] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0F766E]/30 disabled:cursor-not-allowed disabled:opacity-75"
+              >
+                {saving ? <><LoaderCircle aria-hidden="true" size={16} className="animate-spin" /> Sending...</> : <>Send Reset Link <Send aria-hidden="true" size={14} /></>}
+              </button>
+            </form>
+          </>
+        ) : (
+          <div className="mt-5 rounded-xl border border-[#D8F1E7] bg-[#F2FBF5] p-4 text-center sm:p-5">
+            <div className="relative mx-auto mb-3 grid size-[58px] place-items-center rounded-full bg-[#C7F3E6]">
+              <span className="absolute -right-1 top-0 grid size-6 place-items-center rounded-full border-2 border-[#F2FBF5] bg-[#0F766E] text-white shadow-sm"><Check size={13} strokeWidth={3} /></span>
+              <Mail aria-hidden="true" size={27} strokeWidth={1.8} className="text-[#0F766E]" />
+              <span aria-hidden="true" className="absolute -bottom-0.5 -left-1 size-2 rounded-full bg-[#F6B84A]" />
+              <span aria-hidden="true" className="absolute -right-2 bottom-2 size-1.5 rounded-full bg-[#F6B84A]" />
+            </div>
+            <h1 className="text-[22px] font-bold leading-tight tracking-tight text-[#0F172A]">Check your email</h1>
+            <p role="status" className="mt-2 text-[13px] leading-[18px] text-[#64748B]">If an account exists for this email, we&apos;ve sent a password reset link. Check your inbox and follow the instructions.</p>
+            <p className="mt-2 break-all text-xs font-semibold text-[#0F766E]">{email.trim()}</p>
+            <button
+              type="button"
+              disabled={saving || cooldown > 0}
+              onClick={submit}
+              className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#0F766E]/25 bg-white px-5 text-xs font-bold text-[#0F766E] transition hover:border-[#0F766E] hover:bg-[#F0FDFA] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0F766E]/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving && <LoaderCircle aria-hidden="true" size={15} className="animate-spin" />}
+              {saving ? "Sending..." : cooldown > 0 ? `Resend Email · ${cooldown}s` : "Resend Email"}
+            </button>
+          </div>
+        )}
+
+        <Link to="/login" className="mx-auto mt-4 flex w-fit items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] font-semibold text-[#0F766E] transition hover:text-[#115E59] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F766E]">
+          <ArrowLeft aria-hidden="true" size={16} /> Back to Sign In
+        </Link>
+      </div>
+    </section>
   );
 }
 

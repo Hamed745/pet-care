@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, PackageCheck, ShoppingBag, Truck } from "lucide-react";
+import { ArrowRight, Check, PackageCheck, ShoppingBag, Truck } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../store.jsx";
 import { btn, btn2, btnDanger, card } from "../ui.js";
@@ -24,10 +24,35 @@ export function OrderDetails() {
   if (!user) return <div className="mx-auto max-w-xl py-8"><EmptyState title="Please log in to view this order" description="Sign in to see items, delivery details, and order progress." icon={ShoppingBag} action={<Link to="/login" state={{ from: `/orders/${id}` }} className={btn}>Log in</Link>} /></div>;
   if (!order) return <div className="mx-auto max-w-xl py-8"><EmptyState title="Order not found" description="We could not find this order in your local order history." icon={PackageCheck} action={<Link to="/orders" className={btn}>Back to orders</Link>} /></div>;
   const cancel = async () => { setCancelling(true); try { await cancelStoreOrder(order.id); setCancelOpen(false); } finally { setCancelling(false); } };
-  return <div><Link to="/orders" className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-primary-700"><ArrowLeft size={16} /> Orders</Link><header className="mb-6 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">Order details</p><h1 className="mt-2 text-3xl font-extrabold">{order.id}</h1><p className="mt-2 text-sm text-ink-500">Placed {new Date(order.createdAt).toLocaleDateString()}</p></div><Badge variant={statusStyle[order.status] || "neutral"}>{order.status}</Badge></header>
-    <div className={`${card} mb-5`}><h2 className="mb-5 text-base font-extrabold">Delivery progress</h2><OrderTimeline status={order.status} /></div>
-    <div className="grid items-start gap-5 lg:grid-cols-[1fr_340px]"><section className="space-y-3">{order.items.map((item, index) => <article key={`${item.id}-${index}`} className={`${card} flex items-center gap-4`}><ProductImage src={item.image || item.images?.[0]} alt={item.name} category={item.category} className="size-16 rounded-lg object-cover" /><div className="min-w-0 flex-1"><h2 className="text-sm font-extrabold">{item.name}</h2><p className="mt-1 text-xs text-ink-500">{item.variant?.label ? `${item.variant.label} · ` : ""}Qty {item.qty}</p></div><span className="text-sm font-extrabold">{money(item.price * item.qty)}</span></article>)}</section>
-      <aside className="space-y-4"><section className={card}><h2 className="text-base font-extrabold">Order summary</h2><dl className="mt-4 space-y-2 text-sm"><div className="flex justify-between text-ink-500"><dt>Subtotal</dt><dd>{money(order.subtotal)}</dd></div><div className="flex justify-between text-ink-500"><dt>Discount</dt><dd>-{money(order.discount)}</dd></div><div className="flex justify-between text-ink-500"><dt>Delivery</dt><dd>{order.deliveryFee ? money(order.deliveryFee) : "Free"}</dd></div><div className="flex justify-between border-t border-stone-100 pt-3 font-extrabold text-ink-900"><dt>Total</dt><dd>{money(order.total)}</dd></div></dl></section><section className={card}><h2 className="text-base font-extrabold">Delivery address</h2><p className="mt-3 text-sm font-bold">{order.address.name}</p><p className="mt-1 text-sm text-ink-500">{order.address.phone}</p><p className="mt-1 text-sm text-ink-500">{order.address.address}, {order.address.city}</p>{order.paymentMethod && <p className="mt-3 border-t border-stone-100 pt-3 text-xs text-ink-500">{order.paymentMethod}</p>}</section>{order.status === "Preparing" && <button type="button" className={`${btnDanger} w-full`} onClick={() => setCancelOpen(true)}>Cancel order</button>}</aside></div>
+  return <div className="order-details-page order-v3-page"><div className="order-v3-tracking-wrap"><OrderTimeline status={order.status} orderId={order.id} createdAt={order.createdAt} /></div>
+    <div className="order-v3-details">
+      <section className="order-v3-items" aria-label="Items in this order">
+        {order.items.map((item, index) => <article key={`${item.id}-${index}`} className="order-v3-item">
+          <ProductImage src={item.image || item.images?.[0]} alt={item.name} category={item.category} className="order-v3-product-image" />
+          <div className="order-v3-product-copy"><h2>{item.name}</h2><p>{item.variant?.label ? `${item.variant.label} · ` : ""}Qty {item.qty}</p></div>
+          <span className="order-v3-item-price">{money(item.price * item.qty)}</span>
+        </article>)}
+      </section>
+      <aside className="order-v3-aside">
+        <section className="order-v3-summary">
+          <h2>Order summary</h2>
+          <dl>
+            <div><dt>Subtotal</dt><dd>{money(order.subtotal)}</dd></div>
+            <div><dt>Discount</dt><dd>-{money(order.discount)}</dd></div>
+            <div><dt>Delivery</dt><dd>{order.deliveryFee ? money(order.deliveryFee) : "Free"}</dd></div>
+            <div className="order-v3-total"><dt>Total</dt><dd>{money(order.total)}</dd></div>
+          </dl>
+        </section>
+        <section className="order-v3-address">
+          <h2>Delivery address</h2>
+          <p className="order-v3-address-name">{order.address.name}</p>
+          <p>{order.address.phone}</p>
+          <p>{order.address.address}, {order.address.city}</p>
+          {order.paymentMethod && <p className="order-v3-payment">{order.paymentMethod}</p>}
+        </section>
+        {order.status === "Preparing" && <button type="button" className={`${btnDanger} w-full`} onClick={() => setCancelOpen(true)}>Cancel order</button>}
+      </aside>
+    </div>
     <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel this order?"><p className="text-sm leading-6 text-ink-500">This order can only be cancelled before it ships.</p><div className="mt-6 flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCancelOpen(false)}>Keep order</Button><Button type="button" variant="danger" disabled={cancelling} onClick={cancel}>{cancelling ? "Cancelling..." : "Cancel order"}</Button></div></Modal>
   </div>;
 }

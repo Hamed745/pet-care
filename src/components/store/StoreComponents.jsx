@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Bed, Bone, BriefcaseBusiness, Check, Heart, HeartPulse, Minus, PawPrint, Plus, ShoppingBag, Sparkles, SprayCan, Star, Tag, Target, ToyBrick, Utensils, Waves } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bed, Bone, BriefcaseBusiness, Check, Heart, HeartPulse, House, Minus, Package, PackageCheck, PawPrint, Plus, ShoppingBag, Sparkles, SprayCan, Star, Tag, Target, ToyBrick, Truck, Utensils, Waves, X } from "lucide-react";
+import gsap from "gsap";
 import { useApp } from "../../store.jsx";
 import { btn, btn2, card } from "../../ui.js";
 import { Badge, Rating } from "../ui.jsx";
+import retrieverPhoto from "../../assets/order-tracking/golden-retriever.jpg";
 
 const iconByCategory = { Food: Utensils, Treats: Bone, Toys: ToyBrick, "Grooming and care": Sparkles, Accessories: Tag, "Beds and sleep": Bed, Training: Target, "Health and supplements": HeartPulse, "Cleaning and litter": SprayCan, "Travel and carriers": BriefcaseBusiness, "Aquariums and habitats": Waves };
 export function CategoryIcon({ category, size = 22, className = "" }) {
@@ -108,64 +110,68 @@ const orderMessages = {
   Cancelled: "This order was cancelled.",
 };
 
-function PetCourier({ status, className = "" }) {
-  return <svg aria-hidden="true" viewBox="0 0 72 56" className={`pet-courier ${className} ${status === "Preparing" ? "pet-courier-preparing" : ""}`}>
-    <g className="pet-courier-package">
-      <path d="M3 27 16 20l13 7v17l-13 7-13-7Z" fill="#FDE6C8" stroke="#C87936" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="m3 27 13 7 13-7M16 34v17m-7-21 13-7" fill="none" stroke="#C87936" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="m13 23 6 3" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-    </g>
-    <path d="M33 42c1-9 7-14 17-14 7 0 12 4 13 12v5H34Z" fill="#0F766E" />
-    <path d="M58 28c0-8 4-13 9-13s8 5 8 11c0 7-4 12-10 12s-9-4-9-10Z" fill="#D9A36F" />
-    <path d="M61 18c-5-7-2-12 2-11l6 10m2 2c5-6 8-4 6 2l-4 7" fill="#A66D45" />
-    <path d="M62 25c1-1 2-1 3 0m6 0c1-1 2-1 3 0" fill="none" stroke="#263238" strokeWidth="1.6" strokeLinecap="round" />
-    <ellipse cx="68" cy="30" rx="2.2" ry="1.7" fill="#263238" />
-    <path d="M65 34c2 2 4 2 6 0" fill="none" stroke="#263238" strokeWidth="1.2" strokeLinecap="round" />
-    <path d="M40 43v5m13-5v5" stroke="#A66D45" strokeWidth="3" strokeLinecap="round" />
-    <path d="M33 31c-4-4-6-2-5 1" fill="none" stroke="#A66D45" strokeWidth="2.2" strokeLinecap="round" />
-    <circle cx="40" cy="49" r="2" fill="#475569" /><circle cx="55" cy="49" r="2" fill="#475569" />
-  </svg>;
+function statusIndex(status) {
+  return orderSteps.indexOf(status);
 }
 
-export function OrderTimeline({ status }) {
-  const current = status === "Delivered" ? 3 : status === "Shipped" ? 2 : status === "Preparing" || status === "Cancelled" ? 1 : 0;
-  const progress = current / (orderSteps.length - 1);
+export function OrderTimeline({ status, orderId, createdAt }) {
+  const rootRef = useRef(null);
+  const cancelled = status === "Cancelled";
+  const activeIndex = statusIndex(status);
+  const progress = cancelled ? 0 : status === "Delivered" ? 1 : Math.max(0, activeIndex) / (orderSteps.length - 1);
+  const date = createdAt ? new Date(createdAt).toLocaleDateString() : "";
   const message = orderMessages[status] || orderMessages.Placed;
-  const paws = Array.from({ length: 9 }, (_, index) => {
-    const segment = Math.floor(index / 3);
-    const position = 19 + index * 7.75;
-    return { index, segment, position, completed: segment < current, recent: current > 0 && segment === current - 1 };
-  });
+  const stageIcons = [PackageCheck, Package, Truck, House];
+  const placedDate = createdAt ? new Date(createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "";
 
-  return <div className="pet-order-tracker" data-status={status}>
-    <div className="pet-order-track-desktop" style={{ "--order-progress": `${progress * 75}%` }}>
-      <div className="pet-order-courier-position"><PetCourier status={status} /></div>
-      <div className="pet-order-track-base" />
-      <div className="pet-order-track-fill" />
-      {paws.map((paw) => <PawPrint key={paw.index} aria-hidden="true" size={15} className={`pet-order-paw ${paw.completed ? "is-complete" : ""} ${paw.recent ? "is-recent" : ""}`} style={{ left: `${paw.position}%` }} />)}
-      <ol aria-label="Order delivery progress" className="pet-order-steps">
-        {orderSteps.map((step, index) => {
-          const complete = index < current;
-          const active = index === current;
-          return <li key={step} aria-current={active ? "step" : undefined} className={`pet-order-step ${complete ? "is-complete" : ""} ${active ? "is-active" : ""} ${active && status === "Delivered" ? "is-delivered" : ""}`}>
-            <span className="pet-order-node">{complete ? <Check size={15} strokeWidth={2.8} /> : <span>{index + 1}</span>}</span>
-            <span className="pet-order-step-label">{step}</span>
-          </li>;
-        })}
-      </ol>
+  useEffect(() => {
+    if (!rootRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const context = gsap.context(() => {
+      const timeline = gsap.timeline({ defaults: { ease: "power2.out" } });
+      timeline.fromTo(".order-v3-heading", { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.32 });
+      timeline.fromTo(".order-v3-progress-fill", { scaleX: 0 }, { scaleX: 1, duration: 0.62, ease: "power2.inOut" }, "-=0.12");
+      timeline.fromTo(".order-v3-step", { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.25, stagger: 0.08 }, "-=0.42");
+      timeline.fromTo(".order-v3-step.is-complete .order-v3-icon", { scale: 0.84 }, { scale: 1, duration: 0.3, stagger: 0.07, ease: "back.out(1.35)" }, "-=0.24");
+      timeline.fromTo(".order-v3-photo", { autoAlpha: 0, x: 12 }, { autoAlpha: 1, x: 0, duration: 0.38 }, "-=0.35");
+      if (!cancelled && status === "Delivered") {
+        timeline.fromTo(".order-v3-status-message", { scale: 0.98 }, { scale: 1, duration: 0.24, ease: "back.out(1.6)" }, "-=0.18");
+      } else {
+        const activeStep = rootRef.current.querySelector(".order-v3-step.is-active .order-v3-icon");
+        if (activeStep) timeline.fromTo(activeStep, { boxShadow: "0 0 0 0 rgba(20, 184, 166, 0)" }, { boxShadow: "0 0 0 5px rgba(20, 184, 166, 0.16)", duration: 0.36, yoyo: true, repeat: 1 }, "-=0.15");
+      }
+    }, rootRef);
+    return () => context.revert();
+  }, [cancelled, status]);
+
+  return <section ref={rootRef} className={`order-v3-tracking ${cancelled ? "is-cancelled" : ""} ${status === "Delivered" ? "is-delivered" : ""}`} data-status={status} aria-label="Order delivery progress">
+    <div className="order-v3-content">
+      <header className="order-v3-heading">
+        <Link to="/orders" className="order-v3-back"><ArrowLeft size={15} /> Back to Orders</Link>
+        <div className="order-v3-order-title"><div><p>Order details</p><h1>{orderId}</h1><span>Placed {date}</span></div><span className={`order-v3-status status-${String(status).toLowerCase()}`}>{status}</span></div>
+      </header>
+      <div className="order-v3-timeline">
+        <span className="order-v3-progress-base" aria-hidden="true"><span className="order-v3-progress-fill" style={{ "--order-progress": `${progress * 100}%` }} /></span>
+        <ol>
+          {orderSteps.map((step, index) => {
+            const complete = cancelled ? index === 0 : status === "Delivered" || index < activeIndex;
+            const active = !cancelled && status !== "Delivered" && index === activeIndex;
+            const StepIcon = stageIcons[index];
+            return <li key={step} aria-current={active ? "step" : undefined} className={`order-v3-step ${complete ? "is-complete" : ""} ${active ? "is-active" : ""} ${cancelled && !complete ? "is-muted" : ""}`}>
+              <span className="order-v3-icon">{complete ? <Check size={18} strokeWidth={2.5} /> : <StepIcon size={18} strokeWidth={1.9} />}</span>
+              <span className="order-v3-label">{step}</span>
+              {index === 0 && placedDate && <time className="order-v3-date" dateTime={new Date(createdAt).toISOString()}>{placedDate}</time>}
+            </li>;
+          })}
+        </ol>
+      </div>
+      <p role="status" aria-live="polite" className="order-v3-status-message">
+        {cancelled ? <X size={16} /> : status === "Delivered" ? <Check size={16} /> : <PackageCheck size={16} />}
+        {message}
+      </p>
     </div>
-    <ol aria-label="Order delivery progress" className="pet-order-track-mobile">
-      {orderSteps.map((step, index) => {
-        const complete = index < current;
-        const active = index === current;
-        return <li key={step} aria-current={active ? "step" : undefined} className={`pet-order-mobile-step ${complete ? "is-complete" : ""} ${active ? "is-active" : ""}`}>
-          <span className="pet-order-mobile-node">{complete ? <Check size={15} strokeWidth={2.8} /> : <span>{index + 1}</span>}</span>
-          <span className="pet-order-step-label">{step}</span>
-          {active && <PetCourier status={status} className="pet-courier-mobile" />}
-          {index < orderSteps.length - 1 && <span className={`pet-order-mobile-connector ${index < current ? "is-complete" : ""}`}><PawPrint size={13} /><PawPrint size={13} /></span>}
-        </li>;
-      })}
-    </ol>
-    <p aria-live="polite" className="pet-order-status-message"><span className="pet-order-status-dot" />{message}</p>
-  </div>;
+    <div className="order-v3-photo" aria-hidden="true">
+      <img src={retrieverPhoto} alt="" />
+      {!cancelled && <div className="order-v3-package-note"><span><Package size={19} /></span><span><strong>Packed with care</strong><small>For your best friend</small></span></div>}
+    </div>
+  </section>;
 }

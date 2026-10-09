@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import { Skeleton } from "./components/ui.jsx";
+import { LOST_FOUND_ENABLED } from "./config.js";
 
 const Home = lazy(() => import("./pages/Home.jsx"));
 const ServicesHome = lazy(() => import("./pages/Services.jsx").then((module) => ({ default: module.ServicesHome })));
@@ -25,6 +26,7 @@ const AdoptionDetails = lazy(() => import("./pages/AdoptionPages.jsx").then((mod
 const AdoptionNew = lazy(() => import("./pages/AdoptionPages.jsx").then((module) => ({ default: module.AdoptionNew })));
 const MyAdoptionListings = lazy(() => import("./pages/AdoptionPages.jsx").then((module) => ({ default: module.MyAdoptionListings })));
 const LostFound = lazy(() => import("./pages/Community.jsx").then((module) => ({ default: module.LostFound })));
+const LostFoundComingSoon = lazy(() => import("./pages/Community.jsx").then((module) => ({ default: module.LostFoundComingSoon })));
 const Emergency = lazy(() => import("./pages/Extras.jsx").then((module) => ({ default: module.Emergency })));
 const AI = lazy(() => import("./pages/Extras.jsx").then((module) => ({ default: module.AI })));
 const Login = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Login })));
@@ -62,7 +64,7 @@ export default function App() {
           <Route path="/adoption/new" element={<AdoptionNew />} />
           <Route path="/adoption/my-listings" element={<MyAdoptionListings />} />
           <Route path="/adoption/:id" element={<AdoptionDetails />} />
-          <Route path="/lost-found" element={<LostFound />} />
+          <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
           <Route path="/emergency" element={<Emergency />} />
           <Route path="/ai" element={<AI />} />
           <Route path="/login" element={<Login />} />

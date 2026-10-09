@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Activity, Bell, CalendarDays, ChevronDown, Heart, Home, LogOut, MapPin, Menu, PawPrint, Phone, ShoppingBag, Stethoscope, Scissors, UserRound, X, Bot } from "lucide-react";
 import { useApp } from "../store.jsx";
+import { LOST_FOUND_ENABLED } from "../config.js";
 import { btn, btn2, btnGhost } from "../ui.js";
 import FloatingChat, { ChatProvider } from "./ChatWidget.jsx";
 import PetAvatar from "./PetAvatar.jsx";
@@ -68,7 +69,7 @@ function Navbar() {
           <NavLink to="/adoption" className={mainLink}>Adoption</NavLink>
           <div className="relative" data-menu-root>
             <button type="button" aria-expanded={communityOpen} onClick={() => { setCommunityOpen(!communityOpen); setServicesOpen(false); setUserOpen(false); }} className={`${mainLink({ isActive: location.pathname.startsWith("/lost-found") })} gap-1`}>Community <ChevronDown size={15} className={`transition ${communityOpen ? "rotate-180" : ""}`} /></button>
-            {communityOpen && <div className="absolute left-0 top-full z-50 mt-3 w-60 rounded-xl border border-stone-200 bg-white p-2 shadow-lg"><Link to="/lost-found" onClick={closeMenus} className="flex items-center gap-3 rounded-lg p-3 text-sm font-medium hover:bg-primary-50"><MapPin size={18} className="text-primary-600" /> Lost &amp; Found</Link></div>}
+            {communityOpen && <div className="absolute left-0 top-full z-50 mt-3 w-60 rounded-xl border border-stone-200 bg-white p-2 shadow-lg"><Link to="/lost-found" onClick={closeMenus} className="flex items-center gap-3 rounded-lg p-3 text-sm font-medium hover:bg-primary-50"><MapPin size={18} className="text-primary-600" /> Lost &amp; Found {!LOST_FOUND_ENABLED && <span className="ms-auto rounded-full bg-primary-50 px-2 py-1 text-[10px] font-bold text-primary-700">Coming Soon</span>}</Link></div>}
           </div>
         </nav>
         <div className="hidden items-center gap-3 lg:flex">
@@ -86,7 +87,7 @@ function Navbar() {
           <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-ink-500">Explore</p>
           <div className="grid gap-1"><Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/">Home</Link><Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/services">All services</Link>
             {serviceLinks.map(([to, title, , Icon]) => <Link key={to} onClick={() => setMobileOpen(false)} to={to} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-ink-700 hover:bg-stone-50"><Icon size={18} className="text-primary-600" />{title}</Link>)}
-            <Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/store">Store</Link><Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/adoption">Adoption</Link><Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/lost-found">Lost &amp; Found</Link>
+            <Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/store">Store</Link><Link onClick={() => setMobileOpen(false)} className="rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/adoption">Adoption</Link><Link onClick={() => setMobileOpen(false)} className="flex items-center justify-between rounded-xl px-3 py-3 font-semibold hover:bg-stone-50" to="/lost-found">Lost &amp; Found {!LOST_FOUND_ENABLED && <span className="rounded-full bg-primary-50 px-2 py-1 text-[10px] font-bold text-primary-700">Coming Soon</span>}</Link>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3">{user ? <><Link onClick={() => setMobileOpen(false)} to="/profile" className={btn2}>Profile</Link><Link onClick={() => setMobileOpen(false)} to="/bookings" className={btn2}>Bookings</Link><Link onClick={() => setMobileOpen(false)} to="/calendar" className={btn2}>Calendar</Link><Link onClick={() => setMobileOpen(false)} to="/notifications" className={btn2}>Notifications{unreadNotifications > 0 ? ` (${unreadNotifications})` : ""}</Link><Link onClick={() => setMobileOpen(false)} to="/wishlist" className={btn2}>Wishlist</Link><Link onClick={() => setMobileOpen(false)} to="/orders" className={btn2}>Orders</Link></> : <><Link onClick={() => setMobileOpen(false)} to="/login" className={btn2}>Log in</Link><Link onClick={() => setMobileOpen(false)} to="/register" className={btn}>Sign up</Link></>}</div>
         </div>
@@ -102,7 +103,7 @@ function Footer() {
   return <footer data-site-footer="true" className="mt-14 border-t border-stone-200 bg-white">
     <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr] lg:px-8">
       <div><Brand /><p className="mt-4 max-w-xs text-sm leading-6 text-ink-500">Thoughtful care, trusted services, and a happier everyday for the pets we love.</p><div className="mt-5 flex gap-2"><a aria-label="Instagram" href="https://instagram.com" className="grid size-9 place-items-center rounded-full bg-stone-100 text-ink-700 hover:bg-primary-50 hover:text-primary-700"><Heart size={17} /></a><a aria-label="Contact" href="mailto:hello@petcare.example" className="grid size-9 place-items-center rounded-full bg-stone-100 text-ink-700 hover:bg-primary-50 hover:text-primary-700"><Phone size={16} /></a></div></div>
-      <div><h2 className="text-sm font-bold">Explore</h2><div className="mt-4 grid gap-3 text-sm text-ink-500"><Link className="hover:text-primary-700" to="/services">Services</Link><Link className="hover:text-primary-700" to="/store">Store</Link><Link className="hover:text-primary-700" to="/adoption">Adoption</Link><Link className="hover:text-primary-700" to="/lost-found">Lost &amp; Found</Link></div></div>
+      <div><h2 className="text-sm font-bold">Explore</h2><div className="mt-4 grid gap-3 text-sm text-ink-500"><Link className="hover:text-primary-700" to="/services">Services</Link><Link className="hover:text-primary-700" to="/store">Store</Link><Link className="hover:text-primary-700" to="/adoption">Adoption</Link><Link className="flex items-center gap-2 hover:text-primary-700" to="/lost-found">Lost &amp; Found {!LOST_FOUND_ENABLED && <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-bold text-primary-700">Coming Soon</span>}</Link></div></div>
       <div><h2 className="text-sm font-bold">Your account</h2><div className="mt-4 grid gap-3 text-sm text-ink-500"><Link className="hover:text-primary-700" to="/pets">My Pets</Link><Link className="hover:text-primary-700" to="/bookings">Bookings</Link><Link className="hover:text-primary-700" to="/calendar">Calendar</Link><Link className="hover:text-primary-700" to="/notifications">Notifications</Link><Link className="hover:text-primary-700" to="/profile">Profile</Link><Link className="hover:text-primary-700" to="/login">Sign in</Link></div></div>
       <div><h2 className="text-sm font-bold">Need help?</h2><div className="mt-4 grid gap-3 text-sm text-ink-500"><Link className="hover:text-primary-700" to="/emergency">Emergency care</Link><Link className="hover:text-primary-700" to="/ai">Pet care assistant</Link><a className="flex items-center gap-2 hover:text-primary-700" href="mailto:hello@petcare.example"><Phone size={15} /> hello@petcare.example</a></div></div>
     </div>
@@ -113,8 +114,9 @@ function Footer() {
 export default function Layout({ children }) {
   const { storageError, dismissStorageError, notice, dismissToast } = useApp();
   const location = useLocation();
+  const isForgotPassword = location.pathname === "/forgot-password";
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [location.pathname]);
   const toastItems = [...notice, ...(storageError ? [{ id: "storage-error", message: storageError, variant: "danger" }] : [])].slice(0, 3);
   const dismissNotice = (id) => id === "storage-error" ? dismissStorageError() : dismissToast(id);
-  return <ChatProvider><div className="min-h-screen"><Navbar /><main key={location.pathname} className="page-enter mx-auto min-h-[60vh] max-w-7xl px-4 py-8 pb-24 sm:px-6 md:py-10 lg:px-8 lg:pb-10">{children}</main><Footer /><FloatingChat /><ToastStack items={toastItems} onDismiss={dismissNotice} /></div></ChatProvider>;
+  return <ChatProvider><div className="min-h-screen">{!isForgotPassword && <Navbar />}<main key={location.pathname} className={isForgotPassword ? "min-h-screen" : "page-enter mx-auto min-h-[60vh] max-w-7xl px-4 py-8 pb-24 sm:px-6 md:py-10 lg:px-8 lg:pb-10"}>{children}</main>{!isForgotPassword && <><Footer /><FloatingChat /></>}<ToastStack items={toastItems} onDismiss={dismissNotice} /></div></ChatProvider>;
 }
