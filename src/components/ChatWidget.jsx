@@ -1,12 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Bot, MessageCircle, Send, X } from "lucide-react";
 import { Button } from "./ui.jsx";
 import { input } from "../ui.js";
+import { sendPetCareMessage } from "../services/petAiService.js";
 
 const ChatContext = createContext(null);
 const initialMessage = { id: 1, from: "ai", text: "Hi! Ask me anything about your pet's care." };
-const demoReply = "This is a demo reply. Connect the AI API here later.";
 const suggestions = ["Find a vet near me", "Vaccination schedule", "Grooming tips"];
 
 export function ChatProvider({ children }) {
@@ -14,27 +14,85 @@ export function ChatProvider({ children }) {
   const [typing, setTyping] = useState(false);
   const [unread, setUnread] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
-  const replyTimer = useRef(null);
+  const sendingRef = useRef(false);
   const panelOpenRef = useRef(panelOpen);
+  const messageIdRef = useRef(Date.now());
 
   useEffect(() => { panelOpenRef.current = panelOpen; }, [panelOpen]);
-  useEffect(() => () => window.clearTimeout(replyTimer.current), []);
 
   const openPanel = useCallback(() => { setUnread(0); setPanelOpen(true); }, []);
   const closePanel = useCallback(() => setPanelOpen(false), []);
-  const sendMessage = useCallback((rawText) => {
+  const sendMessage = useCallback(async (rawText, { retry = false } = {}) => {
     const text = rawText.trim();
-    if (!text || typing) return false;
-    window.clearTimeout(replyTimer.current);
-    setMessages((current) => [...current, { id: Date.now(), from: "me", text }]);
+    if (!text || sendingRef.current) return false;
+
+    const clickedAt = performance.now();
+    const assistantId = ++messageIdRef.current;
+    sendingRef.current = true;
+    const sentMessages = messages;
+    const userMessage = { id: ++messageIdRef.current, from: "me", text };
+    const assistantMessage = {
+      id: assistantId,
+      from: "ai",
+      text: "",
+      pending: true,
+      retryText: text,
+      startedAt: clickedAt,
+    };
+    setMessages((current) => [
+      ...current,
+      ...(retry ? [] : [userMessage]),
+      assistantMessage,
+    ]);
     setTyping(true);
-    replyTimer.current = window.setTimeout(() => {
-      setMessages((current) => [...current, { id: Date.now() + 1, from: "ai", text: demoReply }]);
-      setTyping(false);
+    try {
+      const reply = await sendPetCareMessage(text, sentMessages, {
+        clickedAt,
+        onChunk: (chunkText) => {
+          setMessages((current) => current.map((message) => (
+            message.id === assistantId
+              ? {
+                  ...message,
+                  text: message.text + chunkText,
+                  firstChunkAt: message.firstChunkAt ?? performance.now(),
+                }
+              : message
+          )));
+        },
+      });
+      setMessages((current) => current.map((message) => (
+        message.id === assistantId
+          ? {
+              ...message,
+              text: reply,
+              pending: false,
+              completedAt: performance.now(),
+              retryText: null,
+            }
+          : message
+      )));
       if (!panelOpenRef.current) setUnread((current) => current + 1);
-    }, 800);
+    } catch (error) {
+      setMessages((current) => current.map((message) => {
+        if (message.id !== assistantId) return message;
+        const partialResponse = error.partialResponse || "";
+        return {
+          ...message,
+          text: partialResponse
+            ? `${partialResponse}\n\nThe connection stopped before this answer was complete.`
+            : error.message,
+          pending: false,
+          error: true,
+        };
+      }));
+      if (!panelOpenRef.current) setUnread((current) => current + 1);
+    } finally {
+      setTyping(false);
+      sendingRef.current = false;
+    }
+
     return true;
-  }, [typing]);
+  }, [messages]);
   const value = useMemo(() => ({ messages, typing, unread, panelOpen, openPanel, closePanel, sendMessage }), [messages, typing, unread, panelOpen, openPanel, closePanel, sendMessage]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
@@ -51,20 +109,52 @@ export function ChatConversation({ embedded = false, focusOnMount = false, promp
   const [draft, setDraft] = useState("");
   const inputRef = useRef(null);
   const messagesRef = useRef(null);
+  const firstRenderLoggedRef = useRef(new Set());
+  const completionRenderLoggedRef = useRef(new Set());
 
   useEffect(() => { if (focusOnMount) inputRef.current?.focus(); }, [focusOnMount]);
-  useEffect(() => { messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" }); }, [messages, typing]);
+  useEffect(() => {
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior });
+  }, [messages, typing]);
+
+  useLayoutEffect(() => {
+    for (const message of messages) {
+      if (message.from !== "ai") continue;
+      if (message.firstChunkAt && !firstRenderLoggedRef.current.has(message.id)) {
+        firstRenderLoggedRef.current.add(message.id);
+        const renderedAt = performance.now();
+        console.info("[PetCare timing]", {
+          clickToFirstReactCommitMs: Math.round(renderedAt - message.startedAt),
+          firstChunkToReactCommitMs: Math.round(renderedAt - message.firstChunkAt),
+        });
+      }
+      if (message.completedAt && !completionRenderLoggedRef.current.has(message.id)) {
+        completionRenderLoggedRef.current.add(message.id);
+        console.info("[PetCare timing]", {
+          clickToCompleteReactCommitMs: Math.round(
+            performance.now() - message.startedAt,
+          ),
+        });
+      }
+    }
+  }, [messages]);
 
   const send = (event) => {
     event.preventDefault();
-    if (sendMessage(draft)) setDraft("");
+    const text = draft.trim();
+    if (!text || typing) return;
+    setDraft("");
+    void sendMessage(text);
   };
-  const choosePrompt = (prompt) => { if (!typing) { setDraft(prompt); inputRef.current?.focus(); } };
+  const choosePrompt = (prompt) => { if (!typing) void sendMessage(prompt); };
 
   return <div className={`flex min-h-0 flex-1 flex-col ${embedded ? "overflow-hidden" : ""}`}>
-    {embedded && <div className="flex items-center gap-3 border-b border-stone-100 p-5"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bot size={21} /></span><div><h2 className="font-extrabold">Ask about pet care</h2><p className="text-xs text-ink-500">Demo assistant</p></div><span className="ms-auto flex items-center gap-1.5 text-xs font-semibold text-primary-700"><span className="size-2 rounded-full bg-primary-500" /> Ready</span></div>}
+    {embedded && <div className="flex items-center gap-3 border-b border-stone-100 p-5"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bot size={21} /></span><div><h2 className="font-extrabold">Ask about pet care</h2><p className="text-xs text-ink-500">PetCare AI assistant</p></div><span className="ms-auto flex items-center gap-1.5 text-xs font-semibold text-primary-700"><span className="size-2 rounded-full bg-primary-500" /> Ready</span></div>}
     <div ref={messagesRef} role="log" aria-live="polite" aria-relevant="additions text" aria-label="Chat messages" className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-stone-50 p-4 ${embedded ? "h-[360px]" : ""}`}>
-      {messages.map((message) => <div key={message.id} className={`flex max-w-[90%] gap-2 ${message.from === "me" ? "ms-auto flex-row-reverse" : ""}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full ${message.from === "me" ? "bg-accent-100 text-amber-800" : "bg-primary-100 text-primary-700"}`}>{message.from === "me" ? <MessageCircle size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}</span><p className={`rounded-2xl px-3.5 py-2.5 text-sm leading-5 ${message.from === "me" ? "rounded-tr-sm bg-primary-700 text-white" : "rounded-tl-sm border border-stone-100 bg-white text-ink-700 shadow-sm"}`}>{message.text}</p></div>)}
+      {messages.map((message) => message.pending && !message.text ? null : <div key={message.id} className={`flex max-w-[90%] gap-2 ${message.from === "me" ? "ms-auto flex-row-reverse" : ""}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full ${message.from === "me" ? "bg-accent-100 text-amber-800" : "bg-primary-100 text-primary-700"}`}>{message.from === "me" ? <MessageCircle size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}</span><div className="min-w-0"><p role={message.error ? "alert" : undefined} className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-5 ${message.from === "me" ? "rounded-tr-sm bg-primary-700 text-white" : message.error ? "rounded-tl-sm border border-red-200 bg-red-50 text-red-800" : "rounded-tl-sm border border-stone-100 bg-white text-ink-700 shadow-sm"}`}>{message.text}</p>{message.error && message.retryText && <button type="button" onClick={() => void sendMessage(message.retryText, { retry: true })} disabled={typing} className="mt-1 text-xs font-semibold text-primary-700 underline disabled:opacity-50">Retry</button>}</div></div>)}
       {typing && <div className="flex items-center gap-2" aria-label="Assistant is typing"><span className="grid size-8 place-items-center rounded-full bg-primary-100 text-primary-700"><Bot size={15} aria-hidden="true" /></span><span className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-stone-100 bg-white px-4 py-3 shadow-sm"><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.2s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.1s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500" /></span></div>}
     </div>
     <div className="border-t border-stone-100 bg-white p-3 sm:p-4"><div className="mb-3 flex gap-2 overflow-x-auto pb-1">{prompts.map((prompt) => <button key={prompt} type="button" disabled={typing} onClick={() => choosePrompt(prompt)} className="min-h-8 shrink-0 rounded-full bg-primary-50 px-3 text-left text-[11px] font-semibold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50">{prompt}</button>)}</div><form onSubmit={send} className="flex gap-2"><label className="sr-only" htmlFor={embedded ? "ai-chat-message" : "floating-chat-message"}>Message</label><input ref={inputRef} id={embedded ? "ai-chat-message" : "floating-chat-message"} className={input} placeholder="Type your question..." autoComplete="off" value={draft} onChange={(event) => setDraft(event.target.value)} /><Button type="submit" aria-label="Send message" disabled={!draft.trim() || typing} className="size-12 min-h-12 shrink-0 p-0"><Send size={18} /></Button></form></div>

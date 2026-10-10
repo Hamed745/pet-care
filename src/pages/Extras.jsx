@@ -4,6 +4,8 @@ import { card } from "../ui.js";
 import { ChatConversation } from "../components/ChatWidget.jsx";
 import { useApp } from "../store.jsx";
 import { btn, btn2, input } from "../ui.js";
+import { ALLOWED_IMAGE_TYPES, MAX_UPLOAD_SIZE } from "../config.js";
+import { validateImageFile } from "../utils/imageTools.js";
 const clinics = [["Happy Paws Clinic (24h)", "Cairo", "01000000010"], ["Alexandria Animal Hospital (24h)", "Alexandria", "01000000011"], ["Giza Vet Pharmacy", "Giza", "01000000012"]];
 const clinicCoordinates = { Cairo: [30.0444, 31.2357], Alexandria: [31.2001, 29.9187], Giza: [29.987, 31.2118] };
 const distanceFrom = (origin, city) => { const target = clinicCoordinates[city]; if (!origin || !target) return Number.POSITIVE_INFINITY; const radians = (value) => value * Math.PI / 180; const latDelta = radians(target[0] - origin[0]); const lonDelta = radians(target[1] - origin[1]); const arc = Math.sin(latDelta / 2) ** 2 + Math.cos(radians(origin[0])) * Math.cos(radians(target[0])) * Math.sin(lonDelta / 2) ** 2; return 6371 * 2 * Math.atan2(Math.sqrt(arc), Math.sqrt(1 - arc)); };
@@ -18,11 +20,109 @@ export function Emergency() {
   }
   export function AI() {
   const { pets } = useApp();
-  const [img, setImg] = useState(""); const [dragging, setDragging] = useState(false); const [analyzing, setAnalyzing] = useState(false); const [result, setResult] = useState(null); const [petId, setPetId] = useState(""); const fileInput = useRef(null);
-  useEffect(() => () => { if (img) URL.revokeObjectURL(img); }, [img]);
-  const addImage = (file) => { if (file?.type.startsWith("image/")) { setImg(URL.createObjectURL(file)); setResult(null); } };
-  const analyze = async () => { if (!img) return; setAnalyzing(true); setResult(null); await new Promise((resolve) => window.setTimeout(resolve, 900)); setResult({ breed: "Golden Retriever", confidence: 87, size: "Large", temperament: "Friendly and eager to learn", activity: "High; regular exercise recommended", care: "Brush several times a week and provide daily walks." }); setAnalyzing(false); };
-  return <div><div className="mb-7"><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">PetCare assistant</p><h1 className="mt-2 text-3xl font-extrabold">A little help, right here</h1><p className="mt-2 text-sm text-ink-500">Explore the care demo or try a breed photo preview.</p></div><div className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+  const [imageFile, setImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState(null);
+  const [petId, setPetId] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
+  const fileInput = useRef(null);
+  const analysisInFlightRef = useRef(false);
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  const addImage = (file) => {
+    if (!file) return;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setUploadError(validationError);
+      return;
+    }
+    setPreviewUrl(URL.createObjectURL(file));
+    setImageFile(file);
+    setResult(null);
+    setUploadError("");
+    setAnalysisError("");
+  };
+
+  const chooseImage = () => {
+    if (fileInput.current) fileInput.current.value = "";
+    fileInput.current?.click();
+  };
+
+  const removeImage = () => {
+    setPreviewUrl("");
+    setImageFile(null);
+    setResult(null);
+    setUploadError("");
+    setAnalysisError("");
+    if (fileInput.current) fileInput.current.value = "";
+  };
+
+  const analyze = async () => {
+    if (!imageFile || analysisInFlightRef.current) return;
+    analysisInFlightRef.current = true;
+    setAnalyzing(true);
+    setResult(null);
+    setAnalysisError("");
+    const selectedPet = pets.find((pet) => String(pet.id) === petId);
+    try {
+      const { analyzePetBreed } = await import("../services/petBreedService.js");
+      const analysis = await analyzePetBreed(
+        imageFile,
+        selectedPet
+          ? { type: selectedPet.type, breed: selectedPet.breed, age: selectedPet.age }
+          : {},
+      );
+      setResult({ ...analysis, associatedPetName: selectedPet?.name || "" });
+    } catch (error) {
+      setAnalysisError(error.message);
+    } finally {
+      analysisInFlightRef.current = false;
+      setAnalyzing(false);
+    }
+  };
+
+  const selectedPet = pets.find((pet) => String(pet.id) === petId);
+  const animalLabels = {
+    dog: "Dog",
+    cat: "Cat",
+    other: "Other animal",
+    none: "No animal detected",
+    unclear: "Unable to identify",
+  };
+  const resultMessages = {
+    no_animal: "No animal was visible in this photo. Try a clear photo that includes your pet.",
+    multiple_animals: "More than one animal is visible, so an individual breed is uncertain. Try a photo with one pet in focus.",
+    unclear_image: "The animal could not be identified clearly from this image. Try a brighter, sharper photo.",
+    unsupported_species: "A pet is visible, but this analysis is intended to identify dogs and cats.",
+  };
+
+  return <div><div className="mb-7"><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">PetCare assistant</p><h1 className="mt-2 text-3xl font-extrabold">A little help, right here</h1><p className="mt-2 text-sm text-ink-500">Get answers to pet-care questions or try a breed photo preview.</p></div><div className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr]">
     <section className={`${card} overflow-hidden !p-0`}><ChatConversation embedded prompts={["How often should I brush my cat?", "What should I pack for a vet visit?"]} /></section>
-    <section className={`${card} p-5 sm:p-6`}><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent-50 text-accent-500"><Camera size={20} /></span><div><h2 className="font-extrabold">Breed recognition</h2><p className="text-xs text-ink-500">Frontend demo analysis</p></div></div>{pets.length > 0 && <label className="mt-4 block text-xs font-bold">Associate with a pet <span className="font-normal text-ink-500">(optional)</span><select className={`${input} mt-2`} value={petId} onChange={(event) => setPetId(event.target.value)}><option value="">No pet selected</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>}<button type="button" onClick={() => fileInput.current?.click()} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); addImage(event.dataTransfer.files[0]); }} className={`mt-4 flex min-h-44 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition ${dragging ? "border-primary-500 bg-primary-50" : "border-stone-300 bg-stone-50 hover:border-primary-500 hover:bg-primary-50/50"}`}><UploadCloud size={28} className="text-primary-600" /><b className="mt-3 text-sm">Drop a photo here or browse</b><span className="mt-1 text-xs text-ink-500">JPG or PNG image</span><input ref={fileInput} className="sr-only" type="file" accept="image/*" onChange={(event) => addImage(event.target.files[0])} /></button>{img && <><img src={img} alt="Selected pet for breed recognition preview" className="mt-4 max-h-56 w-full rounded-xl object-cover" /><button type="button" disabled={analyzing} onClick={analyze} className={`${btn} mt-3 w-full`}>{analyzing ? "Analyzing photo..." : <><Search size={16} /> Analyze image</>}</button></>}{result && <div className="mt-4 rounded-xl border border-accent-50 bg-accent-50 p-4"><p className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800">Demo result{petId ? ` · ${pets.find((pet) => String(pet.id) === petId)?.name || "Pet"}` : ""}</p><h3 className="mt-2 text-lg font-extrabold">Possible breed: {result.breed}</h3><p className="mt-1 text-sm font-semibold text-primary-700">Confidence: {result.confidence}%</p><dl className="mt-3 grid gap-2 text-xs text-ink-700"><div><dt className="inline font-bold">Size: </dt><dd className="inline">{result.size}</dd></div><div><dt className="inline font-bold">Temperament: </dt><dd className="inline">{result.temperament}</dd></div><div><dt className="inline font-bold">Activity: </dt><dd className="inline">{result.activity}</dd></div><div><dt className="inline font-bold">Care: </dt><dd className="inline">{result.care}</dd></div></dl><p className="mt-3 text-[11px] leading-5 text-ink-500">Illustrative result only. This frontend demo does not analyze the uploaded image.</p></div>}</section></div></div>;
+    <section className={`${card} min-w-0 p-5 sm:p-6`}>
+      <div className="flex items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-50 text-accent-500"><Camera size={20} /></span><div><h2 className="font-extrabold">Breed recognition</h2><p className="text-xs text-ink-500">AI-powered appearance estimate</p></div></div>
+      {pets.length > 0 && <label className="mt-4 block text-xs font-bold">Associate with a pet <span className="font-normal text-ink-500">(optional)</span><select className={`${input} mt-2`} value={petId} disabled={analyzing} onChange={(event) => setPetId(event.target.value)}><option value="">No pet selected</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>}
+      <input ref={fileInput} className="sr-only" type="file" accept={ALLOWED_IMAGE_TYPES.join(",")} aria-label="Choose a dog or cat photo" onChange={(event) => { addImage(event.target.files?.[0]); event.target.value = ""; }} />
+      {!previewUrl && <button type="button" onClick={chooseImage} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); addImage(event.dataTransfer.files?.[0]); }} className={`mt-4 flex min-h-44 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition ${dragging ? "border-primary-500 bg-primary-50" : "border-stone-300 bg-stone-50 hover:border-primary-500 hover:bg-primary-50/50"}`}><UploadCloud size={28} className="text-primary-600" /><b className="mt-3 text-sm">Drop a photo here or browse</b><span className="mt-1 text-xs text-ink-500">JPEG, PNG or WebP · up to {MAX_UPLOAD_SIZE / (1024 * 1024)} MB</span></button>}
+      {previewUrl && <div className="mt-4 min-w-0"><img src={previewUrl} alt="Selected pet for breed recognition preview" className="max-h-56 w-full rounded-xl bg-stone-50 object-contain" /><div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={analyzing} onClick={chooseImage} className={btn2}>Replace photo</button><button type="button" disabled={analyzing} onClick={removeImage} className={btn2}>Remove photo</button></div><button type="button" disabled={analyzing} onClick={analyze} className={`${btn} mt-3 w-full justify-center`}>{analyzing ? <><span className="motion-safe:animate-spin">⟳</span> Analyzing your pet...</> : <><Search size={16} /> Analyze Photo</>}</button></div>}
+      {uploadError && <p role="alert" className="mt-3 text-sm font-semibold text-danger-600">{uploadError}</p>}
+      {analysisError && <div role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p>{analysisError}</p>{imageFile && <button type="button" disabled={analyzing} onClick={analyze} className="mt-2 font-bold underline">Retry analysis</button>}</div>}
+      {analyzing && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-primary-700">Analyzing your pet...</p>}
+      {result && <section aria-live="polite" aria-label="Breed analysis result" className="mt-4 rounded-xl border border-accent-100 bg-accent-50 p-4">
+        <p className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800">AI appearance analysis{result.associatedPetName ? ` · ${result.associatedPetName}` : ""}</p>
+        <h3 className="mt-2 text-base font-bold text-ink-700">Animal type: {animalLabels[result.animalType]}</h3>
+        {result.recognitionStatus === "pet_identified" ? <><h4 className="mt-2 text-lg font-extrabold">Likely breed: {result.likelyBreed}</h4>{result.alternativeBreeds.length > 0 && <div className="mt-3"><h5 className="text-sm font-bold">Other possibilities</h5><ul className="mt-1 list-inside list-disc text-sm text-ink-700">{result.alternativeBreeds.map((breed) => <li key={breed}>{breed}</li>)}</ul></div>}</> : <p className="mt-2 text-sm font-semibold">{resultMessages[result.recognitionStatus]}</p>}
+        {result.visibleCharacteristics.length > 0 && <div className="mt-3"><h5 className="text-sm font-bold">Visible characteristics</h5><ul className="mt-1 list-inside list-disc text-sm text-ink-700">{result.visibleCharacteristics.map((trait) => <li key={trait}>{trait}</li>)}</ul></div>}
+        <p className="mt-3 text-sm text-ink-700">{result.explanation}</p>
+        <p className="mt-2 text-xs text-ink-600">{result.uncertainty}</p>
+        {result.recognitionStatus === "pet_identified" && result.mixedBreedPossible && <p className="mt-2 text-xs text-ink-600">Mixed ancestry is possible; appearance alone cannot confirm breed.</p>}
+        <p className="mt-3 border-t border-accent-100 pt-3 text-[11px] leading-5 text-ink-600">AI breed identification is an estimate based on appearance, not proof of pedigree or genetic ancestry.</p>
+        <button type="button" onClick={() => { setResult(null); setAnalysisError(""); chooseImage(); }} className={`${btn2} mt-3`}>Analyze Another Photo</button>
+      </section>}
+    </section></div></div>;
 }
