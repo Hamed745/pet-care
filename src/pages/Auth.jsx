@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, CalendarDays, Check, Eye, EyeOff, Heart, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, PawPrint, Phone, Save, Send, Settings2, ShoppingBag, Shield, UserRound } from "lucide-react";
+import { ArrowLeft, Bell, CalendarDays, Check, ChevronDown, Eye, EyeOff, Heart, Key, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, PawPrint, Phone, Save, Send, Settings2, ShoppingBag, Shield, UserRound, X } from "lucide-react";
 import { useApp } from "../store.jsx";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { btn, btn2, card, input } from "../ui.js";
 import Media from "../components/Media.jsx";
 import PhotoUpload from "../components/PhotoUpload.jsx";
@@ -14,6 +15,7 @@ function displayNameFromEmail(email) {
 }
 
 function AuthShell({ title, eyebrow, children }) {
+  const { t } = useLanguage();
   return (
     <div className="mx-auto grid min-h-[560px] max-w-5xl overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm md:grid-cols-[0.9fr_1.1fr]">
       <aside className="relative isolate hidden min-h-full flex-col justify-between overflow-hidden bg-primary-700 p-9 text-white md:flex">
@@ -25,18 +27,18 @@ function AuthShell({ title, eyebrow, children }) {
         </Link>
 
         <div className="relative">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-100">A little more peace of mind</p>
-          <p className="mt-3 max-w-sm text-3xl font-bold leading-tight">Good care feels better when it’s all together.</p>
-          <p className="mt-4 max-w-sm text-sm leading-6 text-white/80">Appointments, records, and everyday essentials for the pets you love.</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-100">{t("auth.peace_of_mind", "A little more peace of mind")}</p>
+          <p className="mt-3 max-w-sm text-3xl font-bold leading-tight">{t("auth.good_care", "Good care feels better when it’s all together.")}</p>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-white/80">{t("auth.sidebar_desc", "Appointments, records, and everyday essentials for the pets you love.")}</p>
         </div>
 
-        <span className="relative text-xs text-white/70">Care for every stage, close to home.</span>
+        <span className="relative text-xs text-white/70">{t("auth.sidebar_footer", "Care for every stage, close to home.")}</span>
       </aside>
 
       <section className="flex items-center p-5 sm:p-8 md:p-10">
         <div className="mx-auto w-full max-w-md">
           <Link to="/" className="mb-8 inline-flex items-center gap-2 text-xs font-bold text-ink-500 hover:text-primary-700 md:hidden">
-            <ArrowLeft size={15} /> PetCare home
+            <ArrowLeft size={15} /> {t("common.home", "PetCare home")}
           </Link>
           <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-700">{eyebrow}</p>
           <h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">{title}</h1>
@@ -47,27 +49,81 @@ function AuthShell({ title, eyebrow, children }) {
   );
 }
 
-function PasswordInput({ id, label, value, onChange, required = true, placeholder }) {
+function PasswordInput({ id, label, value, onChange, required = true, placeholder, name, autoComplete }) {
   const [visible, setVisible] = useState(false);
+  const inputRef = useRef(null);
+
   return (
     <label htmlFor={id} className="block text-[11px] font-bold text-ink-700">
       {label}
       <span className="relative mt-2 block">
-        <LockKeyhole size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
-        <input id={id} required={required} type={visible ? "text" : "password"} className={`${input} pl-10 pr-12`} placeholder={placeholder || label} value={value} onChange={onChange} />
+        <LockKeyhole
+          size={16}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 cursor-pointer"
+          onClick={() => inputRef.current?.focus()}
+        />
+        <input
+          ref={inputRef}
+          id={id}
+          name={name}
+          autoComplete={autoComplete}
+          required={required}
+          type={visible ? "text" : "password"}
+          className={`${input} pl-10 pr-12`}
+          placeholder={placeholder || label}
+          value={value}
+          onChange={onChange}
+        />
         <button type="button" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible(!visible)} className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-ink-500 hover:bg-stone-100">{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button>
       </span>
     </label>
   );
 }
 
+const INITIAL_SAVED_ACCOUNTS = [
+  { email: "hamedhegazy197@gmail.com", password: "password123" },
+  { email: "ha6456278@gmail.com", password: "password123" },
+];
+
 export function Login() {
   const { user, saveUser } = useApp();
+  const { t } = useLanguage();
   const nav = useNavigate();
   const location = useLocation();
+  const emailInputRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const [savedAccounts, setSavedAccounts] = useState(() => {
+    try {
+      const stored = localStorage.getItem("petcare_saved_accounts");
+      return stored ? JSON.parse(stored) : INITIAL_SAVED_ACCOUNTS;
+    } catch {
+      return INITIAL_SAVED_ACCOUNTS;
+    }
+  });
+
   const [f, setF] = useState({ email: "", password: "", remember: true });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [showAccounts, setShowAccounts] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("petcare_saved_accounts", JSON.stringify(savedAccounts));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [savedAccounts]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowAccounts(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loginErrorMessage = (error) => {
     switch (error?.code) {
@@ -86,6 +142,20 @@ export function Login() {
     }
   };
 
+  const selectAccount = (acc, event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    setF((prev) => ({ ...prev, email: acc.email, password: acc.password || "" }));
+    setShowAccounts(false);
+    emailInputRef.current?.blur();
+  };
+
+  const removeAccount = (emailToRemove, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSavedAccounts((prev) => prev.filter((acc) => acc.email !== emailToRemove));
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (saving) return;
@@ -94,6 +164,17 @@ export function Login() {
     try {
       const credential = await loginWithEmail(f.email, f.password, f.remember);
       const firebaseUser = credential.user;
+
+      if (f.remember) {
+        setSavedAccounts((prev) => {
+          const exists = prev.some((a) => a.email === f.email);
+          if (exists) {
+            return prev.map((a) => (a.email === f.email ? { email: f.email, password: f.password } : a));
+          }
+          return [...prev, { email: f.email, password: f.password }];
+        });
+      }
+
       const savedProfile = user?.uid === firebaseUser.uid ? user : {};
       await saveUser({
         uid: firebaseUser.uid,
@@ -115,37 +196,98 @@ export function Login() {
   };
 
   return (
-    <AuthShell title="Welcome back" eyebrow="Your pet's care, together">
+    <AuthShell title={t("auth.welcome_back")} eyebrow={t("auth.your_pet_care", "Your pet's care, together")}>
       <form className="mt-7 space-y-5" onSubmit={submit}>
         <label htmlFor="login-email" className="block text-[11px] font-bold text-ink-700">
-          Email address
-          <span className="relative mt-2 block">
-            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
-            <input id="login-email" required type="email" className={`${input} pl-10`} placeholder="you@example.com" value={f.email} onChange={(event) => setF({ ...f, email: event.target.value })} />
+          {t("auth.email_address")}
+          <span ref={dropdownRef} className="relative mt-2 block">
+            <Mail
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 cursor-pointer"
+              onClick={() => emailInputRef.current?.focus()}
+            />
+            <input
+              ref={emailInputRef}
+              id="login-email"
+              name="email"
+              autoComplete="username"
+              required
+              type="email"
+              className={`${input} pl-10 pr-12`}
+              placeholder="you@example.com"
+              value={f.email}
+              onFocus={() => setShowAccounts(true)}
+              onChange={(event) => setF({ ...f, email: event.target.value })}
+            />
+            <button
+              type="button"
+              aria-label="Select saved account"
+              onClick={() => setShowAccounts(!showAccounts)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-lg bg-stone-100 p-1.5 text-ink-700 hover:bg-stone-200 transition"
+            >
+              <Key size={14} />
+              <ChevronDown size={12} />
+            </button>
+
+            {showAccounts && savedAccounts.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1.5 overflow-hidden rounded-xl border border-stone-800 bg-ink-900 p-1 text-white shadow-xl">
+                <div className="flex items-center justify-between border-b border-stone-800 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                  <span>{t("auth.saved_accounts", "SAVED ACCOUNTS:")}</span>
+                  <button type="button" onClick={() => setShowAccounts(false)} className="text-stone-400 hover:text-white">✕</button>
+                </div>
+                {savedAccounts.map((acc) => (
+                  <div
+                    key={acc.email}
+                    onMouseDown={(e) => selectAccount(acc, e)}
+                    className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold text-stone-200 hover:bg-stone-800 hover:text-white transition group"
+                  >
+                    <span>{acc.email}</span>
+                    <button
+                      type="button"
+                      aria-label="Delete saved account"
+                      onMouseDown={(e) => removeAccount(acc.email, e)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded p-1 text-stone-400 hover:bg-stone-700 hover:text-red-400 transition"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </span>
         </label>
 
-        <PasswordInput id="login-password" label="Password" value={f.password} onChange={(event) => setF({ ...f, password: event.target.value })} placeholder="••••••••" />
+        <PasswordInput
+          id="login-password"
+          name="password"
+          autoComplete="current-password"
+          label={t("auth.password")}
+          value={f.password}
+          onChange={(event) => setF({ ...f, password: event.target.value })}
+          placeholder="••••••••"
+        />
 
         <div className="flex items-center justify-between gap-3 text-sm">
           <label className="flex items-center gap-2 text-ink-600">
-            <input type="checkbox" className="accent-primary-600" checked={f.remember} onChange={(event) => setF({ ...f, remember: event.target.checked })} />
-            Remember me
+            <input type="checkbox" name="remember" className="accent-primary-600" checked={f.remember} onChange={(event) => setF({ ...f, remember: event.target.checked })} />
+            {t("auth.remember_me")}
           </label>
-          <Link className="font-bold text-primary-700 hover:underline" to="/forgot-password">Forgot password?</Link>
+          <Link className="font-bold text-primary-700 hover:underline" to="/forgot-password">{t("auth.forgot_password")}</Link>
         </div>
 
         {err && <p role="alert" className="text-sm font-semibold text-danger-600">{err}</p>}
-        <Button disabled={saving} className="w-full">{saving ? "Signing in..." : "Log in"}</Button>
+        <Button type="submit" disabled={saving} className="w-full">{saving ? t("auth.signing_in", "Signing in...") : t("nav.login", "Log in")}</Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-ink-500">New to PetCare? <Link className="font-bold text-primary-700" to="/register">Create an account</Link></p>
+      <p className="mt-6 text-center text-sm text-ink-500">{t("auth.dont_have_account", "New to PetCare?")} <Link className="font-bold text-primary-700" to="/register">{t("auth.create_account", "Create an account")}</Link></p>
     </AuthShell>
   );
 }
 
 export function Register() {
   const { saveUser, showToast } = useApp();
+  const { t } = useLanguage();
   const nav = useNavigate();
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -202,50 +344,51 @@ export function Register() {
   };
 
   return (
-    <AuthShell title="Create your account" eyebrow="A better day for every pet">
+    <AuthShell title={t("auth.create_account")} eyebrow={t("auth.register_eyebrow", "A better day for every pet")}>
       <form className="mt-6 space-y-4" onSubmit={submit}>
-        <label className="block text-[11px] font-bold text-ink-700">
-          Full name
-          <input required className={`${input} mt-2`} placeholder="Your name" value={f.name} onChange={set("name")} />
+        <label htmlFor="register-name" className="block text-[11px] font-bold text-ink-700">
+          {t("cart.full_name")}
+          <input id="register-name" name="name" autoComplete="name" required className={`${input} mt-2`} placeholder="Your name" value={f.name} onChange={set("name")} />
         </label>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-[11px] font-bold text-ink-700">
-            Email
-            <input required type="email" className={`${input} mt-2`} placeholder="you@example.com" value={f.email} onChange={set("email")} />
+          <label htmlFor="register-email" className="block text-[11px] font-bold text-ink-700">
+            {t("auth.email_address")}
+            <input id="register-email" name="email" autoComplete="username" required type="email" className={`${input} mt-2`} placeholder="you@example.com" value={f.email} onChange={set("email")} />
           </label>
-          <label className="block text-[11px] font-bold text-ink-700">
-            Phone
-            <input required type="tel" className={`${input} mt-2`} placeholder="Phone number" value={f.phone} onChange={set("phone")} />
+          <label htmlFor="register-phone" className="block text-[11px] font-bold text-ink-700">
+            {t("cart.phone_number")}
+            <input id="register-phone" name="phone" autoComplete="tel" required type="tel" className={`${input} mt-2`} placeholder="Phone number" value={f.phone} onChange={set("phone")} />
           </label>
         </div>
 
-        <label className="block text-[11px] font-bold text-ink-700">
-          City
-          <input required className={`${input} mt-2`} placeholder="Your city" value={f.city} onChange={set("city")} />
+        <label htmlFor="register-city" className="block text-[11px] font-bold text-ink-700">
+          {t("cart.city")}
+          <input id="register-city" name="city" autoComplete="address-level2" required className={`${input} mt-2`} placeholder="Your city" value={f.city} onChange={set("city")} />
         </label>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <PasswordInput id="register-password" label="Password" value={f.password} onChange={set("password")} placeholder="••••••••" />
-          <PasswordInput id="register-confirm" label="Confirm password" value={f.confirm} onChange={set("confirm")} placeholder="••••••••" />
+          <PasswordInput id="register-password" name="password" autoComplete="new-password" label={t("auth.password")} value={f.password} onChange={set("password")} placeholder="••••••••" />
+          <PasswordInput id="register-confirm" name="confirm-password" autoComplete="new-password" label={t("auth.confirm_password")} value={f.confirm} onChange={set("confirm")} placeholder="••••••••" />
         </div>
 
         <label className="flex items-start gap-2 text-xs leading-5 text-ink-700">
-          <input required type="checkbox" className="mt-1 accent-primary-600" checked={f.terms} onChange={set("terms")} />
-          I agree to the terms
+          <input required type="checkbox" name="terms" className="mt-1 accent-primary-600" checked={f.terms} onChange={set("terms")} />
+          {t("auth.agree_terms")}
         </label>
 
         {err && <p role="alert" className="text-sm font-semibold text-danger-600">{err}</p>}
 
-        <Button disabled={saving} className="w-full">{saving ? "Creating account..." : "Create account"}</Button>
+        <Button type="submit" disabled={saving} className="w-full">{saving ? t("auth.creating_account") : t("auth.create_account")}</Button>
       </form>
 
-      <p className="mt-5 text-center text-sm text-ink-500">Already registered? <Link className="font-bold text-primary-700" to="/login">Log in</Link></p>
+      <p className="mt-5 text-center text-sm text-ink-500">{t("auth.already_registered")} <Link className="font-bold text-primary-700" to="/login">{t("nav.login")}</Link></p>
     </AuthShell>
   );
 }
 
 export function Forgot() {
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const [sent, setSent] = useState(false);
@@ -295,13 +438,13 @@ export function Forgot() {
         {!sent ? (
           <>
             <div className="mt-5 text-center">
-              <h1 className="text-[26px] font-bold leading-tight tracking-tight text-[#0F172A] sm:text-[28px]">Forgot your password?</h1>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-5 text-[#64748B]">Enter your email address and we&apos;ll send you a reset link so you can create a new password.</p>
+              <h1 className="text-[26px] font-bold leading-tight tracking-tight text-[#0F172A] sm:text-[28px]">{t("auth.reset_password")}</h1>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-5 text-[#64748B]">{t("auth.reset_subtitle")}</p>
             </div>
 
             <form className="mt-5 space-y-4" onSubmit={submit}>
               <label htmlFor="reset-email" className="block text-sm font-semibold text-[#0F172A]">
-                Email address
+                {t("auth.email_address")}
                 <span className="relative mt-1.5 block">
                   <Mail aria-hidden="true" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#64748B]" />
                   <input
@@ -324,7 +467,7 @@ export function Forgot() {
                 disabled={saving}
                 className="flex h-[49px] w-full items-center justify-center gap-2 rounded-[11px] bg-[#0F766E] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#115E59] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0F766E]/30 disabled:cursor-not-allowed disabled:opacity-75"
               >
-                {saving ? <><LoaderCircle aria-hidden="true" size={16} className="animate-spin" /> Sending...</> : <>Send Reset Link <Send aria-hidden="true" size={14} /></>}
+                {saving ? <><LoaderCircle aria-hidden="true" size={16} className="animate-spin" /> {t("common.loading", "Sending...")}</> : <>{t("auth.send_reset_link")} <Send aria-hidden="true" size={14} /></>}
               </button>
             </form>
           </>
@@ -336,8 +479,8 @@ export function Forgot() {
               <span aria-hidden="true" className="absolute -bottom-0.5 -left-1 size-2 rounded-full bg-[#F6B84A]" />
               <span aria-hidden="true" className="absolute -right-2 bottom-2 size-1.5 rounded-full bg-[#F6B84A]" />
             </div>
-            <h1 className="text-[22px] font-bold leading-tight tracking-tight text-[#0F172A]">Check your email</h1>
-            <p role="status" className="mt-2 text-[13px] leading-[18px] text-[#64748B]">If an account exists for this email, we&apos;ve sent a password reset link. Check your inbox and follow the instructions.</p>
+            <h1 className="text-[22px] font-bold leading-tight tracking-tight text-[#0F172A]">{t("auth.check_email")}</h1>
+            <p role="status" className="mt-2 text-[13px] leading-[18px] text-[#64748B]">{t("auth.check_email_desc")}</p>
             <p className="mt-2 break-all text-xs font-semibold text-[#0F766E]">{email.trim()}</p>
             <button
               type="button"
@@ -346,13 +489,13 @@ export function Forgot() {
               className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#0F766E]/25 bg-white px-5 text-xs font-bold text-[#0F766E] transition hover:border-[#0F766E] hover:bg-[#F0FDFA] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0F766E]/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving && <LoaderCircle aria-hidden="true" size={15} className="animate-spin" />}
-              {saving ? "Sending..." : cooldown > 0 ? `Resend Email · ${cooldown}s` : "Resend Email"}
+              {saving ? t("common.loading", "Sending...") : cooldown > 0 ? `${t("auth.resend_email")} · ${cooldown}s` : t("auth.resend_email")}
             </button>
           </div>
         )}
 
         <Link to="/login" className="mx-auto mt-4 flex w-fit items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] font-semibold text-[#0F766E] transition hover:text-[#115E59] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F766E]">
-          <ArrowLeft aria-hidden="true" size={16} /> Back to Sign In
+          <ArrowLeft aria-hidden="true" size={16} /> {t("auth.back_to_login")}
         </Link>
       </div>
     </section>
@@ -361,6 +504,7 @@ export function Forgot() {
 
 export function Profile() {
   const { user, setUser, saveUser, savePreferences, clearDemoData, showToast } = useApp();
+  const { t, language, setLanguage } = useLanguage();
   const location = useLocation();
   const nav = useNavigate();
   const [f, setF] = useState(user || {});
@@ -378,9 +522,9 @@ export function Profile() {
     return (
       <div className={`${card} mx-auto max-w-lg py-14 text-center`}>
         <UserRound size={30} className="mx-auto text-primary-600" />
-        <h1 className="mt-4 text-2xl font-extrabold">Your profile is waiting</h1>
-        <p className="mt-2 text-sm text-ink-500">Log in to manage your account details.</p>
-        <Link className={`${btn} mt-5`} to="/login">Log in</Link>
+        <h1 className="mt-4 text-2xl font-extrabold">{t("auth.welcome_back")}</h1>
+        <p className="mt-2 text-sm text-ink-500">{t("auth.login_subtitle")}</p>
+        <Link className={`${btn} mt-5`} to="/login">{t("nav.login")}</Link>
       </div>
     );
   }
@@ -418,22 +562,31 @@ export function Profile() {
   };
 
   const accountNav = [
-    { key: "profile", label: "Profile", href: "/profile", icon: UserRound },
-    { key: "pets", label: "My Pets", href: "/pets", icon: Heart },
-    { key: "bookings", label: "My Bookings", href: "/bookings", icon: CalendarDays },
-    { key: "orders", label: "My Orders", href: "/orders", icon: ShoppingBag },
-    { key: "wishlist", label: "My Wishlist", href: "/wishlist", icon: Heart },
-    { key: "calendar", label: "Calendar", href: "/calendar", icon: CalendarDays },
-    { key: "notifications", label: "Notifications", href: "/notifications", icon: Bell },
-    { key: "settings", label: "Settings", href: "/settings", icon: Settings2 },
+    { key: "profile", label: t("auth.profile_title"), href: "/profile", icon: UserRound },
+    { key: "pets", label: t("nav.my_pets"), href: "/pets", icon: Heart },
+    { key: "bookings", label: t("nav.bookings"), href: "/bookings", icon: CalendarDays },
+    { key: "orders", label: t("nav.orders"), href: "/orders", icon: ShoppingBag },
+    { key: "wishlist", label: t("nav.wishlist"), href: "/wishlist", icon: Heart },
+    { key: "calendar", label: t("nav.calendar"), href: "/calendar", icon: CalendarDays },
+    { key: "notifications", label: t("nav.notifications"), href: "/notifications", icon: Bell },
+    { key: "settings", label: t("nav.settings"), href: "/settings", icon: Settings2 },
   ];
+
+  const notificationOptions = {
+    vaccinationReminders: t("auth.vaccine_reminders"),
+    medicationReminders: t("auth.medication_reminders"),
+    bookingReminders: t("auth.booking_reminders"),
+    orderUpdates: t("auth.order_updates"),
+    adoptionUpdates: t("auth.adoption_updates"),
+    lostFoundUpdates: t("auth.lost_found_updates"),
+  };
 
   const preferencePanels = (
     <div className="grid items-start gap-4 xl:grid-cols-2">
       <section aria-labelledby="notification-preferences-title" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bell size={18} /></span><div><h2 id="notification-preferences-title" className="font-extrabold">Notification Preferences</h2><p className="mt-0.5 text-xs text-ink-500">Choose the reminders and updates you receive.</p></div></div>
+        <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bell size={18} /></span><div><h2 id="notification-preferences-title" className="font-extrabold">{t("auth.notification_preferences")}</h2><p className="mt-0.5 text-xs text-ink-500">{t("auth.notification_sub")}</p></div></div>
         <div className="mt-4 divide-y divide-stone-100">
-          {Object.entries({ vaccinationReminders: "Vaccination reminders", medicationReminders: "Medication reminders", bookingReminders: "Booking reminders", orderUpdates: "Order updates", adoptionUpdates: "Adoption updates", lostFoundUpdates: "Lost & Found updates" }).map(([key, label]) => (
+          {Object.entries(notificationOptions).map(([key, label]) => (
             <label key={key} className="flex min-h-12 cursor-pointer items-center justify-between gap-4 py-2 text-sm text-ink-700">
               <span>{label}</span>
               <span className="relative inline-flex shrink-0">
@@ -447,22 +600,31 @@ export function Profile() {
       </section>
       <div className="space-y-4">
         <section aria-labelledby="privacy-settings-title" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Shield size={18} /></span><div><h2 id="privacy-settings-title" className="font-extrabold">Privacy Settings</h2><p className="mt-0.5 text-xs text-ink-500">Control what appears on community reports.</p></div></div>
+          <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Shield size={18} /></span><div><h2 id="privacy-settings-title" className="font-extrabold">{t("auth.privacy_settings")}</h2><p className="mt-0.5 text-xs text-ink-500">{t("auth.privacy_sub")}</p></div></div>
           <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 text-sm text-ink-700">
-            <span><span className="block font-semibold">Show my profile name</span><span className="mt-0.5 block text-xs text-ink-500">Allow your name to appear on community posts and reports.</span></span>
+            <span><span className="block font-semibold">{t("auth.show_profile_name")}</span><span className="mt-0.5 block text-xs text-ink-500">{t("auth.privacy_hint", "Allow your name to appear on community posts and reports.")}</span></span>
             <span className="relative inline-flex shrink-0">
-              <input type="checkbox" role="switch" aria-label="Show my profile name on community posts" checked={f.profileVisible !== false} onChange={(event) => updateAccountSetting("profileVisible", event.target.checked)} className="peer sr-only" />
+              <input type="checkbox" role="switch" aria-label={t("auth.show_profile_name")} checked={f.profileVisible !== false} onChange={(event) => updateAccountSetting("profileVisible", event.target.checked)} className="peer sr-only" />
               <span aria-hidden="true" className="h-6 w-11 rounded-full bg-slate-200 transition-colors peer-checked:bg-primary-600 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-600" />
               <span aria-hidden="true" className="pointer-events-none absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
             </span>
           </label>
         </section>
         <section aria-labelledby="language-settings-title" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Settings2 size={18} /></span><div><h2 id="language-settings-title" className="font-extrabold">Language</h2><p className="mt-0.5 text-xs text-ink-500">Choose your preferred display language.</p></div></div>
-          <label className="mt-4 block text-xs font-bold text-ink-700">Preferred language
-            <select aria-label="Language" className={`${input} mt-2 min-h-10`} value={f.language || "English"} onChange={(event) => updateAccountSetting("language", event.target.value)}>
-              <option>English</option>
-              <option>العربية</option>
+          <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Settings2 size={18} /></span><div><h2 id="language-settings-title" className="font-extrabold">{t("auth.language_settings")}</h2><p className="mt-0.5 text-xs text-ink-500">{t("auth.language_sub")}</p></div></div>
+          <label className="mt-4 block text-xs font-bold text-ink-700">{t("auth.preferred_language")}
+            <select
+              aria-label={t("auth.preferred_language")}
+              className={`${input} mt-2 min-h-10`}
+              value={language === "ru" ? "Русский" : "English"}
+              onChange={(event) => {
+                const newLang = event.target.value === "Русский" ? "ru" : "en";
+                setLanguage(newLang);
+                updateAccountSetting("language", event.target.value);
+              }}
+            >
+              <option value="English">English</option>
+              <option value="Русский">Русский</option>
             </select>
           </label>
         </section>
@@ -479,14 +641,14 @@ export function Profile() {
               {f.avatar ? <img src={f.avatar} alt="Profile" className="size-full object-cover" /> : (f.name || user.name || "U").trim().slice(0, 1).toUpperCase()}
             </span>
             <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-700">Pet parent</p>
-              <h2 className="mt-1 text-2xl font-extrabold">{f.name || user.name || "Pet parent"}</h2>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-700">{t("auth.pet_parent")}</p>
+              <h2 className="mt-1 text-2xl font-extrabold">{f.name || user.name || t("auth.pet_parent")}</h2>
               <p className="mt-1 text-sm text-ink-500">{f.email || user.email}</p>
               {(f.phone || user.phone || f.city || user.city) && <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500">{(f.phone || user.phone) && <span className="inline-flex items-center gap-1.5"><Phone size={13} />{f.phone || user.phone}</span>}{(f.city || user.city) && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{f.city || user.city}</span>}</p>}
             </div>
           </div>
           <button type="button" className={btn2} onClick={() => setEditing((current) => !current)}>
-            {editing ? "Close editor" : "Edit profile"}
+            {editing ? t("auth.close_editor") : t("auth.edit_profile")}
           </button>
         </div>
       </div>
@@ -501,26 +663,26 @@ export function Profile() {
         }}>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-[11px] font-bold text-ink-700">
-              Full name
+              {t("cart.full_name")}
               <input required className={`${input} mt-2`} value={f.name || ""} onChange={updateField("name")} />
             </label>
             <label className="block text-[11px] font-bold text-ink-700">
-              Email
+              {t("auth.email_address")}
               <input required type="email" className={`${input} mt-2`} value={f.email || ""} onChange={updateField("email")} />
             </label>
             <label className="block text-[11px] font-bold text-ink-700">
-              Phone
+              {t("cart.phone_number")}
               <input required type="tel" className={`${input} mt-2`} value={f.phone || ""} onChange={updateField("phone")} />
             </label>
             <label className="block text-[11px] font-bold text-ink-700">
-              City
+              {t("cart.city")}
               <input required className={`${input} mt-2`} value={f.city || ""} onChange={updateField("city")} />
             </label>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit"><Save size={16} /> Save changes</Button>
-            <button type="button" className={btn2} onClick={() => setEditing(false)}>Cancel</button>
+            <Button type="submit"><Save size={16} /> {t("auth.save_changes")}</Button>
+            <button type="button" className={btn2} onClick={() => setEditing(false)}>{t("common.cancel", "Cancel")}</button>
           </div>
         </form>
       ) : (
@@ -529,8 +691,8 @@ export function Profile() {
             <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-ink-500">Contact</p>
             <dl className="mt-4 space-y-3 text-sm text-ink-700">
               <div className="flex items-center gap-3"><Mail size={16} className="text-primary-700" /><dd>{f.email || user.email}</dd></div>
-              <div className="flex items-center gap-3"><Phone size={16} className="text-primary-700" /><dd>{f.phone || user.phone || "Not added"}</dd></div>
-              <div className="flex items-center gap-3"><MapPin size={16} className="text-primary-700" /><dd>{f.city || user.city || "Not added"}</dd></div>
+              <div className="flex items-center gap-3"><Phone size={16} className="text-primary-700" /><dd>{f.phone || user.phone || "—"}</dd></div>
+              <div className="flex items-center gap-3"><MapPin size={16} className="text-primary-700" /><dd>{f.city || user.city || "—"}</dd></div>
             </dl>
           </div>
 
@@ -551,11 +713,11 @@ export function Profile() {
       {preferencePanels}
 
       <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-extrabold">Security</h2>
+        <h2 className="text-lg font-extrabold">{t("auth.security_password")}</h2>
         <p className="mt-1 text-sm text-ink-500">Demo only. Passwords are not stored.</p>
 
         <form className="mt-4 space-y-3" onSubmit={savePassword}>
-          {[["current", "Current password"], ["next", "New password"], ["confirm", "Confirm new password"]].map(([key, label]) => (
+          {[[ "current", t("auth.current_password") ], [ "next", t("auth.new_password") ], [ "confirm", t("auth.confirm_password") ]].map(([key, label]) => (
             <label key={key} className="block text-[11px] font-bold text-ink-700">
               {label}
               <input aria-label={label} type="password" className={`${input} mt-2`} value={passwords[key]} onChange={(event) => setPasswords((current) => ({ ...current, [key]: event.target.value }))} />
@@ -564,7 +726,7 @@ export function Profile() {
 
           {passwordError && <p role="alert" className="text-xs font-semibold text-danger-600">{passwordError}</p>}
 
-          <Button type="submit" variant="secondary" className="w-full"><LockKeyhole size={16} /> Update password</Button>
+          <Button type="submit" variant="secondary" className="w-full"><LockKeyhole size={16} /> {t("auth.update_password")}</Button>
         </form>
       </div>
     </div>
@@ -574,7 +736,7 @@ export function Profile() {
     <div className="mx-auto max-w-7xl py-6">
       <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
         <aside aria-label="Account sidebar" className="flex min-w-0 flex-col rounded-2xl border border-stone-200 bg-white p-3 shadow-sm lg:sticky lg:top-24 lg:min-h-[520px]">
-          <div className="mb-3 hidden px-3 pt-2 lg:block"><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-ink-400">Account</p><h2 className="mt-1 font-extrabold text-ink-900">Your account</h2></div>
+          <div className="mb-3 hidden px-3 pt-2 lg:block"><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-ink-400">Account</p><h2 className="mt-1 font-extrabold text-ink-900">{t("auth.profile_title")}</h2></div>
           <nav aria-label="Account navigation" className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
             {accountNav.map(({ key, label, href, icon: Icon }) => {
               const active = location.pathname === href;
@@ -587,21 +749,33 @@ export function Profile() {
             })}
           </nav>
 
-          <button type="button" className="mt-3 flex min-h-10 shrink-0 items-center gap-3 rounded-xl border-t border-stone-100 px-3 py-2.5 text-left text-sm font-semibold text-danger-600 transition hover:bg-red-50 lg:mt-auto" onClick={() => { setUser(null); nav("/"); }}><LogOut size={16} />Log out</button>
+          <button type="button" className="mt-3 flex min-h-10 shrink-0 items-center gap-3 rounded-xl border-t border-stone-100 px-3 py-2.5 text-left text-sm font-semibold text-danger-600 transition hover:bg-red-50 lg:mt-auto" onClick={() => { setUser(null); nav("/"); }}><LogOut size={16} />{t("nav.logout")}</button>
         </aside>
 
         <main className="min-w-0">
-          <header className="mb-5"><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-700">{isSettings ? "Account preferences" : "Account"}</p><h1 className="mt-1 text-2xl font-extrabold text-ink-900 sm:text-3xl">{isSettings ? "Settings" : "Profile Information"}</h1></header>
+          <header className="mb-5"><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-700">{isSettings ? t("nav.settings") : t("auth.profile_title")}</p><h1 className="mt-1 text-2xl font-extrabold text-ink-900 sm:text-3xl">{isSettings ? t("nav.settings") : t("auth.profile_title")}</h1></header>
           {content}
-          {isSettings && <section className="mt-5 rounded-2xl border border-red-100 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="font-extrabold text-ink-900">Demo data</h2><p className="mt-1 text-sm text-ink-500">Reset demo account, pets, bookings, and cart on this browser.</p></div><button type="button" className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-danger-600 transition hover:bg-red-100" onClick={() => setClearOpen(true)}>Clear demo data</button></div></section>}
+          {isSettings && (
+            <section className="mt-5 rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-extrabold text-ink-900">{t("auth.clear_demo_data")}</h2>
+                  <p className="mt-1 text-sm text-ink-500">{t("auth.clear_demo_data_desc")}</p>
+                </div>
+                <button type="button" className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-danger-600 transition hover:bg-red-100" onClick={() => setClearOpen(true)}>
+                  {t("auth.clear_demo_data")}
+                </button>
+              </div>
+            </section>
+          )}
         </main>
       </div>
 
-      <Modal open={clearOpen} onClose={() => setClearOpen(false)} title="Clear demo data?">
-        <p className="text-sm leading-6 text-ink-500">This removes the demo user, pets, bookings, and cart from this browser.</p>
+      <Modal open={clearOpen} onClose={() => setClearOpen(false)} title={`${t("auth.clear_demo_data")}?`}>
+        <p className="text-sm leading-6 text-ink-500">{t("auth.clear_demo_data_desc")}</p>
         <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => setClearOpen(false)}>Keep data</Button>
-          <Button type="button" variant="danger" onClick={async () => { await clearDemoData(); setClearOpen(false); showToast("Demo data cleared."); nav("/"); }}>Clear demo data</Button>
+          <Button type="button" variant="secondary" onClick={() => setClearOpen(false)}>{t("common.cancel", "Cancel")}</Button>
+          <Button type="button" variant="danger" onClick={async () => { await clearDemoData(); setClearOpen(false); showToast("Demo data cleared."); nav("/"); }}>{t("auth.clear_demo_data")}</Button>
         </div>
       </Modal>
     </div>

@@ -3,10 +3,11 @@ import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { Activity, ArrowLeft, ArrowRight, Bath, CalendarDays, Check, Clock3, Heart, Home, MapPin, Scissors, Search, ShieldCheck, Star, Stethoscope, UserRound } from "lucide-react";
 import { providers } from "../data.js";
 import { useApp } from "../store.jsx";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
 import Media from "../components/Media.jsx";
 import PetAvatar from "../components/PetAvatar.jsx";
 import { btn, btn2, card, input } from "../ui.js";
-export const titles = { vet: "Veterinary", grooming: "Grooming", sitting: "Pet Sitting" };
+
 const serviceIcons = { vet: Stethoscope, grooming: Scissors, sitting: Home };
 const providerIcons = { clinic: Activity, stethoscope: Stethoscope, hospital: Activity, scissors: Scissors, bath: Bath, home: Home, walk: UserRound };
 const serviceSlugs = { vet: "veterinary", grooming: "grooming", sitting: "pet-sitting" };
@@ -24,6 +25,7 @@ const providerMeta = {
 const serviceMetadata = (provider) => providerMeta[provider.id] || {};
 
 function ServicesDirectory({ categoryType = "" }) {
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const [city, setCity] = useState(searchParams.get("city") || "");
@@ -34,14 +36,29 @@ function ServicesDirectory({ categoryType = "" }) {
   const [sort, setSort] = useState("recommended");
   const [specialty, setSpecialty] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
+
+  const titles = {
+    vet: t("services.veterinary", "Veterinary"),
+    grooming: t("services.grooming", "Grooming"),
+    sitting: t("services.pet_sitting", "Pet Sitting"),
+  };
+
   const availableProviders = providers.filter((provider) => !categoryType || provider.type === categoryType);
   const cities = [...new Set(availableProviders.map((provider) => provider.city))].sort();
   const serviceTypes = [...new Set(providers.map((provider) => provider.type))];
   const petTypes = [...new Set(availableProviders.flatMap((provider) => provider.petTypes || []))];
   const specialties = [...new Set(availableProviders.flatMap((provider) => serviceMetadata(provider).specialties || []))];
   const serviceOptions = [...new Set(availableProviders.flatMap((provider) => serviceMetadata(provider).services || []))];
+
+  const getCityName = (cityName) => {
+    if (cityName === "Cairo") return t("common.cairo", "Cairo");
+    if (cityName === "Giza") return t("common.giza", "Giza");
+    if (cityName === "Alexandria") return t("common.alexandria", "Alexandria");
+    return cityName;
+  };
+
   const filteredProviders = availableProviders.filter((provider) => {
-    const searchable = `${provider.name} ${provider.city} ${provider.info} ${titles[provider.type]} ${(serviceMetadata(provider).services || []).join(" ")} ${(serviceMetadata(provider).specialties || []).join(" ")}`.toLowerCase();
+    const searchable = `${provider.name} ${provider.city} ${provider.info} ${titles[provider.type] || ""} ${(serviceMetadata(provider).services || []).join(" ")} ${(serviceMetadata(provider).specialties || []).join(" ")}`.toLowerCase();
     return (!query || searchable.includes(query.trim().toLowerCase()))
       && (!city || provider.city === city)
       && (categoryType || !activeType || provider.type === activeType)
@@ -51,6 +68,7 @@ function ServicesDirectory({ categoryType = "" }) {
       && (!specialty || serviceMetadata(provider).specialties?.includes(specialty))
       && (!serviceFilter || serviceMetadata(provider).services?.includes(serviceFilter));
   }).sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating : b.rating - a.price / 1000);
+
   const resetFilters = () => {
     setQuery("");
     setCity("");
@@ -64,18 +82,25 @@ function ServicesDirectory({ categoryType = "" }) {
   };
 
   const heroProvider = availableProviders[0] || providers[0];
-  const pageTitle = categoryType ? `${titles[categoryType] || "Pet Care"} Services` : "Find the Best Care for Your Pet";
-  const pageDescriptions = { vet: "Find trusted veterinary care for your pet.", grooming: "Find trusted grooming services for your pet.", sitting: "Find trusted pet sitting for your pet." };
-  const pageDescription = categoryType ? pageDescriptions[categoryType] : "Trusted local professionals for every paw, whisker, and stage of life.";
+  const pageTitle = categoryType ? `${titles[categoryType] || "Pet Care"} Services` : t("services.page_title", "Find the Best Care for Your Pet");
+  const pageDescriptions = {
+    vet: t("services.vet_desc", "Find trusted veterinary care for your pet."),
+    grooming: t("services.grooming_desc", "Find trusted grooming services for your pet."),
+    sitting: t("services.sitting_desc", "Find trusted pet sitting for your pet.")
+  };
+  const pageDescription = categoryType ? pageDescriptions[categoryType] : t("services.page_subtitle", "Trusted local professionals for every paw, whisker, and stage of life.");
 
   return <div className="services-directory">
     <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-2 text-xs font-medium text-ink-500">
-      <Link to="/" className="hover:text-primary-700">Home</Link><span aria-hidden="true">/</span><Link to="/services" className="hover:text-primary-700">Services</Link>{categoryType && <><span aria-hidden="true">/</span><span className="text-ink-700">{titles[categoryType]}</span></>}
+      <Link to="/" className="hover:text-primary-700">{t("nav.home", "Home")}</Link>
+      <span aria-hidden="true">/</span>
+      <Link to="/services" className="hover:text-primary-700">{t("nav.services", "Services")}</Link>
+      {categoryType && <><span aria-hidden="true">/</span><span className="text-ink-700">{titles[categoryType]}</span></>}
     </nav>
 
     <section className="relative isolate mb-5 overflow-hidden rounded-2xl border border-stone-200 bg-white px-5 py-6 sm:px-7 lg:min-h-[184px] lg:px-9">
       <div className="relative z-10 max-w-2xl">
-        <p className="text-xs font-bold uppercase tracking-wider text-primary-700">{categoryType ? titles[categoryType] : "PetCare services"}</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-primary-700">{categoryType ? titles[categoryType] : t("services.overview", "PetCare services")}</p>
         <h1 className="mt-2 max-w-lg text-3xl font-extrabold leading-tight text-ink-900 sm:text-4xl">{categoryType ? pageTitle : <>Find the Best Care<br className="hidden sm:block" /> for Your Pet</>}</h1>
         <p className="mt-2 max-w-xl text-sm leading-6 text-ink-500">{pageDescription}</p>
       </div>
@@ -89,64 +114,69 @@ function ServicesDirectory({ categoryType = "" }) {
       <label className="relative block min-w-0">
         <span className="sr-only">Search services, clinics, or location</span>
         <Search size={17} aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
-        <input aria-label="Search services, clinics, or location" className={`${input} min-h-11 border-0 bg-transparent pl-10 shadow-none focus:ring-0`} placeholder={categoryType ? `Search ${titles[categoryType]?.toLowerCase()} providers...` : "Search services, clinics, or location..."} value={query} onChange={(event) => setQuery(event.target.value)} />
+        <input aria-label="Search services, clinics, or location" className={`${input} min-h-11 border-0 bg-transparent pl-10 shadow-none focus:ring-0`} placeholder={categoryType ? `Search ${titles[categoryType]?.toLowerCase()} providers...` : t("services.search_placeholder", "Search services, clinics, or location...")} value={query} onChange={(event) => setQuery(event.target.value)} />
       </label>
       <label className="relative block min-w-0">
         <span className="sr-only">Filter by city</span>
         <MapPin size={16} aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary-700" />
         <select aria-label="Filter by city" className={`${input} min-h-11 appearance-none bg-white pl-10 pr-8`} value={city} onChange={(event) => setCity(event.target.value)}>
-          <option value="">All locations</option>{cities.map((name) => <option key={name} value={name}>{name}</option>)}
+          <option value="">{t("common.all_locations", "All locations")}</option>
+          {cities.map((name) => <option key={name} value={name}>{getCityName(name)}</option>)}
         </select>
       </label>
       <button aria-label="Search providers" type="submit" className="grid min-h-11 place-items-center rounded-lg bg-primary-700 text-white transition hover:bg-primary-800"><Search size={18} /></button>
     </form>
 
     <nav aria-label="Service categories" className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5">
-      <Link to="/services" aria-current={!categoryType ? "page" : undefined} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${!categoryType ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700 hover:border-primary-200"}`}><Activity size={15} /> All services</Link>
+      <Link to="/services" aria-current={!categoryType ? "page" : undefined} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${!categoryType ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700 hover:border-primary-200"}`}><Activity size={15} /> {t("nav.all_services", "All services")}</Link>
       {serviceTypes.map((type) => {
         const Icon = serviceIcons[type] || Stethoscope;
         const isActive = categoryType === type;
         return <Link key={type} to={`/services/${serviceSlugs[type]}`} aria-current={isActive ? "page" : undefined} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${isActive ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700 hover:border-primary-200"}`}><Icon size={15} />{titles[type]}</Link>;
       })}
-      <Link to="/emergency" className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-ink-700 transition hover:border-primary-200"><Activity size={15} className="text-primary-700" /> Emergency</Link>
+      <Link to="/emergency" className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-ink-700 transition hover:border-primary-200"><Activity size={15} className="text-primary-700" /> {t("nav.emergency", "Emergency")}</Link>
     </nav>
 
     <div className="grid items-start gap-5 lg:grid-cols-[236px_minmax(0,1fr)]">
       <aside aria-label="Provider filters" className="rounded-xl border border-stone-200 bg-white p-4">
-        <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-extrabold text-ink-900">Filters</h2><button type="button" onClick={resetFilters} className="text-xs font-semibold text-primary-700 hover:underline">Clear all</button></div>
+        <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-extrabold text-ink-900">{t("store.filter_by", "Filters")}</h2><button type="button" onClick={resetFilters} className="text-xs font-semibold text-primary-700 hover:underline">{t("adoption.clear_filters", "Clear all")}</button></div>
         <div className="space-y-4 divide-y divide-stone-100">
           <section className="pb-4">
-            <h3 className="mb-2 text-xs font-bold text-ink-800">Location</h3>
+            <h3 className="mb-2 text-xs font-bold text-ink-800">{t("cart.city", "Location")}</h3>
             <label className="sr-only" htmlFor="services-city-filter">City</label>
-            <select id="services-city-filter" aria-label="City filter" className={`${input} min-h-9 py-1.5 text-xs`} value={city} onChange={(event) => setCity(event.target.value)}><option value="">All cities</option>{cities.map((name) => <option key={name} value={name}>{name}</option>)}</select>
+            <select id="services-city-filter" aria-label="City filter" className={`${input} min-h-9 py-1.5 text-xs`} value={city} onChange={(event) => setCity(event.target.value)}><option value="">{t("common.all_cities", "All cities")}</option>{cities.map((name) => <option key={name} value={name}>{getCityName(name)}</option>)}</select>
           </section>
           <section className="pb-4">
-            <h3 className="mb-2 text-xs font-bold text-ink-800">Service Type</h3>
+            <h3 className="mb-2 text-xs font-bold text-ink-800">{t("home.search_service", "Service Type")}</h3>
             <div className="space-y-2">{serviceTypes.map((type) => <div key={type} className="flex items-center justify-between gap-2"><label className={`flex items-center gap-2 text-xs text-ink-700 ${categoryType ? "cursor-default" : "cursor-pointer"}`}><input type="checkbox" className="size-3.5 accent-primary-700" checked={categoryType ? categoryType === type : activeType === type} disabled={Boolean(categoryType)} onChange={() => setActiveType(activeType === type ? "" : type)} />{titles[type]}</label><Link to={`/services/${serviceSlugs[type]}`} aria-label={`Browse ${titles[type]} providers`} className="grid size-6 place-items-center rounded text-primary-700 hover:bg-primary-50"><ArrowRight size={13} /></Link></div>)}</div>
           </section>
           <section className="pb-4">
-            <div className="mb-2 flex items-center justify-between"><h3 className="text-xs font-bold text-ink-800">Price Range</h3><span className="text-[11px] text-ink-500">Up to {maxPrice} EGP</span></div>
+            <div className="mb-2 flex items-center justify-between"><h3 className="text-xs font-bold text-ink-800">{t("store.price_range", "Price Range")}</h3><span className="text-[11px] text-ink-500">Up to {maxPrice} {t("common.egp", "EGP")}</span></div>
             <input aria-label="Maximum price in EGP" type="range" min="100" max="500" step="25" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} className="h-2 w-full cursor-pointer accent-primary-700" />
-            <div className="mt-1 flex justify-between text-[10px] text-ink-500"><span>100 EGP</span><span>500 EGP</span></div>
+            <div className="mt-1 flex justify-between text-[10px] text-ink-500"><span>100 {t("common.egp", "EGP")}</span><span>500 {t("common.egp", "EGP")}</span></div>
           </section>
           <section className="pb-4">
-            <h3 className="mb-2 text-xs font-bold text-ink-800">Rating</h3>
-            <div className="space-y-2">{[4.8, 4.5, 4, 0].map((rating) => <label key={rating} className="flex cursor-pointer items-center gap-2 text-xs text-ink-700"><input type="radio" name="provider-rating" className="size-3.5 accent-primary-700" checked={minRating === rating} onChange={() => setMinRating(rating)} /><span className="flex items-center gap-1"><Star size={12} fill="currentColor" className="text-amber-400" />{rating ? `${rating}+` : "Any rating"}</span></label>)}</div>
+            <h3 className="mb-2 text-xs font-bold text-ink-800">{t("store.rating", "Rating")}</h3>
+            <div className="space-y-2">{[4.8, 4.5, 4, 0].map((rating) => <label key={rating} className="flex cursor-pointer items-center gap-2 text-xs text-ink-700"><input type="radio" name="provider-rating" className="size-3.5 accent-primary-700" checked={minRating === rating} onChange={() => setMinRating(rating)} /><span className="flex items-center gap-1"><Star size={12} fill="currentColor" className="text-amber-400" />{rating ? `${rating}+` : t("store.stars_and_up", "Any rating")}</span></label>)}</div>
           </section>
-          {specialties.length > 0 && <section className="pb-4"><h3 className="mb-2 text-xs font-bold text-ink-800">Specialty</h3><select aria-label="Filter by specialty" className={`${input} min-h-9 py-1.5 text-xs`} value={specialty} onChange={(event) => setSpecialty(event.target.value)}><option value="">All specialties</option>{specialties.map((item) => <option key={item}>{item}</option>)}</select></section>}
-          {serviceOptions.length > 0 && <section className="pb-4"><h3 className="mb-2 text-xs font-bold text-ink-800">Service</h3><select aria-label="Filter by service" className={`${input} min-h-9 py-1.5 text-xs`} value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="">All services</option>{serviceOptions.map((item) => <option key={item}>{item}</option>)}</select></section>}
+          {specialties.length > 0 && <section className="pb-4"><h3 className="mb-2 text-xs font-bold text-ink-800">{t("services.specialties", "Specialty")}</h3><select aria-label="Filter by specialty" className={`${input} min-h-9 py-1.5 text-xs`} value={specialty} onChange={(event) => setSpecialty(event.target.value)}><option value="">All specialties</option>{specialties.map((item) => <option key={item}>{item}</option>)}</select></section>}
+          {serviceOptions.length > 0 && <section className="pb-4"><h3 className="mb-2 text-xs font-bold text-ink-800">{t("home.search_service", "Service")}</h3><select aria-label="Filter by service" className={`${input} min-h-9 py-1.5 text-xs`} value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="">All services</option>{serviceOptions.map((item) => <option key={item}>{item}</option>)}</select></section>}
           <section>
-            <h3 className="mb-2 text-xs font-bold text-ink-800">Pet Type</h3>
-            <div className="space-y-2">{petTypes.map((type) => <label key={type} className="flex cursor-pointer items-center gap-2 text-xs capitalize text-ink-700"><input type="checkbox" className="size-3.5 accent-primary-700" checked={petType === type} onChange={() => setPetType(petType === type ? "" : type)} />{type === "other" ? "Other pets" : `${type}s`}</label>)}</div>
+            <h3 className="mb-2 text-xs font-bold text-ink-800">{t("store.pet_type", "Pet Type")}</h3>
+            <div className="space-y-2">{petTypes.map((type) => <label key={type} className="flex cursor-pointer items-center gap-2 text-xs capitalize text-ink-700"><input type="checkbox" className="size-3.5 accent-primary-700" checked={petType === type} onChange={() => setPetType(petType === type ? "" : type)} />{t(`common.${type.toLowerCase()}s`, `${type}s`)}</label>)}</div>
           </section>
         </div>
       </aside>
 
       <section aria-label="Service providers" className="min-w-0">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <p aria-live="polite" className="text-xs font-semibold text-ink-600"><strong className="text-ink-900">{filteredProviders.length}</strong> providers found</p>
-          <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs text-ink-500">Sort by
-            <select aria-label="Sort providers" className={`${input} min-h-8 w-auto py-1 pl-2 pr-7 text-xs`} value={sort} onChange={(event) => setSort(event.target.value)}><option value="recommended">Recommended</option><option value="rating">Top rated</option><option value="price">Price: low to high</option></select>
+          <p aria-live="polite" className="text-xs font-semibold text-ink-600"><strong className="text-ink-900">{filteredProviders.length}</strong> {t("common.results", "providers found")}</p>
+          <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs text-ink-500">{t("store.sort_by", "Sort by")}
+            <select aria-label="Sort providers" className={`${input} min-h-8 w-auto py-1 pl-2 pr-7 text-xs`} value={sort} onChange={(event) => setSort(event.target.value)}>
+              <option value="recommended">{t("store.featured", "Recommended")}</option>
+              <option value="rating">{t("store.top_rated", "Top rated")}</option>
+              <option value="price">{t("store.price_low_high", "Price: low to high")}</option>
+            </select>
           </label>
         </div>
         {filteredProviders.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -161,15 +191,15 @@ function ServicesDirectory({ categoryType = "" }) {
                 <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-white/95 px-2 py-1 text-xs font-bold text-ink-900"><Star size={12} fill="currentColor" className="text-amber-400" />{provider.rating.toFixed(1)}</span>
               </Link>
               <div className="p-3.5">
-                <div className="flex min-w-0 items-start justify-between gap-2"><div className="min-w-0"><h2 className="truncate text-sm font-extrabold text-ink-900">{provider.name}</h2><p className="mt-1 flex items-center gap-1 text-xs text-ink-500"><MapPin size={12} />{provider.city}</p></div><span className="shrink-0 rounded-full bg-primary-50 px-2 py-1 text-[10px] font-bold text-primary-800">{titles[provider.type]}</span></div>
+                <div className="flex min-w-0 items-start justify-between gap-2"><div className="min-w-0"><h2 className="truncate text-sm font-extrabold text-ink-900">{provider.name}</h2><p className="mt-1 flex items-center gap-1 text-xs text-ink-500"><MapPin size={12} />{getCityName(provider.city)}</p></div><span className="shrink-0 rounded-full bg-primary-50 px-2 py-1 text-[10px] font-bold text-primary-800">{titles[provider.type]}</span></div>
                 <p className="mt-2 line-clamp-1 text-xs text-ink-600">{provider.info}</p>
                 <div className="mt-2 flex min-h-6 flex-wrap gap-1.5">{tags.map((tag) => <span key={tag} className="rounded-md bg-teal-50 px-2 py-1 text-[10px] font-semibold text-primary-800">{tag}</span>)}</div>
-                <div className="mt-3 flex items-center justify-between gap-2 border-t border-stone-100 pt-2.5"><span className="text-[11px] text-ink-500">From <strong className="text-ink-900">{provider.price} EGP</strong></span><Link to={`/services/${provider.type}/${provider.id}`} className="inline-flex min-h-8 items-center gap-1 rounded-md bg-primary-700 px-2.5 text-[11px] font-bold text-white transition hover:bg-primary-800">View Details<ArrowRight size={13} /></Link></div>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-stone-100 pt-2.5"><span className="text-[11px] text-ink-500">{t("common.from", "From")} <strong className="text-ink-900">{provider.price} {t("common.egp", "EGP")}</strong></span><Link to={`/services/${provider.type}/${provider.id}`} className="inline-flex min-h-8 items-center gap-1 rounded-md bg-primary-700 px-2.5 text-[11px] font-bold text-white transition hover:bg-primary-800">{t("common.details", "View Details")}<ArrowRight size={13} /></Link></div>
                 {meta.hours && <p className="mt-2 flex items-center gap-1 text-[10px] text-ink-500"><Clock3 size={11} className="text-primary-700" />{meta.hours}</p>}
               </div>
             </article>;
           })}
-        </div> : <div className="rounded-xl border border-stone-200 bg-white px-5 py-14 text-center"><Search size={24} className="mx-auto text-primary-700" /><h2 className="mt-3 text-base font-bold text-ink-900">No providers match those filters</h2><p className="mt-1 text-sm text-ink-500">Try a different city, service, or price range.</p><button type="button" onClick={resetFilters} className="mt-4 text-sm font-bold text-primary-700 hover:underline">Clear filters</button></div>}
+        </div> : <div className="rounded-xl border border-stone-200 bg-white px-5 py-14 text-center"><Search size={24} className="mx-auto text-primary-700" /><h2 className="mt-3 text-base font-bold text-ink-900">{t("services.no_providers", "No providers match those filters")}</h2><p className="mt-1 text-sm text-ink-500">Try a different city, service, or price range.</p><button type="button" onClick={resetFilters} className="mt-4 text-sm font-bold text-primary-700 hover:underline">{t("adoption.clear_filters", "Clear filters")}</button></div>}
       </section>
     </div>
   </div>;
@@ -188,6 +218,7 @@ export function ServiceDetails() {
   const { id } = useParams();
   const nav = useNavigate();
   const { pets, createBooking } = useApp();
+  const { t } = useLanguage();
   const provider = providers.find((item) => item.id === Number(id));
   const meta = provider ? serviceMetadata(provider) : {};
   const serviceOptions = meta.services || ["Consultation"];
@@ -196,7 +227,20 @@ export function ServiceDetails() {
   const [saving, setSaving] = useState(false);
   const setField = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  if (!provider) return <div className={`${card} mx-auto max-w-lg py-14 text-center`}><h1 className="text-2xl font-extrabold">Provider not found</h1><Link to="/services" className={`${btn} mt-5`}>Browse services</Link></div>;
+  const titles = {
+    vet: t("services.veterinary", "Veterinary"),
+    grooming: t("services.grooming", "Grooming"),
+    sitting: t("services.pet_sitting", "Pet Sitting"),
+  };
+
+  const getCityName = (cityName) => {
+    if (cityName === "Cairo") return t("common.cairo", "Cairo");
+    if (cityName === "Giza") return t("common.giza", "Giza");
+    if (cityName === "Alexandria") return t("common.alexandria", "Alexandria");
+    return cityName;
+  };
+
+  if (!provider) return <div className={`${card} mx-auto max-w-lg py-14 text-center`}><h1 className="text-2xl font-extrabold">{t("common.page_not_found", "Provider not found")}</h1><Link to="/services" className={`${btn} mt-5`}>{t("nav.all_services", "Browse services")}</Link></div>;
 
   const selectedPrice = meta.packages?.[form.service] ?? provider.price;
   const bookingDuration = provider.type === "sitting" ? form.service : undefined;
@@ -206,7 +250,7 @@ export function ServiceDetails() {
     setSaving(true);
     try {
       await createBooking({ provider: { ...provider, price: selectedPrice, selectedService: form.service, doctor: form.doctor || undefined, duration: bookingDuration }, pet: pets.find((pet) => pet.id === Number(form.pet)), service: form.service, doctor: form.doctor || undefined, duration: bookingDuration, date: form.date, time: form.time, notes: form.notes });
-      nav("/bookings", { state: { toast: "Your appointment request is confirmed." } });
+      nav("/bookings", { state: { toast: t("services.booking_confirmed", "Your appointment request is confirmed.") } });
     } finally {
       setSaving(false);
     }
@@ -214,8 +258,8 @@ export function ServiceDetails() {
 
   return <div>
     <nav aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-2 text-xs font-medium text-ink-500">
-      <Link to="/" className="hover:text-primary-700">Home</Link><span aria-hidden="true">/</span>
-      <Link to="/services" className="hover:text-primary-700">Services</Link><span aria-hidden="true">/</span>
+      <Link to="/" className="hover:text-primary-700">{t("nav.home", "Home")}</Link><span aria-hidden="true">/</span>
+      <Link to="/services" className="hover:text-primary-700">{t("nav.services", "Services")}</Link><span aria-hidden="true">/</span>
       <Link to={`/services/${serviceSlugs[provider.type]}`} className="hover:text-primary-700">{titles[provider.type]}</Link><span aria-hidden="true">/</span>
       <span className="text-ink-700">{provider.name}</span>
     </nav>
@@ -233,8 +277,8 @@ export function ServiceDetails() {
             <h1 className="mt-1 text-2xl font-extrabold text-ink-900 sm:text-3xl">{provider.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-500">
               <span className="inline-flex items-center gap-1.5 font-semibold text-ink-800"><Star size={15} fill="currentColor" className="text-amber-400" />{provider.rating.toFixed(1)}</span>
-              <span className="inline-flex items-center gap-1.5"><MapPin size={15} />{provider.city}</span>
-              <span className="inline-flex items-center gap-1.5 text-primary-700"><ShieldCheck size={15} />Trusted provider</span>
+              <span className="inline-flex items-center gap-1.5"><MapPin size={15} />{getCityName(provider.city)}</span>
+              <span className="inline-flex items-center gap-1.5 text-primary-700"><ShieldCheck size={15} />{t("home.hero_trust_1", "Trusted provider")}</span>
             </div>
           </div>
           <span className="rounded-full bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-800">{titles[provider.type]}</span>
@@ -246,36 +290,39 @@ export function ServiceDetails() {
 
         <section role="tabpanel" className="py-5">
           {activeTab === "Overview" && <div className="space-y-5">
-            <section><h2 className="text-base font-extrabold text-ink-900">About</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-600">{provider.info}</p></section>
-            <section className="border-t border-stone-200 pt-5"><div className="flex items-end justify-between gap-3"><div><h2 className="text-base font-extrabold text-ink-900">Services</h2><p className="mt-1 text-xs text-ink-500">Available at {provider.name}</p></div><button type="button" onClick={() => setActiveTab("Services")} className="text-xs font-bold text-primary-700 hover:underline">View all</button></div>
+            <section><h2 className="text-base font-extrabold text-ink-900">{t("services.overview", "About")}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-600">{provider.info}</p></section>
+            <section className="border-t border-stone-200 pt-5"><div className="flex items-end justify-between gap-3"><div><h2 className="text-base font-extrabold text-ink-900">{t("services.services_offered", "Services")}</h2><p className="mt-1 text-xs text-ink-500">Available at {provider.name}</p></div><button type="button" onClick={() => setActiveTab("Services")} className="text-xs font-bold text-primary-700 hover:underline">{t("common.view_all", "View all")}</button></div>
               <div className="mt-3 divide-y divide-stone-100">{serviceOptions.slice(0, 4).map((service) => <div key={service} className="flex items-center justify-between gap-4 py-3 text-sm"><span className="flex min-w-0 items-center gap-2 font-medium text-ink-800"><Check size={15} className="shrink-0 text-primary-700" />{service}</span><span className="shrink-0 font-bold text-ink-900">{meta.packages?.[service] ? `${meta.packages[service]} EGP` : `From ${provider.price} EGP`}</span></div>)}</div>
             </section>
             <section className="grid gap-4 border-t border-stone-200 pt-5 sm:grid-cols-2">
-              <div><h2 className="text-sm font-extrabold text-ink-900">Opening hours</h2><p className="mt-2 flex items-center gap-2 text-sm text-ink-600"><Clock3 size={15} className="text-primary-700" />{meta.hours || "By appointment"}</p></div>
-              <div><h2 className="text-sm font-extrabold text-ink-900">Location</h2><p className="mt-2 flex items-center gap-2 text-sm text-ink-600"><MapPin size={15} className="text-primary-700" />{provider.city}</p></div>
-              {(meta.specialties?.length || provider.petTypes?.length) > 0 && <div className="sm:col-span-2"><h2 className="text-sm font-extrabold text-ink-900">Care and pets</h2><div className="mt-2 flex flex-wrap gap-2">{(meta.specialties || []).map((specialty) => <span key={specialty} className="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{specialty}</span>)}{(provider.petTypes || []).map((petType) => <span key={petType} className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">{petType === "other" ? "Other pets" : `${petType}s`}</span>)}</div></div>}
+              <div><h2 className="text-sm font-extrabold text-ink-900">{t("services.hours", "Opening hours")}</h2><p className="mt-2 flex items-center gap-2 text-sm text-ink-600"><Clock3 size={15} className="text-primary-700" />{meta.hours || "By appointment"}</p></div>
+              <div><h2 className="text-sm font-extrabold text-ink-900">{t("cart.city", "Location")}</h2><p className="mt-2 flex items-center gap-2 text-sm text-ink-600"><MapPin size={15} className="text-primary-700" />{getCityName(provider.city)}</p></div>
+              {(meta.specialties?.length || provider.petTypes?.length) > 0 && <div className="sm:col-span-2"><h2 className="text-sm font-extrabold text-ink-900">{t("services.specialties", "Care and pets")}</h2><div className="mt-2 flex flex-wrap gap-2">{(meta.specialties || []).map((specialty) => <span key={specialty} className="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{specialty}</span>)}{(provider.petTypes || []).map((petType) => <span key={petType} className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">{petType === "other" ? "Other pets" : `${petType}s`}</span>)}</div></div>}
             </section>
           </div>}
-          {activeTab === "Services" && <section><h2 className="text-base font-extrabold text-ink-900">Services & pricing</h2><div className="mt-3 divide-y divide-stone-200">{serviceOptions.map((service) => <div key={service} className="flex items-center justify-between gap-4 py-4"><div className="flex min-w-0 items-start gap-3"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-50 text-primary-700"><Check size={16} /></span><span className="min-w-0"><b className="block text-sm text-ink-900">{service}</b><span className="mt-1 block text-xs text-ink-500">{provider.info}</span></span></div><b className="shrink-0 text-sm text-ink-900">{meta.packages?.[service] ? `${meta.packages[service]} EGP` : `${provider.price} EGP`}</b></div>)}</div></section>}
-          {activeTab === "Doctors" && meta.doctors?.length > 0 && <section><h2 className="text-base font-extrabold text-ink-900">Care team</h2><p className="mt-1 text-sm text-ink-500">Choose a provider in the appointment form.</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{meta.doctors.map((doctor) => <div key={doctor} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4"><span className="grid size-10 place-items-center rounded-full bg-primary-50 text-primary-700"><UserRound size={18} /></span><span><b className="block text-sm text-ink-900">{doctor}</b><span className="mt-1 block text-xs text-ink-500">{titles[provider.type]} care team</span></span></div>)}</div></section>}
-          {activeTab === "Location" && <section><h2 className="text-base font-extrabold text-ink-900">Location</h2><div className="mt-3 flex items-start gap-3 rounded-xl border border-stone-200 bg-white p-4"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-50 text-primary-700"><MapPin size={17} /></span><div><b className="text-sm text-ink-900">{provider.city}</b><p className="mt-1 text-sm text-ink-500">City-level location provided for this listing.</p></div></div></section>}
+          {activeTab === "Services" && <section><h2 className="text-base font-extrabold text-ink-900">{t("services.services_offered", "Services & pricing")}</h2><div className="mt-3 divide-y divide-stone-200">{serviceOptions.map((service) => <div key={service} className="flex items-center justify-between gap-4 py-4"><div className="flex min-w-0 items-start gap-3"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-50 text-primary-700"><Check size={16} /></span><span className="min-w-0"><b className="block text-sm text-ink-900">{service}</b><span className="mt-1 block text-xs text-ink-500">{provider.info}</span></span></div><b className="shrink-0 text-sm text-ink-900">{meta.packages?.[service] ? `${meta.packages[service]} EGP` : `${provider.price} EGP`}</b></div>)}</div></section>}
+          {activeTab === "Doctors" && meta.doctors?.length > 0 && <section><h2 className="text-base font-extrabold text-ink-900">{t("services.doctors", "Care team")}</h2><p className="mt-1 text-sm text-ink-500">Choose a provider in the appointment form.</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{meta.doctors.map((doctor) => <div key={doctor} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4"><span className="grid size-10 place-items-center rounded-full bg-primary-50 text-primary-700"><UserRound size={18} /></span><span><b className="block text-sm text-ink-900">{doctor}</b><span className="mt-1 block text-xs text-ink-500">{titles[provider.type]} care team</span></span></div>)}</div></section>}
+          {activeTab === "Location" && <section><h2 className="text-base font-extrabold text-ink-900">{t("cart.city", "Location")}</h2><div className="mt-3 flex items-start gap-3 rounded-xl border border-stone-200 bg-white p-4"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-50 text-primary-700"><MapPin size={17} /></span><div><b className="text-sm text-ink-900">{getCityName(provider.city)}</b><p className="mt-1 text-sm text-ink-500">City-level location provided for this listing.</p></div></div></section>}
         </section>
       </main>
 
       <aside className="min-w-0 lg:sticky lg:top-24">
         <form onSubmit={submit} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-primary-700">Appointment</p><h2 className="mt-1 text-lg font-extrabold text-ink-900">Book an Appointment</h2></div><span className="rounded-lg bg-primary-50 px-2.5 py-1.5 text-xs font-extrabold text-primary-800">{provider.price} EGP+</span></div>
+          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-primary-700">{t("nav.bookings", "Appointment")}</p><h2 className="mt-1 text-lg font-extrabold text-ink-900">{t("services.book_appointment", "Book an Appointment")}</h2></div><span className="rounded-lg bg-primary-50 px-2.5 py-1.5 text-xs font-extrabold text-primary-800">{provider.price} {t("common.egp", "EGP")}+</span></div>
           <div className="mt-4 space-y-3.5">
-            {pets.length ? <label className="block text-xs font-bold text-ink-800">Select Pet<select required aria-label="Choose your pet" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.pet} onChange={setField("pet")}>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name} ({pet.type})</option>)}</select></label> : <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">Add a pet before booking this service.</p>}
-            {meta.doctors?.length > 0 && <label className="block text-xs font-bold text-ink-800">Select Doctor<select required aria-label="Select doctor" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.doctor} onChange={setField("doctor")}>{meta.doctors.map((doctor) => <option key={doctor}>{doctor}</option>)}</select></label>}
-            <label className="block text-xs font-bold text-ink-800">Select Service<select required aria-label="Select service" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.service} onChange={setField("service")}>{serviceOptions.map((service) => <option key={service} value={service}>{service}{meta.packages?.[service] ? ` · ${meta.packages[service]} EGP` : ""}</option>)}</select></label>
-            <label className="block text-xs font-bold text-ink-800">Select Date<input required aria-label="Appointment date" type="date" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.date} onChange={setField("date")} /></label>
-            {provider.type === "sitting" ? <label className="block text-xs font-bold text-ink-800">Select Time<select aria-label="Appointment time" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.time} onChange={setField("time")}><option value="">Choose a time</option><option>09:00</option><option>13:00</option><option>17:00</option></select></label> : <label className="block text-xs font-bold text-ink-800">Select Time<input aria-label="Appointment time" type="time" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.time} onChange={setField("time")} /></label>}
-            <label className="block text-xs font-bold text-ink-800">Notes <span className="font-normal text-ink-500">(optional)</span><textarea aria-label="Booking notes" rows="3" className={`${input} mt-1.5 resize-y text-sm`} placeholder="Add any notes..." value={form.notes} onChange={setField("notes")} /></label>
+            {pets.length ? <label className="block text-xs font-bold text-ink-800">{t("services.select_pet", "Select Pet")}<select required aria-label="Choose your pet" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.pet} onChange={setField("pet")}>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name} ({pet.type})</option>)}</select></label> : <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">{t("home.add_pet_prompt", "Add a pet before booking this service.")}</p>}
+            {meta.doctors?.length > 0 && <label className="block text-xs font-bold text-ink-800">{t("services.doctors", "Select Doctor")}<select required aria-label="Select doctor" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.doctor} onChange={setField("doctor")}>{meta.doctors.map((doctor) => <option key={doctor}>{doctor}</option>)}</select></label>}
+            <label className="block text-xs font-bold text-ink-800">{t("home.search_service", "Select Service")}<select required aria-label="Select service" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.service} onChange={setField("service")}>{serviceOptions.map((service) => <option key={service} value={service}>{service}{meta.packages?.[service] ? ` · ${meta.packages[service]} EGP` : ""}</option>)}</select></label>
+            <label className="block text-xs font-bold text-ink-800">{t("services.select_date", "Select Date")}<input required aria-label="Appointment date" type="date" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.date} onChange={setField("date")} /></label>
+            {provider.type === "sitting" ? <label className="block text-xs font-bold text-ink-800">{t("services.select_time", "Select Time")}<select aria-label="Appointment time" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.time} onChange={setField("time")}><option value="">Choose a time</option><option>09:00</option><option>13:00</option><option>17:00</option></select></label> : <label className="block text-xs font-bold text-ink-800">{t("services.select_time", "Select Time")}<input aria-label="Appointment time" type="time" className={`${input} mt-1.5 min-h-10 text-sm`} value={form.time} onChange={setField("time")} /></label>}
+            <label className="block text-xs font-bold text-ink-800">{t("pets.notes", "Notes")} <span className="font-normal text-ink-500">({t("common.optional", "optional")})</span><textarea aria-label="Booking notes" rows="3" className={`${input} mt-1.5 resize-y text-sm`} placeholder={t("services.notes_placeholder", "Add any notes...")} value={form.notes} onChange={setField("notes")} /></label>
           </div>
-          <div className="mt-4 border-t border-stone-100 pt-4"><div className="mb-3 flex items-center justify-between text-sm"><span className="text-ink-500">Starting price</span><b className="text-ink-900">{selectedPrice} EGP</b></div><button type="submit" disabled={!pets.length || saving} className={`${btn} w-full justify-center`}>{saving ? "Booking..." : <><CalendarDays size={16} /> Confirm Booking</>}</button><p className="mt-2 text-center text-[11px] text-ink-500">No payment is collected now.</p></div>
+          <div className="mt-4 border-t border-stone-100 pt-4"><div className="mb-3 flex items-center justify-between text-sm"><span className="text-ink-500">{t("common.from", "Starting price")}</span><b className="text-ink-900">{selectedPrice} {t("common.egp", "EGP")}</b></div><button type="submit" disabled={!pets.length || saving} className={`${btn} w-full justify-center`}>{saving ? t("common.saving", "Booking...") : <><CalendarDays size={16} /> {t("services.confirm_booking", "Confirm Booking")}</>}</button><p className="mt-2 text-center text-[11px] text-ink-500">No payment is collected now.</p></div>
         </form>
       </aside>
     </div>
   </div>;
 }
+
+export const titles = { vet: "Veterinary", grooming: "Grooming", sitting: "Pet Sitting" };
+export { titles as serviceTitles };
