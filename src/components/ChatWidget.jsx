@@ -4,12 +4,41 @@ import { Bot, MessageCircle, Send, X } from "lucide-react";
 import { Button } from "./ui.jsx";
 import { input } from "../ui.js";
 import { sendPetCareMessage } from "../services/petAiService.js";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
 
 const ChatContext = createContext(null);
-const initialMessage = { id: 1, from: "ai", text: "Hi! Ask me anything about your pet's care." };
+const initialMessage = { id: 1, from: "ai", textKey: "chat.welcome", text: "Hi! Ask me anything about your pet's care." };
 const suggestions = ["Find a vet near me", "Vaccination schedule", "Grooming tips"];
+const russianChatText = {
+  welcome: "Привет! Задайте мне любой вопрос об уходе за вашим питомцем.",
+  ask: "Спросите об уходе за питомцем",
+  assistant: "ИИ-помощник PetCare",
+  ready: "Готов",
+  title: "Чат PetCare",
+  typing: "Помощник печатает",
+  retry: "Повторить",
+  placeholder: "Напишите ваш вопрос...",
+  send: "Отправить сообщение",
+  close: "Закрыть чат",
+  open: "Открыть чат",
+  unread: "Новый ответ",
+  incomplete: "Соединение прервалось до завершения ответа.",
+  prompts: ["Найти ветеринара поблизости", "График вакцинации", "Советы по уходу"],
+};
+const englishChatText = {
+  welcome: "Hi! Ask me anything about your pet's care.",
+  ask: "Ask about pet care", assistant: "PetCare AI assistant", ready: "Ready",
+  title: "PetCare assistant", typing: "Assistant is typing", retry: "Retry",
+  placeholder: "Type your question...", send: "Send message", close: "Close chat assistant",
+  open: "Open chat assistant", unread: "Unread reply",
+  incomplete: "The connection stopped before this answer was complete.",
+  prompts: suggestions,
+};
+function chatLabels(language) { return language === "ru" ? russianChatText : englishChatText; }
 
 export function ChatProvider({ children }) {
+  const { language } = useLanguage();
+  const labels = chatLabels(language);
   const [messages, setMessages] = useState([initialMessage]);
   const [typing, setTyping] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -79,7 +108,7 @@ export function ChatProvider({ children }) {
         return {
           ...message,
           text: partialResponse
-            ? `${partialResponse}\n\nThe connection stopped before this answer was complete.`
+            ? `${partialResponse}\n\n${labels.incomplete}`
             : error.message,
           pending: false,
           error: true,
@@ -92,7 +121,7 @@ export function ChatProvider({ children }) {
     }
 
     return true;
-  }, [messages]);
+  }, [messages, labels.incomplete]);
   const value = useMemo(() => ({ messages, typing, unread, panelOpen, openPanel, closePanel, sendMessage }), [messages, typing, unread, panelOpen, openPanel, closePanel, sendMessage]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
@@ -106,6 +135,9 @@ function useChat() {
 
 export function ChatConversation({ embedded = false, focusOnMount = false, prompts = suggestions }) {
   const { messages, typing, sendMessage } = useChat();
+  const { language } = useLanguage();
+  const labels = chatLabels(language);
+  const activePrompts = prompts === suggestions ? labels.prompts : prompts;
   const [draft, setDraft] = useState("");
   const inputRef = useRef(null);
   const messagesRef = useRef(null);
@@ -152,17 +184,19 @@ export function ChatConversation({ embedded = false, focusOnMount = false, promp
   const choosePrompt = (prompt) => { if (!typing) void sendMessage(prompt); };
 
   return <div className={`flex min-h-0 flex-1 flex-col ${embedded ? "overflow-hidden" : ""}`}>
-    {embedded && <div className="flex items-center gap-3 border-b border-stone-100 p-5"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bot size={21} /></span><div><h2 className="font-extrabold">Ask about pet care</h2><p className="text-xs text-ink-500">PetCare AI assistant</p></div><span className="ms-auto flex items-center gap-1.5 text-xs font-semibold text-primary-700"><span className="size-2 rounded-full bg-primary-500" /> Ready</span></div>}
-    <div ref={messagesRef} role="log" aria-live="polite" aria-relevant="additions text" aria-label="Chat messages" className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-stone-50 p-4 ${embedded ? "h-[360px]" : ""}`}>
-      {messages.map((message) => message.pending && !message.text ? null : <div key={message.id} className={`flex max-w-[90%] gap-2 ${message.from === "me" ? "ms-auto flex-row-reverse" : ""}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full ${message.from === "me" ? "bg-accent-100 text-amber-800" : "bg-primary-100 text-primary-700"}`}>{message.from === "me" ? <MessageCircle size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}</span><div className="min-w-0"><p role={message.error ? "alert" : undefined} className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-5 ${message.from === "me" ? "rounded-tr-sm bg-primary-700 text-white" : message.error ? "rounded-tl-sm border border-red-200 bg-red-50 text-red-800" : "rounded-tl-sm border border-stone-100 bg-white text-ink-700 shadow-sm"}`}>{message.text}</p>{message.error && message.retryText && <button type="button" onClick={() => void sendMessage(message.retryText, { retry: true })} disabled={typing} className="mt-1 text-xs font-semibold text-primary-700 underline disabled:opacity-50">Retry</button>}</div></div>)}
-      {typing && <div className="flex items-center gap-2" aria-label="Assistant is typing"><span className="grid size-8 place-items-center rounded-full bg-primary-100 text-primary-700"><Bot size={15} aria-hidden="true" /></span><span className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-stone-100 bg-white px-4 py-3 shadow-sm"><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.2s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.1s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500" /></span></div>}
+    {embedded && <div className="flex items-center gap-3 border-b border-stone-100 p-5"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bot size={21} /></span><div><h2 className="font-extrabold">{labels.ask}</h2><p className="text-xs text-ink-500">{labels.assistant}</p></div><span className="ms-auto flex items-center gap-1.5 text-xs font-semibold text-primary-700"><span className="size-2 rounded-full bg-primary-500" /> {labels.ready}</span></div>}
+    <div ref={messagesRef} role="log" aria-live="polite" aria-relevant="additions text" aria-label={labels.title} className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-stone-50 p-4 ${embedded ? "h-[360px]" : ""}`}>
+      {messages.map((message) => message.pending && !message.text ? null : <div key={message.id} className={`flex max-w-[90%] gap-2 ${message.from === "me" ? "ms-auto flex-row-reverse" : ""}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full ${message.from === "me" ? "bg-accent-100 text-amber-800" : "bg-primary-100 text-primary-700"}`}>{message.from === "me" ? <MessageCircle size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}</span><div className="min-w-0"><p role={message.error ? "alert" : undefined} className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-5 ${message.from === "me" ? "rounded-tr-sm bg-primary-700 text-white" : message.error ? "rounded-tl-sm border border-red-200 bg-red-50 text-red-800" : "rounded-tl-sm border border-stone-100 bg-white text-ink-700 shadow-sm"}`}>{message.textKey ? labels.welcome : message.text}</p>{message.error && message.retryText && <button type="button" onClick={() => void sendMessage(message.retryText, { retry: true })} disabled={typing} className="mt-1 text-xs font-semibold text-primary-700 underline disabled:opacity-50">{labels.retry}</button>}</div></div>)}
+      {typing && <div className="flex items-center gap-2" aria-label={labels.typing}><span className="grid size-8 place-items-center rounded-full bg-primary-100 text-primary-700"><Bot size={15} aria-hidden="true" /></span><span className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-stone-100 bg-white px-4 py-3 shadow-sm"><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.2s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.1s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500" /></span></div>}
     </div>
-    <div className="border-t border-stone-100 bg-white p-3 sm:p-4"><div className="mb-3 flex gap-2 overflow-x-auto pb-1">{prompts.map((prompt) => <button key={prompt} type="button" disabled={typing} onClick={() => choosePrompt(prompt)} className="min-h-8 shrink-0 rounded-full bg-primary-50 px-3 text-left text-[11px] font-semibold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50">{prompt}</button>)}</div><form onSubmit={send} className="flex gap-2"><label className="sr-only" htmlFor={embedded ? "ai-chat-message" : "floating-chat-message"}>Message</label><input ref={inputRef} id={embedded ? "ai-chat-message" : "floating-chat-message"} className={input} placeholder="Type your question..." autoComplete="off" value={draft} onChange={(event) => setDraft(event.target.value)} /><Button type="submit" aria-label="Send message" disabled={!draft.trim() || typing} className="size-12 min-h-12 shrink-0 p-0"><Send size={18} /></Button></form></div>
+    <div className="border-t border-stone-100 bg-white p-3 sm:p-4"><div className="mb-3 flex gap-2 overflow-x-auto pb-1">{activePrompts.map((prompt) => <button key={prompt} type="button" disabled={typing} onClick={() => choosePrompt(prompt)} className="min-h-8 shrink-0 rounded-full bg-primary-50 px-3 text-left text-[11px] font-semibold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50">{prompt}</button>)}</div><form onSubmit={send} className="flex gap-2"><label className="sr-only" htmlFor={embedded ? "ai-chat-message" : "floating-chat-message"}>{labels.title}</label><input ref={inputRef} id={embedded ? "ai-chat-message" : "floating-chat-message"} className={input} placeholder={labels.placeholder} autoComplete="off" value={draft} onChange={(event) => setDraft(event.target.value)} /><Button type="submit" aria-label={labels.send} disabled={!draft.trim() || typing} className="size-12 min-h-12 shrink-0 p-0"><Send size={18} /></Button></form></div>
   </div>;
 }
 
 export default function FloatingChat() {
   const { pathname } = useLocation();
+  const { language } = useLanguage();
+  const labels = chatLabels(language);
   const { unread, panelOpen, openPanel, closePanel } = useChat();
   const launcherRef = useRef(null);
   const [bottomOffset, setBottomOffset] = useState(0);
@@ -273,10 +307,10 @@ export default function FloatingChat() {
       }
       @media (prefers-reduced-motion: reduce) { .chat-panel-enter { animation: none; } }
     `}</style>
-    {panelOpen && <section role="dialog" aria-label="PetCare assistant" className={`chat-widget-panel chat-panel-enter fixed z-[60] flex min-h-[360px] flex-col overflow-hidden rounded-t-2xl border border-stone-200 bg-white shadow-2xl ${panelOnStart ? "chat-panel-start" : ""}`} style={{ "--chat-extra-bottom": `${bottomOffset}px` }}>
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-stone-100 px-4"><span className="grid size-9 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bot size={19} /></span><h2 className="flex-1 text-sm font-extrabold">PetCare assistant</h2><button type="button" aria-label="Close chat assistant" data-chat-control="true" onClick={closeAndRestoreFocus} className="grid size-9 place-items-center rounded-lg text-ink-500 transition hover:bg-stone-100"><X size={19} /></button></header>
+    {panelOpen && <section role="dialog" aria-label={labels.title} className={`chat-widget-panel chat-panel-enter fixed z-[60] flex min-h-[360px] flex-col overflow-hidden rounded-t-2xl border border-stone-200 bg-white shadow-2xl ${panelOnStart ? "chat-panel-start" : ""}`} style={{ "--chat-extra-bottom": `${bottomOffset}px` }}>
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-stone-100 px-4"><span className="grid size-9 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bot size={19} /></span><h2 className="flex-1 text-sm font-extrabold">{labels.title}</h2><button type="button" aria-label={labels.close} data-chat-control="true" onClick={closeAndRestoreFocus} className="grid size-9 place-items-center rounded-lg text-ink-500 transition hover:bg-stone-100"><X size={19} /></button></header>
       <ChatConversation focusOnMount />
     </section>}
-    <button ref={launcherRef} type="button" aria-label="Open chat assistant" aria-expanded={panelOpen} onClick={() => panelOpen ? closeAndRestoreFocus() : openChatPanel()} className="chat-widget-launcher fixed end-4 z-[61] grid size-14 place-items-center rounded-2xl bg-primary-600 text-white shadow-md transition duration-150 hover:bg-primary-700 focus-visible:outline-offset-4" style={{ "--chat-extra-bottom": `${bottomOffset}px` }}><MessageCircle size={23} strokeWidth={2} />{unread > 0 && !panelOpen && <span aria-label="Unread reply" className="absolute end-0 top-0 size-3 rounded-full border-2 border-white bg-accent-500" />}</button>
+    <button ref={launcherRef} type="button" aria-label={labels.open} aria-expanded={panelOpen} onClick={() => panelOpen ? closeAndRestoreFocus() : openChatPanel()} className="chat-widget-launcher fixed end-4 z-[61] grid size-14 place-items-center rounded-2xl bg-primary-600 text-white shadow-md transition duration-150 hover:bg-primary-700 focus-visible:outline-offset-4" style={{ "--chat-extra-bottom": `${bottomOffset}px` }}><MessageCircle size={23} strokeWidth={2} />{unread > 0 && !panelOpen && <span aria-label={labels.unread} className="absolute end-0 top-0 size-3 rounded-full border-2 border-white bg-accent-500" />}</button>
   </>;
 }

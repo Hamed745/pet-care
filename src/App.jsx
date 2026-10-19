@@ -3,6 +3,7 @@ import { Routes, Route, Link } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import { Skeleton } from "./components/ui.jsx";
 import { LOST_FOUND_ENABLED } from "./config.js";
+import { useLanguage } from "./i18n/LanguageContext.jsx";
 
 const Home = lazy(() => import("./pages/Home.jsx"));
 const ServicesHome = lazy(() => import("./pages/Services.jsx").then((module) => ({ default: module.ServicesHome })));
@@ -36,7 +37,19 @@ const Profile = lazy(() => import("./pages/Auth.jsx").then((module) => ({ defaul
 const Settings = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Profile })));
 
 function LoadingPage() {
-  return <div role="status" aria-label="Loading page" aria-busy="true" className="space-y-6 py-8"><Skeleton className="h-3 w-28" /><Skeleton className="h-10 w-64 max-w-full" /><Skeleton className="h-5 w-96 max-w-full" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Skeleton className="h-56" /><Skeleton className="h-56" /><Skeleton className="hidden h-56 lg:block" /></div></div>;
+  const { t } = useLanguage();
+  return <div role="status" aria-label={t("common.loading")} aria-busy="true" className="space-y-6 py-8"><Skeleton className="h-3 w-28" /><Skeleton className="h-10 w-64 max-w-full" /><Skeleton className="h-5 w-96 max-w-full" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Skeleton className="h-56" /><Skeleton className="h-56" /><Skeleton className="hidden h-56 lg:block" /></div></div>;
+}
+
+function NotFoundPage() {
+  const { t } = useLanguage();
+  return (
+    <div className="py-20 text-center">
+      <h1 className="text-3xl font-extrabold">{t("common.page_not_found")}</h1>
+      <p className="mt-3 text-ink-500">{t("common.page_not_found_desc")}</p>
+      <Link to="/" className="mt-6 inline-flex rounded-xl bg-primary-600 px-5 py-3 font-semibold text-white">{t("common.back_home")}</Link>
+    </div>
+  );
 }
 
 export default function App() {
@@ -72,7 +85,7 @@ export default function App() {
           <Route path="/forgot-password" element={<Forgot />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<div className="py-20 text-center"><h1 className="text-3xl font-extrabold">Page not found</h1><p className="mt-3 text-ink-500">We couldn’t find that page.</p><Link to="/" className="mt-6 inline-flex rounded-xl bg-primary-600 px-5 py-3 font-semibold text-white">Back home</Link></div>} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes></Suspense>
     </Layout>
   );
