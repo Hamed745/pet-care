@@ -140,7 +140,7 @@ export default function Home() {
     ...(pet.meds || []).filter((medication) => medication.time).map((medication, index) => ({ id: `home-medication-${pet.id}-${index}`, title: `${medication.name} ${t("calendar.medication", "medication")}`, date: medication.end || t("calendar.today", "Daily"), petName: pet.name })),
   ]);
   const reminders = [...calendarEvents, ...healthReminders].sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(0, 3);
-  const featuredProviders = providers.slice(0, 3);
+
   const featuredProducts = products.slice(0, 4);
   const featuredAdoptions = adoptions.slice(0, 3);
 
@@ -410,50 +410,6 @@ export default function Home() {
         </div>
       </section>
     )}
-
-    <section className="mt-12" aria-labelledby="home-providers-title">
-      <div className="mb-5 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary-700">
-            {t("home.local_pros", "Local professionals")}
-          </p>
-          <h2 id="home-providers-title" className="mt-1 text-2xl font-semibold">
-            {t("home.featured_services", "Featured services")}
-          </h2>
-        </div>
-        <Link to="/services" className="text-sm font-semibold text-primary-700">
-          {t("common.explore_all", "Explore all")} <ArrowRight size={15} className="inline" />
-        </Link>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {featuredProviders.map((provider) => (
-          <Card key={provider.id} as="article" className="overflow-hidden !p-0">
-            <Link to={`/services/${provider.type}/${provider.id}`}>
-              <Media src={provider.image} alt={provider.name} className="aspect-[4/3] w-full object-cover" />
-            </Link>
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="truncate font-semibold">{provider.name}</h3>
-                  <p className="mt-1 flex items-center gap-1 text-sm text-ink-500">
-                    <MapPin size={14} /> {getCityName(provider.city)}
-                  </p>
-                </div>
-                <Rating value={provider.rating} />
-              </div>
-              <div className="mt-4 flex items-center justify-between border-t border-stone-100 pt-3">
-                <span className="text-sm text-ink-500">
-                  {t("common.from", "From")} <b className="text-ink-900">{provider.price} {t("common.egp", "EGP")}</b>
-                </span>
-                <Link to={`/services/${provider.type}/${provider.id}`} className="text-sm font-semibold text-primary-700">
-                  {t("common.details", "Details")}
-                </Link>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </section>
 
     <section className="mt-12 grid gap-8 lg:grid-cols-[1.5fr_1fr]" aria-label="Community and adoption">
       <div>
