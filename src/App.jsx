@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route, Link } from "react-router-dom";
+import { Routes, Route, Link, Navigate } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import { Skeleton } from "./components/ui.jsx";
 import { LOST_FOUND_ENABLED } from "./config.js";
@@ -36,6 +36,8 @@ const Forgot = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default
 const Profile = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Profile })));
 const Settings = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Profile })));
 
+const NearbyPlaces = lazy(() => import("./features/nearby/NearbyPlaces.jsx"));
+
 function LoadingPage() {
   const { t } = useLanguage();
   return <div role="status" aria-label={t("common.loading")} aria-busy="true" className="space-y-6 py-8"><Skeleton className="h-3 w-28" /><Skeleton className="h-10 w-64 max-w-full" /><Skeleton className="h-5 w-96 max-w-full" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Skeleton className="h-56" /><Skeleton className="h-56" /><Skeleton className="hidden h-56 lg:block" /></div></div>;
@@ -57,8 +59,18 @@ export default function App() {
     <Layout>
         <Suspense fallback={<LoadingPage />}><Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/services" element={<ServicesHome />} />
-          <Route path="/services/:type" element={<ServiceList />} />
+          <Route path="/services" element={<Navigate to="/nearby/veterinary" replace />} />
+          <Route path="/services/catalog" element={<ServicesHome />} />
+          <Route path="/services/veterinary" element={<Navigate to="/nearby/veterinary" replace />} />
+          <Route path="/services/hotels" element={<Navigate to="/nearby/hotels" replace />} />
+          <Route path="/services/daycare" element={<Navigate to="/nearby/daycare" replace />} />
+          <Route path="/services/vet" element={<Navigate to="/nearby/veterinary" replace />} />
+
+                    <Route path="/services/grooming" element={<Navigate to="/nearby/grooming" replace />} />
+          <Route path="/services/pet-sitting" element={<Navigate to="/nearby/pet-sitting" replace />} />
+          <Route path="/services/sitting" element={<Navigate to="/nearby/pet-sitting" replace />} />
+          <Route path="/services/catalog/:type" element={<ServiceList />} />
+<Route path="/services/:type" element={<ServiceList />} />
           <Route path="/services/:type/:id" element={<ServiceDetails />} />
           <Route path="/store" element={<Store />} />
           <Route path="/store/:id" element={<ProductDetails />} />
@@ -78,7 +90,9 @@ export default function App() {
           <Route path="/adoption/my-listings" element={<MyAdoptionListings />} />
           <Route path="/adoption/:id" element={<AdoptionDetails />} />
           <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
-          <Route path="/emergency" element={<Emergency />} />
+          <Route path="/nearby/:kind" element={<NearbyPlaces />} />
+          <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />
+          <Route path="/emergency/demo" element={<Emergency />} />
           <Route path="/ai" element={<AI />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
