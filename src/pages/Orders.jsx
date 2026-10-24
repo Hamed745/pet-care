@@ -3,6 +3,7 @@ import { ArrowRight, Check, PackageCheck, ShoppingBag, Truck } from "lucide-reac
 import { useState } from "react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { getStoreProductImage } from "../storeCatalog.js";
 import { btn, btn2, btnDanger, card } from "../ui.js";
 import { Badge, Button, EmptyState, Modal } from "../components/ui.jsx";
 import { OrderTimeline, ProductImage } from "../components/store/StoreComponents.jsx";
@@ -48,7 +49,7 @@ export function Orders() {
                   {order.items.slice(0, 3).map((item, index) => (
                     <ProductImage
                       key={`${order.id}-${item.id}-${index}`}
-                      src={item.image || item.images?.[0]}
+                      src={getStoreProductImage(item.id) || item.image || item.images?.[0]}
                       alt={item.name}
                       category={item.category}
                       className="size-12 rounded-lg border-2 border-white object-cover"
@@ -151,7 +152,7 @@ export function OrderDetails() {
         <section className="order-v3-items" aria-label="Items in this order">
           {order.items.map((item, index) => (
             <article key={`${item.id}-${index}`} className="order-v3-item">
-              <ProductImage src={item.image || item.images?.[0]} alt={item.name} category={item.category} className="order-v3-product-image" />
+              <ProductImage src={getStoreProductImage(item.id) || item.image || item.images?.[0]} alt={item.name} category={item.category} className="order-v3-product-image" />
               <div className="order-v3-product-copy">
                 <h2>{item.name}</h2>
                 <p>

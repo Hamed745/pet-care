@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertCircle, LocateFixed, MapPin, Navigation, Search } from "lucide-react";
+import { AlertCircle, Info, LocateFixed, MapPin, Navigation, Search } from "lucide-react";
 import TwoGisMap from "./TwoGisMap.jsx";
 import { NEARBY_CATEGORIES, RUSSIAN_CITY_CENTERS } from "./nearbyCategories.js";
 import { fetchNearbyPlaces } from "../../services/nearbyPlacesService.js";
@@ -23,12 +23,21 @@ const HOURS = [
   ["now", "Open now", "Открыто сейчас"],
   ["alltime", "Open 24 hours (24/7)", "Круглосуточно (24/7)"],
 ];
+const UPSTREAM_ERROR_MESSAGES = {
+  DGIS_AUTH: ["2GIS rejected the Places API key. Confirm that it is active and has Catalog API access.", "2ГИС отклонил ключ Places API. Убедитесь, что ключ активен и для него включён доступ к Catalog API."],
+  DGIS_QUOTA: ["The 2GIS Places API quota or rate limit has been reached. Check the quota or retry later.", "Достигнут лимит запросов 2ГИС Places API. Проверьте квоту или попробуйте позже."],
+  DGIS_INVALID_REQUEST: ["2GIS rejected the search request. Check the request parameters and API permissions.", "2ГИС отклонил поисковый запрос. Проверьте параметры запроса и права доступа API."],
+  DGIS_TIMEOUT: ["2GIS did not respond in time. Check the connection and retry.", "2ГИС не ответил вовремя. Проверьте подключение и попробуйте снова."],
+  DGIS_NETWORK: ["Could not connect to 2GIS. Check the server connection and retry.", "Не удалось подключиться к 2ГИС. Проверьте соединение сервера и попробуйте снова."],
+  DGIS_UNAVAILABLE: ["The 2GIS Places API is temporarily unavailable. Retry later.", "Сервис 2ГИС Places API временно недоступен. Попробуйте позже."],
+  DGIS_FAILURE: ["The 2GIS search failed unexpectedly. Check the server diagnostics and retry.", "Произошла непредвиденная ошибка поиска 2ГИС. Проверьте диагностику сервера и попробуйте снова."],
+};
 
-export default function NearbyPlaces() {
+export default function NearbyPlaces({ embedded = false }) {
   const { kind: rawKind } = useParams();
   const { isRussian } = useLanguage();
   const tr = (english, russian) => isRussian ? russian : english;
-  const kind = Object.hasOwn(NEARBY_CATEGORIES, rawKind) ? rawKind : "veterinary";
+  const kind = embedded ? "veterinary" : Object.hasOwn(NEARBY_CATEGORIES, rawKind) ? rawKind : "veterinary";
   const category = NEARBY_CATEGORIES[kind];
   const categoryName = tr(category.label, category.ruLabel || CATEGORY_RU[kind]?.[0] || category.label);
   const [city, setCity] = useState("krasnoyarsk");
@@ -74,7 +83,10 @@ export default function NearbyPlaces() {
     setError("");
     fetchNearbyPlaces({ ...searchTarget, signal: controller.signal })
       .then((items) => { if (!controller.signal.aborted) setPlaces(items); })
-      .catch((err) => { if (!controller.signal.aborted && err.name !== "AbortError") setError(err.message); })
+      .catch((err) => {
+        if (controller.signal.aborted || err.name === "AbortError") return;
+        setError(Object.hasOwn(UPSTREAM_ERROR_MESSAGES, err.code) ? err.code : err.message);
+      })
       .finally(() => { if (!controller.signal.aborted) setPending(false); });
     return () => controller.abort();
   }, [searchTarget]);
@@ -145,24 +157,41 @@ export default function NearbyPlaces() {
   }
 
   return <div className="space-y-5 py-3">
-    <nav className="flex flex-wrap items-center gap-2 text-xs text-ink-500" aria-label="Breadcrumb">
+    {!embedded && <nav className="flex flex-wrap items-center gap-2 text-xs text-ink-500" aria-label="Breadcrumb">
       <Link to="/services" className="hover:underline">{tr("Services", "Услуги")}</Link><span>/</span><span>{categoryName}</span>
-    </nav>
-    <header className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-7">
+    </nav>}
+    {!embedded && <header className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-7">
       <p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{tr("Live 2GIS directory", "Каталог организаций 2ГИС")}</p>
       <h1 className="mt-2 text-2xl font-extrabold text-ink-900 sm:text-3xl">{tr(`${category.label} near you`, `${categoryName} рядом с вами`)}</h1>
       <p className="mt-2 text-sm text-ink-600">{tr(category.description, category.ruDescription || CATEGORY_RU[kind]?.[1] || category.description)}</p>
       <p className="mt-2 text-xs text-ink-500">{tr("Results come from 2GIS; distances are straight-line. Call to confirm opening and emergency admission.", "Данные организаций — из 2ГИС, расстояния указаны по прямой. Уточняйте время работы и экстренный приём по телефону.")}</p>
-    </header>
-    <nav className="flex flex-wrap gap-2" aria-label="Nearby place categories">
-      {Object.entries(NEARBY_CATEGORIES).map(([id, info]) => <Link key={id} to={`/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
-        className={`rounded-lg px-3 py-2 text-sm font-semibold ${kind === id ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700"}`}>
+    </header>}
+    {kind === "emergency" && !embedded && <aside role="note" className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-ink-700">
+      <Info aria-hidden="true" size={17} className="mt-0.5 shrink-0 text-primary-700" />
+      <div>
+        <h2 className="text-sm font-bold">{tr("External Services", "Сторонние услуги")}</h2>
+        <p className="mt-0.5 text-xs leading-5 text-ink-600">{tr(
+          "These providers are listed through 2GIS and are not directly managed by PetCare. Please contact them to confirm availability.",
+          "Эти организации представлены в 2GIS и не управляются непосредственно PetCare. Пожалуйста, свяжитесь с ними, чтобы уточнить доступность услуг.",
+        )}</p>
+      </div>
+    </aside>}
+    {embedded && <aside role="note" className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-ink-700">
+      <Info aria-hidden="true" size={17} className="mt-0.5 shrink-0 text-primary-700" />
+      <p className="text-xs leading-5 text-ink-600">{tr(
+        "Nearby businesses shown on this map are provided by 2GIS and are not necessarily registered with PetCare.",
+        "Организации на этой карте предоставлены 2GIS и не обязательно зарегистрированы в PetCare.",
+      )}</p>
+    </aside>}
+    {!embedded && <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Nearby place categories">
+      {Object.entries(NEARBY_CATEGORIES).filter(([id]) => id !== "hotels").map(([id, info]) => <Link key={id} to={`/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
+        className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${kind === id ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700"}`}>
         {tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label)}
       </Link>)}
-    </nav>
-    <div className="flex flex-wrap justify-end">
+    </nav>}
+    {!embedded && <div className="flex flex-wrap justify-end">
       <Link to="/services/catalog" className="text-xs font-semibold text-primary-700 underline underline-offset-4">{tr("Grooming & pet sitting bookings (demo catalog)", "Запись на груминг и передержку (демо-каталог)")}</Link>
-    </div>
+    </div>}
     <section className="grid gap-3 rounded-xl border border-stone-200 bg-white p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-end" aria-label="Search options">
       <div className="min-w-0">
         <label htmlFor="petcare-city" className="text-xs font-bold text-ink-700">{tr("Search center", "Центр поиска")}</label>
@@ -211,7 +240,7 @@ export default function NearbyPlaces() {
       <TwoGisMap center={center} places={places} />
       <section className="max-h-[480px] space-y-3 overflow-y-auto" aria-label="Nearby results" aria-live="polite">
         {kind === "emergency" && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertCircle size={16} className="mr-1 inline" />{tr("Always phone the clinic first: listed opening hours do not guarantee emergency admission.", "Перед поездкой обязательно позвоните: часы работы не гарантируют экстренный приём.")}</div>}
-        {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
+        {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{Object.hasOwn(UPSTREAM_ERROR_MESSAGES, error) ? tr(...UPSTREAM_ERROR_MESSAGES[error]) : error}</p>}
         {pending && <p role="status" className="rounded-xl border bg-white p-4 text-sm">{tr("Searching 2GIS...", "Идёт поиск в 2ГИС...")}</p>}
         {!pending && !error && !searched && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("Select a city or GPS, then press Find places.", "Выберите город или используйте геолокацию, затем нажмите «Найти места».")}</p>}
         {!pending && searched && !error && places.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("No verified matches for this filter and radius. Try a larger radius or All hours; never assume a clinic is open without calling.", "Нет подтверждённых результатов для выбранного фильтра и радиуса. Увеличьте радиус или выберите «Любое время». Всегда уточняйте работу клиники по телефону.")}</p>}

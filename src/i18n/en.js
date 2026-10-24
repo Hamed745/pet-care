@@ -168,6 +168,19 @@ export default {
 
   // Services
   services: {
+    public_services: "Public Services",
+    our_services: "Our Services",
+    public_services_nav_desc: "Find nearby veterinary clinics and pet services using 2GIS.",
+    our_services_nav_desc: "Explore services offered through PetCare.",
+    coming_soon_title: "Coming Soon!",
+    our_services_unavailable: "Our Services are not available yet.",
+    our_services_description: "Veterinary clinics and service providers will be available here soon. Please check back later.",
+    back_to_public_services: "Back to Public Services",
+    veterinary_coming_soon_title: "Veterinary Clinics — Coming Soon",
+    veterinary_coming_soon_notice: "PetCare veterinary clinics are not available yet. Other services remain available.",
+    explore_nearby_clinics: "Explore Nearby Clinics on Map",
+    explore_public_services: "Explore Public Services",
+    nearby_2gis_map: "Nearby 2GIS map",
     page_title: "Find the Best Care for Your Pet",
     page_subtitle: "Trusted local professionals for every paw, whisker, and stage of life.",
     search_placeholder: "Search services, clinics, or location...",

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
-import { products as storeProducts } from "../storeCatalog.js";
+import { getStoreProductImage, products as storeProducts } from "../storeCatalog.js";
 import { btn, btn2, card, input } from "../ui.js";
 import { EmptyState } from "../components/ui.jsx";
 import { PriceTag, ProductImage } from "../components/store/StoreComponents.jsx";
@@ -101,7 +101,7 @@ export default function CartPage() {
           {cart.map((item) => (
             <article key={`${item.id}-${item.variant?.id || "default"}`} className={`${card} flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap`}>
               <Link to={`/store/${item.id}`} className="shrink-0">
-                <ProductImage src={item.images?.[0] || item.image} alt={item.name} category={item.category || item.cat} className="size-20 rounded-xl object-cover" />
+                <ProductImage src={getStoreProductImage(item.id) || item.images?.[0] || item.image} alt={item.name} category={item.category || item.cat} className="size-20 rounded-xl object-cover" />
               </Link>
               <div className="min-w-0 flex-1">
                 <Link to={`/store/${item.id}`} className="font-extrabold hover:text-primary-700">

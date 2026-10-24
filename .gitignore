@@ -3,6 +3,8 @@ dist
 .env
 .env.*
 .env*.local
+doc_*.env.local
+doc_*.env.server.local
 !.env.example
 .DS_Store
 *.log

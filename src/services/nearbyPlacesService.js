@@ -17,7 +17,9 @@ export async function fetchNearbyPlaces({ kind, lon, lat, radius = 10000, hours 
     throw new Error("The map search service returned an invalid response.");
   }
   if (!response.ok) {
-    throw new Error(data?.error || `Map search is temporarily unavailable (HTTP ${response.status}).`);
+    const error = new Error(data?.error || `Map search is temporarily unavailable (HTTP ${response.status}).`);
+    if (typeof data?.code === "string") error.code = data.code;
+    throw error;
   }
   if (!Array.isArray(data?.items)) throw new Error("Unexpected search response.");
   return data.items;

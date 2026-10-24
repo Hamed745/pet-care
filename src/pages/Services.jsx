@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Activity, ArrowLeft, ArrowRight, Bath, CalendarDays, Check, Clock3, Heart, Home, MapPin, Scissors, Search, ShieldCheck, Star, Stethoscope, UserRound } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Bath, CalendarDays, Check, Clock3, Heart, Home, Info, MapPin, Scissors, Search, ShieldCheck, Star, Stethoscope, UserRound } from "lucide-react";
 import { providers } from "../data.js";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import Media from "../components/Media.jsx";
 import PetAvatar from "../components/PetAvatar.jsx";
 import { btn, btn2, card, input } from "../ui.js";
+import NearbyPlaces from "../features/nearby/NearbyPlaces.jsx";
 
 const serviceIcons = { vet: Stethoscope, grooming: Scissors, sitting: Home };
 const providerIcons = { clinic: Activity, stethoscope: Stethoscope, hospital: Activity, scissors: Scissors, bath: Bath, home: Home, walk: UserRound };
@@ -43,7 +44,7 @@ function ServicesDirectory({ categoryType = "" }) {
     sitting: t("services.pet_sitting", "Pet Sitting"),
   };
 
-  const availableProviders = providers.filter((provider) => !categoryType || provider.type === categoryType);
+  const availableProviders = providers.filter((provider) => provider.type !== "vet" && (!categoryType || provider.type === categoryType));
   const cities = [...new Set(availableProviders.map((provider) => provider.city))].sort();
   const serviceTypes = [...new Set(providers.map((provider) => provider.type))];
   const petTypes = [...new Set(availableProviders.flatMap((provider) => provider.petTypes || []))];
@@ -81,7 +82,7 @@ function ServicesDirectory({ categoryType = "" }) {
     setServiceFilter("");
   };
 
-  const heroProvider = availableProviders[0] || providers[0];
+  const heroProvider = availableProviders[0] || providers.find((provider) => provider.type !== "vet");
   const pageTitle = categoryType ? `${titles[categoryType] || "Pet Care"} Services` : t("services.page_title", "Find the Best Care for Your Pet");
   const pageDescriptions = {
     vet: t("services.vet_desc", "Find trusted veterinary care for your pet."),
@@ -94,7 +95,7 @@ function ServicesDirectory({ categoryType = "" }) {
     <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-2 text-xs font-medium text-ink-500">
       <Link to="/" className="hover:text-primary-700">{t("nav.home", "Home")}</Link>
       <span aria-hidden="true">/</span>
-      <Link to="/services" className="hover:text-primary-700">{t("nav.services", "Services")}</Link>
+      <Link to="/services/catalog" className="hover:text-primary-700">{t("nav.services", "Services")}</Link>
       {categoryType && <><span aria-hidden="true">/</span><span className="text-ink-700">{titles[categoryType]}</span></>}
     </nav>
 
@@ -109,6 +110,23 @@ function ServicesDirectory({ categoryType = "" }) {
         <div className="absolute inset-0 bg-gradient-to-r from-white via-white/70 to-transparent" />
       </div>
     </section>
+
+    {categoryType === "vet" && <aside role="note" className="mb-5 flex flex-col items-start gap-3 rounded-xl border border-primary-100 bg-teal-50 px-4 py-3 text-primary-950 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+        <Info aria-hidden="true" size={18} className="mt-0.5 shrink-0 text-primary-700 sm:mt-0" />
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold">{t("services.veterinary_coming_soon_title", "Veterinary Clinics — Coming Soon")}</h2>
+          <p className="mt-0.5 text-xs leading-5 text-ink-600">{t("services.veterinary_coming_soon_notice", "PetCare veterinary clinics are not available yet. Other services remain available.")}</p>
+        </div>
+      </div>
+      <Link
+        to="/nearby/emergency"
+        className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-700"
+      >
+        {t("services.explore_public_services", "Explore Public Services")}
+        <ArrowRight aria-hidden="true" size={14} />
+      </Link>
+    </aside>}
 
     <form role="search" onSubmit={(event) => event.preventDefault()} className="mb-4 grid gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-sm sm:grid-cols-[minmax(0,1fr)_190px_48px]">
       <label className="relative block min-w-0">
@@ -128,11 +146,11 @@ function ServicesDirectory({ categoryType = "" }) {
     </form>
 
     <nav aria-label="Service categories" className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5">
-      <Link to="/services" aria-current={!categoryType ? "page" : undefined} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${!categoryType ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700 hover:border-primary-200"}`}><Activity size={15} /> {t("nav.all_services", "All services")}</Link>
+      <Link to="/services/catalog" aria-current={!categoryType ? "page" : undefined} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${!categoryType ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700 hover:border-primary-200"}`}><Activity size={15} /> {t("nav.all_services", "All services")}</Link>
       {serviceTypes.map((type) => {
         const Icon = serviceIcons[type] || Stethoscope;
         const isActive = categoryType === type;
-        return <Link key={type} to={`/services/${serviceSlugs[type]}`} aria-current={isActive ? "page" : undefined} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${isActive ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700 hover:border-primary-200"}`}><Icon size={15} />{titles[type]}</Link>;
+        return <Link key={type} to={`/services/catalog/${serviceSlugs[type]}`} aria-current={isActive ? "page" : undefined} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${isActive ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700 hover:border-primary-200"}`}><Icon size={15} />{titles[type]}</Link>;
       })}
       <Link to="/emergency" className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-ink-700 transition hover:border-primary-200"><Activity size={15} className="text-primary-700" /> {t("nav.emergency", "Emergency")}</Link>
     </nav>
@@ -148,7 +166,7 @@ function ServicesDirectory({ categoryType = "" }) {
           </section>
           <section className="pb-4">
             <h3 className="mb-2 text-xs font-bold text-ink-800">{t("home.search_service", "Service Type")}</h3>
-            <div className="space-y-2">{serviceTypes.map((type) => <div key={type} className="flex items-center justify-between gap-2"><label className={`flex items-center gap-2 text-xs text-ink-700 ${categoryType ? "cursor-default" : "cursor-pointer"}`}><input type="checkbox" className="size-3.5 accent-primary-700" checked={categoryType ? categoryType === type : activeType === type} disabled={Boolean(categoryType)} onChange={() => setActiveType(activeType === type ? "" : type)} />{titles[type]}</label><Link to={`/services/${serviceSlugs[type]}`} aria-label={`Browse ${titles[type]} providers`} className="grid size-6 place-items-center rounded text-primary-700 hover:bg-primary-50"><ArrowRight size={13} /></Link></div>)}</div>
+            <div className="space-y-2">{serviceTypes.map((type) => <div key={type} className="flex items-center justify-between gap-2"><label className={`flex items-center gap-2 text-xs text-ink-700 ${categoryType ? "cursor-default" : "cursor-pointer"}`}><input type="checkbox" className="size-3.5 accent-primary-700" checked={categoryType ? categoryType === type : activeType === type} disabled={Boolean(categoryType)} onChange={() => setActiveType(activeType === type ? "" : type)} />{titles[type]}</label><Link to={`/services/catalog/${serviceSlugs[type]}`} aria-label={`Browse ${titles[type]} providers`} className="grid size-6 place-items-center rounded text-primary-700 hover:bg-primary-50"><ArrowRight size={13} /></Link></div>)}</div>
           </section>
           <section className="pb-4">
             <div className="mb-2 flex items-center justify-between"><h3 className="text-xs font-bold text-ink-800">{t("store.price_range", "Price Range")}</h3><span className="text-[11px] text-ink-500">Up to {maxPrice} {t("common.egp", "EGP")}</span></div>
@@ -179,6 +197,10 @@ function ServicesDirectory({ categoryType = "" }) {
             </select>
           </label>
         </div>
+        {(!categoryType || categoryType === "vet") && <section aria-label={t("services.nearby_2gis_map", "Nearby 2GIS map")} className="mb-5 rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
+            <h2 className="mb-3 text-lg font-extrabold text-ink-900">{t("services.nearby_2gis_map", "Nearby 2GIS map")}</h2>
+            <NearbyPlaces embedded />
+        </section>}
         {filteredProviders.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredProviders.map((provider) => {
             const Icon = providerIcons[provider.icon] || serviceIcons[provider.type] || Stethoscope;
@@ -240,7 +262,7 @@ export function ServiceDetails() {
     return cityName;
   };
 
-  if (!provider) return <div className={`${card} mx-auto max-w-lg py-14 text-center`}><h1 className="text-2xl font-extrabold">{t("common.page_not_found", "Provider not found")}</h1><Link to="/services" className={`${btn} mt-5`}>{t("nav.all_services", "Browse services")}</Link></div>;
+  if (!provider || provider.type === "vet") return <div className={`${card} mx-auto max-w-lg py-14 text-center`}><h1 className="text-2xl font-extrabold">{t("common.page_not_found", "Provider not found")}</h1><Link to="/services/catalog" className={`${btn} mt-5`}>{t("nav.all_services", "Browse services")}</Link></div>;
 
   const selectedPrice = meta.packages?.[form.service] ?? provider.price;
   const bookingDuration = provider.type === "sitting" ? form.service : undefined;
@@ -259,8 +281,8 @@ export function ServiceDetails() {
   return <div>
     <nav aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-2 text-xs font-medium text-ink-500">
       <Link to="/" className="hover:text-primary-700">{t("nav.home", "Home")}</Link><span aria-hidden="true">/</span>
-      <Link to="/services" className="hover:text-primary-700">{t("nav.services", "Services")}</Link><span aria-hidden="true">/</span>
-      <Link to={`/services/${serviceSlugs[provider.type]}`} className="hover:text-primary-700">{titles[provider.type]}</Link><span aria-hidden="true">/</span>
+      <Link to="/services/catalog" className="hover:text-primary-700">{t("nav.services", "Services")}</Link><span aria-hidden="true">/</span>
+      <Link to={`/services/catalog/${serviceSlugs[provider.type]}`} className="hover:text-primary-700">{titles[provider.type]}</Link><span aria-hidden="true">/</span>
       <span className="text-ink-700">{provider.name}</span>
     </nav>
 

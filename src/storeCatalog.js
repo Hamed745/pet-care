@@ -1,3 +1,16 @@
+import appleSlices from "./assets/store-food/apple-slices.jpg";
+import birdFoodGrains from "./assets/store-food/bird-food-grains.jpg";
+import cuttlebone from "./assets/store-food/cuttlebone.jpg";
+import dogKibble from "./assets/store-food/dog-kibble.jpg";
+import dogTreatBiscuits from "./assets/store-food/dog-treat-biscuits.jpg";
+import driedFishTreats from "./assets/store-food/dried-fish-treats.jpg";
+import driedShrimp from "./assets/store-food/dried-shrimp.jpg";
+import dryFoodBowl from "./assets/store-food/dry-food-bowl.jpg";
+import hayCloseup from "./assets/store-food/hay-closeup.jpg";
+import mixedBirdSeed from "./assets/store-food/mixed-bird-seed.jpg";
+import timothyHayBales from "./assets/store-food/timothy-hay-bales.jpg";
+import wetCatFood from "./assets/store-food/wet-cat-food.jpg";
+
 const imageIds = [
   "1543466835-00a7907e9de1", "1537151608828-ea2b11777ee8", "1552053831-71594a27632d", "1548199973-03cce0bbc87b", "1561037404-61cd46aa615b", "1583337130417-3346a1be7dee", "1517849845537-4d257902454a", "1530281700549-e82e7bf110d6", "1551717743-49959800b1f6", "1544568100-847a948585b9", "1587300003388-59208cc962cb", "1541599540903-216a46ca1dc0", "1514888286974-6c03e2ca1dba", "1573865526739-10659fec78a5", "1533738363-b7f9aef128ce", "1574158622682-e40e69881006", "1533743983669-94fa5c4338ec", "1526336024174-e58f5cdd8e13", "1592194996308-7b43878e84a6", "1513360371669-4adf3dd7dff8", "1552728089-57bdde30beb3", "1549608276-5786777e6587", "1444464666168-49d633b86797", "1591608971362-f08b2a75731a", "1518020382113-a7e8fc38eac9", "1487300001871-12053913095d", "1534567110243-8875d64ca8ff", "1524704654690-b56c05c78a00", "1535591273668-578e31182c4f", "1522069169874-c58ec4b76be5", "1546026423-cc4642628d2b", "1544551763-46a013bb70d5", "1559827260-dc66d52bef19", "1585110396000-c9ffd4e4b308", "1425082661705-1834bfd09dca", "1450778869180-41d0601e046e", "1495360010541-f48722b34f7d", "1535930749574-1399327ce78f", "1596854407944-bf87f6fdd49e", "1559214369-a6b1d7919865", "1623387641168-d9803ddd3f35", "1582798358481-d199fb7347bb", "1589924691995-400dc9ecc119", "1601758228041-f3b2795255f1", "1535294435445-d7249524ef2e", "1576201836106-db1758fd1c97", "1516734212186-a967f81ad0d7", "1518717758536-85ae29035b6d", "1558929996-da64ba858215", "1582794543139-8ac9cb0f7b11", "1555685812-4b943f1cb0eb",
 ];
@@ -48,6 +61,22 @@ const productRows = [
   ["Padded Airline Carrier", "Tails & Trail", "Travel and carriers", "dog", "adult", 1480, 4.8, 58, 2, ["New"], 9],
 ];
 
+const foodProductImages = new Map([
+  [1, [dogKibble, dryFoodBowl]],
+  [2, [wetCatFood]],
+  [3, [mixedBirdSeed, birdFoodGrains]],
+  [4, [driedFishTreats, driedShrimp]],
+  [5, [timothyHayBales, hayCloseup]],
+  [6, [dogTreatBiscuits]],
+  [7, [driedFishTreats, driedShrimp]],
+  [8, [mixedBirdSeed, birdFoodGrains]],
+  [9, [driedShrimp, driedFishTreats]],
+  [10, [timothyHayBales, appleSlices]],
+  [36, [dogTreatBiscuits]],
+  [37, [wetCatFood]],
+  [38, [cuttlebone]],
+]);
+
 const petLabels = { dog: "Dog", cat: "Cat", bird: "Bird", fish: "Fish", small: "Small pet" };
 const petLabelsPlural = { dog: "dogs", cat: "cats", bird: "birds", fish: "fish", small: "small pets" };
 const categoryDetails = {
@@ -68,6 +97,7 @@ export const storeProducts = productRows.map((row, index) => {
   const [name, brand, category, petType, ageGroup, price, rating, reviewsCount, stock, badges, imageIndex, options = {}] = row;
   const imageA = imageIds[imageIndex];
   const imageB = imageIds[(imageIndex + 11) % imageIds.length];
+  const images = foodProductImages.get(index + 1) || [imageUrl(imageA), imageUrl(imageB)];
   const oldPrice = options.oldPrice;
   return {
     id: index + 1,
@@ -86,11 +116,14 @@ export const storeProducts = productRows.map((row, index) => {
     description: `${categoryDetails[category]} Made for ${petLabelsPlural[petType]}, with thoughtfully selected materials and practical everyday use in mind.`,
     details: [categoryDetails[category], `Suitable for ${petLabelsPlural[petType]}`, `Recommended life stage: ${ageGroup}`, "Packed for convenient home storage"],
     ...(options.variants ? { variants: options.variants } : {}),
-    images: [imageUrl(imageA), imageUrl(imageB)],
-    image: imageUrl(imageA),
+    images,
+    image: images[0],
     createdAt: new Date(Date.UTC(2026, 8, Math.max(1, 30 - index))).toISOString(),
   };
 });
+
+export const getStoreProductImage = (productId) =>
+  storeProducts.find((product) => String(product.id) === String(productId))?.image;
 
 const categories = [
   ["Food", "Utensils"], ["Treats", "Bone"], ["Toys", "ToyBrick"], ["Grooming and care", "Sparkles"], ["Accessories", "Tag"], ["Beds and sleep", "Bed"], ["Training", "Target"], ["Health and supplements", "HeartPulse"], ["Cleaning and litter", "SprayCan"], ["Travel and carriers", "BriefcaseBusiness"], ["Aquariums and habitats", "Waves"],
