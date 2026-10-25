@@ -169,6 +169,19 @@ export default {
 
   // Services
   services: {
+    public_services: "Публичные услуги",
+    our_services: "Наши услуги",
+    public_services_nav_desc: "Найдите поблизости ветеринарные клиники и услуги для питомцев с помощью 2ГИС.",
+    our_services_nav_desc: "Ознакомьтесь с услугами PetCare.",
+    coming_soon_title: "Скоро появится!",
+    our_services_unavailable: "Наши услуги пока недоступны.",
+    our_services_description: "Ветеринарные клиники и другие поставщики услуг скоро появятся на платформе PetCare.",
+    back_to_public_services: "К публичным услугам",
+    veterinary_coming_soon_title: "Ветеринарные клиники — Скоро появятся",
+    veterinary_coming_soon_notice: "Ветеринарные клиники PetCare пока недоступны. Остальные услуги остаются доступными.",
+    explore_nearby_clinics: "Найти ближайшие клиники на карте",
+    explore_public_services: "Посмотреть общедоступные услуги",
+    nearby_2gis_map: "Карта организаций поблизости в 2GIS",
     page_title: "Найдите лучший уход для вашего питомца",
     page_subtitle: "Надежные и сертифицированные специалисты для любой породы и возраста.",
     search_placeholder: "Поиск услуг, клиник или адреса...",

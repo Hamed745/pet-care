@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Activity, Bell, CalendarDays, ChevronDown, Heart, Home, LogOut, MapPin, Menu, PawPrint, Phone, ShoppingBag, Stethoscope, Scissors, UserRound, X, Bot } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, Heart, Home, LogOut, MapPin, Menu, PawPrint, Phone, ShoppingBag, Stethoscope, Scissors, UserRound, X, Bot } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { LOST_FOUND_ENABLED } from "../config.js";
@@ -37,10 +37,10 @@ function Navbar() {
   const unreadNotifications = notifications.filter((item) => !item.read).length;
 
   const serviceLinks = [
-    ["/services/veterinary", t("nav.veterinary", "Veterinary"), t("services.vet_desc", "Trusted health care and checkups."), Stethoscope],
+    ["/nearby/emergency", t("services.public_services", "Public Services"), t("services.public_services_nav_desc", "Find nearby veterinary clinics and pet services using 2GIS."), Stethoscope],
+    ["/services/catalog", t("services.our_services", "Our Services"), t("services.our_services_nav_desc", "Explore services offered through PetCare."), Stethoscope],
     ["/services/grooming", t("nav.grooming", "Grooming"), t("services.grooming_desc", "Thoughtful care from nose to tail."), Scissors],
     ["/services/pet-sitting", t("nav.pet_sitting", "Pet Sitting"), t("services.sitting_desc", "Reliable help at home or outdoors."), Home],
-    ["/emergency", t("nav.emergency", "Emergency"), t("emergency.tag", "Find urgent local care."), Activity],
     ["/ai", t("nav.ai_assistant", "AI Assistant"), t("ai.tag", "Get quick answers for everyday care."), Bot],
   ];
 

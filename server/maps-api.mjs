@@ -4,6 +4,15 @@ import { verifiedOpening } from "./maps-hours.mjs";
 const HOST = "127.0.0.1";
 const PORT = 8787;
 const API_KEY = process.env.DGIS_PLACES_KEY;
+const UPSTREAM_ERRORS = Object.freeze({
+  DGIS_AUTH: "2GIS rejected the Places API key. Verify that the key is active and has Catalog API access.",
+  DGIS_QUOTA: "The 2GIS Places API quota or rate limit has been reached. Check the quota or retry later.",
+  DGIS_INVALID_REQUEST: "2GIS rejected the Places request. Check the request parameters and API permissions.",
+  DGIS_TIMEOUT: "2GIS did not respond in time. Check the connection and retry.",
+  DGIS_NETWORK: "Could not connect to 2GIS. Check the server's network connection and retry.",
+  DGIS_UNAVAILABLE: "The 2GIS Places API is temporarily unavailable. Retry later.",
+  DGIS_FAILURE: "The 2GIS Places request failed. Check server diagnostics and retry.",
+});
 const QUERIES = Object.freeze({
   emergency: "ветеринарная клиника", veterinary: "ветеринарная клиника",
   hotels: "зоогостиница", daycare: "передержка животных",
@@ -15,6 +24,28 @@ const json = (res, code, data) => {
   res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
   res.end(JSON.stringify(data));
 };
+class UpstreamError extends Error {
+  constructor(code, httpStatus = null, apiCode = null) {
+    super(UPSTREAM_ERRORS[code]);
+    this.code = code;
+    this.httpStatus = httpStatus;
+    this.apiCode = apiCode;
+  }
+}
+function classifyUpstreamError(error) {
+  if (error instanceof UpstreamError) return error;
+  if (error?.name === "TimeoutError" || error?.name === "AbortError") return new UpstreamError("DGIS_TIMEOUT");
+  if (error?.cause?.code || error instanceof TypeError) return new UpstreamError("DGIS_NETWORK");
+  return new UpstreamError("DGIS_FAILURE");
+}
+function upstreamErrorCode(httpStatus, apiCode) {
+  const status = Number(httpStatus || apiCode);
+  if (status === 401 || status === 403) return "DGIS_AUTH";
+  if (status === 429) return "DGIS_QUOTA";
+  if (status === 400) return "DGIS_INVALID_REQUEST";
+  if (status >= 500) return "DGIS_UNAVAILABLE";
+  return "DGIS_FAILURE";
+}
 function distanceKm(a, b, c, d) {
   const rad = (v) => v * Math.PI / 180;
   const x = Math.sin(rad(c - a) / 2) ** 2 + Math.cos(rad(a)) * Math.cos(rad(c)) * Math.sin(rad(d - b) / 2) ** 2;
@@ -23,11 +54,17 @@ function distanceKm(a, b, c, d) {
 async function upstream(path, options) {
   options.set("key", API_KEY);
   const response = await fetch(`https://catalog.api.2gis.com${path}?${options}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12000) });
-  if (!response.ok) throw new Error(`2GIS HTTP ${response.status}`);
-  const body = await response.json();
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new UpstreamError(response.ok ? "DGIS_FAILURE" : upstreamErrorCode(response.status, null), response.status);
+  }
+  const apiCode = Number(body?.meta?.code) || null;
+  if (!response.ok) throw new UpstreamError(upstreamErrorCode(response.status, apiCode), response.status, apiCode);
   // 2GIS returns meta.code=404 even with HTTP 200 when no matches exist.
-  if (body?.meta?.code === 404) return [];
-  if (body?.meta?.code && body.meta.code !== 200) throw new Error(`2GIS status ${body.meta.code}`);
+  if (apiCode === 404) return [];
+  if (apiCode && apiCode !== 200) throw new UpstreamError(upstreamErrorCode(null, apiCode), response.status, apiCode);
   return Array.isArray(body?.result?.items) ? body.result.items : [];
 }
 function pointOf(item) {
@@ -106,8 +143,14 @@ async function handle(req, res) {
       .filter((item) => hours === "any" || item.opening !== null);
     return json(res, 200, { items: results, source: "2GIS Places API", hoursFilter: hours, verifiedSchedule: hours !== "any", searchedCandidates: items.length, searchCapped, distanceType: "straight-line" });
   } catch (error) {
-    // Avoid leaking upstream request URLs (which contain the API key), user coordinates or stack traces.
-    return json(res, 502, { error: "Unable to complete the 2GIS request. Check API permissions, quota and connection." });
+    // Never log the upstream URL, which contains the server-side API key, or user coordinates.
+    const failure = classifyUpstreamError(error);
+    console.error("[maps-api] 2GIS upstream request failed", {
+      code: failure.code,
+      httpStatus: failure.httpStatus,
+      apiCode: failure.apiCode,
+    });
+    return json(res, 502, { code: failure.code, error: UPSTREAM_ERRORS[failure.code] });
   }
 }
 http.createServer((req, res) => { handle(req, res).catch(() => json(res, 500, { error: "Maps server error." })); }).listen(PORT, HOST, () => {
