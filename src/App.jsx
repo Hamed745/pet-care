@@ -90,7 +90,8 @@ export default function App() {
           <Route path="/adoption/my-listings" element={<MyAdoptionListings />} />
           <Route path="/adoption/:id" element={<AdoptionDetails />} />
           <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
-          <Route path="/nearby/:kind" element={<NearbyPlaces />} />
+          <Route path="/nearby/our/:kind" element={<NearbyPlaces mode="our" />} />
+          <Route path="/nearby/:kind" element={<NearbyPlaces mode="public" />} />
           <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />
           <Route path="/emergency/demo" element={<Emergency />} />
           <Route path="/ai" element={<AI />} />

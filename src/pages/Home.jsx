@@ -494,7 +494,7 @@ export default function Home() {
                 {t(`categories.${product.category || product.cat}`, product.category || product.cat)}
               </span>
               <h3 className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold">{product.name}</h3>
-              <p className="mt-2 text-sm font-semibold text-primary-700">{product.price} {t("common.egp", "EGP")}</p>
+              <p className="mt-2 text-sm font-semibold text-primary-700">{product.price} {t("common.rub", "₽")}</p>
             </div>
           </Card>
         ))}

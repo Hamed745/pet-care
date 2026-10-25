@@ -12,7 +12,7 @@ const statusStyle = { Preparing: "warning", Shipped: "success", Delivered: "succ
 export function Orders() {
   const { user, orders } = useApp();
   const { t, language } = useLanguage();
-  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.egp", "EGP")}`;
+  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
   if (!user) {
     return (
@@ -96,7 +96,7 @@ export function OrderDetails() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const order = orders.find((item) => item.id === id);
-  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.egp", "EGP")}`;
+  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
   if (!user) {
     return (
@@ -220,7 +220,7 @@ export function OrderConfirmed() {
   const { orders } = useApp();
   const { t, language } = useLanguage();
   const order = orders.find((item) => item.id === id);
-  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.egp", "EGP")}`;
+  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
   const estimated = order
     ? new Date(new Date(order.createdAt).getTime() + 4 * 86400000).toLocaleDateString(language === "ru" ? "ru-RU" : "en-US")
     : "3 to 5 business days";

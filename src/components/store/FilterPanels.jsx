@@ -58,7 +58,7 @@ function FilterControls({ filters, onChange }) {
         )}
       </fieldset>
       <fieldset>
-        <legend className="mb-2 text-sm font-extrabold">{t("store.price_range", "Price range (EGP)")}</legend>
+        <legend className="mb-2 text-sm font-extrabold">{t("store.price_range", "Price range (₽)")}</legend>
         <div className="grid grid-cols-2 gap-2">
           <label className="text-[11px] font-semibold text-ink-500">
             {t("store.minimum", "Minimum")}

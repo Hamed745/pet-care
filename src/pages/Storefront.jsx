@@ -105,7 +105,7 @@ export default function Storefront() {
     filters.category && ["category", t(`categories.${filters.category}`, filters.category)],
     filters.brand && ["brand", filters.brand],
     filters.bestSeller && ["bestSeller", t("categories.Best seller", "Best sellers")],
-    (filters.min || filters.max) && [["min", "max"], `${t("store.price_range", "Price")}: ${filters.min || 0}–${filters.max || "any"} EGP`],
+    (filters.min || filters.max) && [["min", "max"], `${t("store.price_range", "Price")}: ${filters.min || 0}–${filters.max || "any"} ₽`],
     filters.age && ["age", `${t("store.age_group", "Age")}: ${filters.age}`],
     filters.rating && ["rating", `${filters.rating}+ stars`],
     filters.stock && ["stock", t("store.in_stock", "In stock")],

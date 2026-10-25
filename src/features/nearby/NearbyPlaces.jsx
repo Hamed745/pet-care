@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertCircle, LocateFixed, MapPin, Navigation, Search } from "lucide-react";
+import { AlertCircle, CalendarCheck2, Clock3, LocateFixed, MapPin, Navigation, Search, ShieldCheck, Star, Sparkles } from "lucide-react";
 import TwoGisMap from "./TwoGisMap.jsx";
 import { NEARBY_CATEGORIES, RUSSIAN_CITY_CENTERS } from "./nearbyCategories.js";
 import { fetchNearbyPlaces } from "../../services/nearbyPlacesService.js";
@@ -24,8 +24,9 @@ const HOURS = [
   ["alltime", "Open 24 hours (24/7)", "Круглосуточно (24/7)"],
 ];
 
-export default function NearbyPlaces() {
+export default function NearbyPlaces({ mode = "public" }) {
   const { kind: rawKind } = useParams();
+  const isOur = mode === "our";
   const { isRussian } = useLanguage();
   const tr = (english, russian) => isRussian ? russian : english;
   const kind = Object.hasOwn(NEARBY_CATEGORIES, rawKind) ? rawKind : "veterinary";
@@ -46,12 +47,16 @@ export default function NearbyPlaces() {
   const [pending, setPending] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
+  const [previewNotice, setPreviewNotice] = useState(false);
   const [searchTarget, setSearchTarget] = useState(null);
   const center = useMemo(() => location || customCity || RUSSIAN_CITY_CENTERS[city] || RUSSIAN_CITY_CENTERS.krasnoyarsk, [city, customCity, location]);
   const selectedCityName = location
     ? `${tr("My location", "Моё местоположение")}${locationName ? ` — ${locationName}` : ""}`
     : customCity?.name || tr(RUSSIAN_CITY_CENTERS[city]?.label || "Krasnoyarsk", CITY_RU[city] || "Красноярск");
 
+  function showComingSoon() {
+    setPreviewNotice(true);
+  }
   function clearResults() {
     setPlaces([]);
     setSearched(false);
@@ -59,14 +64,16 @@ export default function NearbyPlaces() {
     setSearchTarget(null);
   }
   function searchPlaces(nextHours = hoursFilter, chosenCenter = center) {
+    if (isOur) { showComingSoon(); return; }
     setSearchTarget({ kind, lon: chosenCenter.lon, lat: chosenCenter.lat, radius, hours: nextHours });
   }
   function changeHoursFilter(filter) {
+    if (isOur) { showComingSoon(); return; }
     setHoursFilter(filter);
     if (searchTarget) searchPlaces(filter, { lon: searchTarget.lon, lat: searchTarget.lat });
   }
   useEffect(() => {
-    if (!searchTarget) return;
+    if (!searchTarget || isOur) return;
     const controller = new AbortController();
     setPending(true);
     setSearched(true);
@@ -77,11 +84,12 @@ export default function NearbyPlaces() {
       .catch((err) => { if (!controller.signal.aborted && err.name !== "AbortError") setError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setPending(false); });
     return () => controller.abort();
-  }, [searchTarget]);
-  useEffect(() => { clearResults(); setHoursFilter("any"); }, [kind]);
+  }, [searchTarget, isOur]);
+  useEffect(() => { clearResults(); setHoursFilter("any"); setPreviewNotice(false); }, [kind, isOur]);
 
   // Query cities from 2GIS instead of maintaining an impossible-to-complete static list.
   useEffect(() => {
+    if (isOur) return;
     const q = cityQuery.trim();
     if (q.length < 2) { setCityMatches([]); setSearchingCity(false); setCityError(""); return; }
     const controller = new AbortController();
@@ -98,9 +106,10 @@ export default function NearbyPlaces() {
         .finally(() => { if (!controller.signal.aborted) setSearchingCity(false); });
     }, 450);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [cityQuery]);
+  }, [cityQuery, isOur]);
 
   function selectCityMatch(choice) {
+    if (isOur) { showComingSoon(); return; }
     setLocation(null);
     setLocationName("");
     setCustomCity({ lon: choice.lon, lat: choice.lat, name: choice.name });
@@ -111,6 +120,7 @@ export default function NearbyPlaces() {
     clearResults();
   }
   function changeCity(next) {
+    if (isOur) { showComingSoon(); return; }
     if (next === "__gps__" || next === "__custom__") return;
     setCity(next);
     setLocation(null);
@@ -120,6 +130,7 @@ export default function NearbyPlaces() {
     clearResults();
   }
   function findMyLocation() {
+    if (isOur) { showComingSoon(); return; }
     if (!navigator.geolocation) {
       setLocationError(tr("Your browser does not support geolocation.", "Ваш браузер не поддерживает геолокацию."));
       return;
@@ -148,22 +159,49 @@ export default function NearbyPlaces() {
     <nav className="flex flex-wrap items-center gap-2 text-xs text-ink-500" aria-label="Breadcrumb">
       <Link to="/services" className="hover:underline">{tr("Services", "Услуги")}</Link><span>/</span><span>{categoryName}</span>
     </nav>
+    <nav className="grid grid-cols-2 gap-3" aria-label={tr("Services mode", "Режим услуг")}>
+      <Link to={`/nearby/${kind}`} aria-current={!isOur ? "page" : undefined}
+        className={`flex min-h-20 items-center gap-3 rounded-2xl border p-3 text-left transition sm:p-5 ${!isOur ? "border-primary-700 bg-primary-50 shadow-sm" : "border-stone-200 bg-white hover:border-primary-200"}`}>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary-700"><MapPin size={22} /></span>
+        <span className="min-w-0"><strong className="block text-sm font-extrabold text-ink-900 sm:text-lg">{tr("Public Services", "Общедоступные услуги")}</strong><span className="mt-1 block text-xs text-ink-500">{tr("Live 2GIS search", "Поиск в 2ГИС")}</span></span>
+      </Link>
+      <Link to={`/nearby/our/${kind}`} aria-current={isOur ? "page" : undefined}
+        className={`flex min-h-20 items-center gap-3 rounded-2xl border p-3 text-left transition sm:p-5 ${isOur ? "border-primary-700 bg-primary-50 shadow-sm" : "border-stone-200 bg-white hover:border-primary-200"}`}>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary-700"><CalendarCheck2 size={22} /></span>
+        <span className="min-w-0"><strong className="block text-sm font-extrabold text-ink-900 sm:text-lg">{tr("Our Services", "Наши услуги")}</strong><span className="mt-1 block text-xs text-amber-700">{tr("Coming soon", "Скоро")}</span></span>
+      </Link>
+    </nav>
+    {isOur && <section className="overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-teal-50 p-5 sm:p-6" aria-label={tr("Our Services benefits", "Преимущества наших услуг")}>
+      <div className="flex items-start gap-3"><Sparkles size={24} className="mt-1 shrink-0 text-violet-600" />
+        <div><h2 className="text-xl font-extrabold text-ink-900 sm:text-2xl">{tr("Our Services — Coming Soon", "Наши услуги — Скоро")}</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-600">{tr("We're building a simpler way to find and book trusted veterinary care. The map and search tools below are a preview; booking and live search through Our Services are not available yet.", "Мы создаём удобный сервис для поиска и записи к проверенным ветеринарам. Карта и поиск ниже представлены для предварительного просмотра; запись и поиск в наших услугах пока недоступны.")}</p></div>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          { icon: Clock3, en: "Choose your appointment time", ru: "Удобное время приёма" },
+          { icon: Star, en: "Compare clinics by ratings", ru: "Сравнение по рейтингу" },
+          { icon: ShieldCheck, en: "Explore trusted partners", ru: "Проверенные партнёры" },
+          { icon: CalendarCheck2, en: "Manage bookings in PetCare", ru: "Управление записями" },
+        ].map(({ icon: Icon, en, ru }) => <div key={en} className="rounded-xl border border-white bg-white/90 p-3 text-center shadow-sm"><Icon className="mx-auto text-primary-700" size={23} /><p className="mt-2 text-xs font-semibold leading-5 text-ink-800">{tr(en, ru)}</p></div>)}
+      </div>
+    </section>}
     <header className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-7">
-      <p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{tr("Live 2GIS directory", "Каталог организаций 2ГИС")}</p>
-      <h1 className="mt-2 text-2xl font-extrabold text-ink-900 sm:text-3xl">{tr(`${category.label} near you`, `${categoryName} рядом с вами`)}</h1>
-      <p className="mt-2 text-sm text-ink-600">{tr(category.description, category.ruDescription || CATEGORY_RU[kind]?.[1] || category.description)}</p>
-      <p className="mt-2 text-xs text-ink-500">{tr("Results come from 2GIS; distances are straight-line. Call to confirm opening and emergency admission.", "Данные организаций — из 2ГИС, расстояния указаны по прямой. Уточняйте время работы и экстренный приём по телефону.")}</p>
+      <p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{isOur ? tr("PetCare services preview", "Предпросмотр услуг PetCare") : tr("Live 2GIS directory", "Каталог организаций 2ГИС")}</p>
+      <h1 className="mt-2 text-2xl font-extrabold text-ink-900 sm:text-3xl">{isOur ? tr(`Our Services — ${category.label}`, `Наши услуги — ${categoryName}`) : tr(`${category.label} near you`, `${categoryName} рядом с вами`)}</h1>
+      <p className="mt-2 text-sm text-ink-600">{isOur ? tr("Explore our future services in this interactive preview. Real provider listings and appointments are coming soon.", "Ознакомьтесь с будущими услугами. Реальные предложения и запись появятся позже.") : tr(category.description, category.ruDescription || CATEGORY_RU[kind]?.[1] || category.description)}</p>
+      {!isOur && <p className="mt-2 text-xs text-ink-500">{tr("Results come from 2GIS; distances are straight-line. Call to confirm opening and emergency admission.", "Данные организаций — из 2ГИС, расстояния указаны по прямой. Уточняйте время работы и экстренный приём по телефону.")}</p>}
     </header>
     <nav className="flex flex-wrap gap-2" aria-label="Nearby place categories">
-      {Object.entries(NEARBY_CATEGORIES).map(([id, info]) => <Link key={id} to={`/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
+      {Object.entries(NEARBY_CATEGORIES).filter(([id]) => id !== "hotels").map(([id, info]) => <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
         className={`rounded-lg px-3 py-2 text-sm font-semibold ${kind === id ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700"}`}>
         {tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label)}
       </Link>)}
     </nav>
-    <div className="flex flex-wrap justify-end">
+    {!isOur && <div className="flex flex-wrap justify-end">
       <Link to="/services/catalog" className="text-xs font-semibold text-primary-700 underline underline-offset-4">{tr("Grooming & pet sitting bookings (demo catalog)", "Запись на груминг и передержку (демо-каталог)")}</Link>
-    </div>
-    <section className="grid gap-3 rounded-xl border border-stone-200 bg-white p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-end" aria-label="Search options">
+    </div>}
+    <section className="relative grid gap-3 rounded-xl border border-stone-200 bg-white p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-end" aria-label="Search options">
+      {isOur && <button type="button" onClick={showComingSoon} className="absolute inset-0 z-10 cursor-not-allowed rounded-xl bg-white/35" aria-label={tr("Search preview — Coming soon", "Поиск пока недоступен")} title={tr("Our Services are coming soon", "Наши услуги скоро появятся")} />}
       <div className="min-w-0">
         <label htmlFor="petcare-city" className="text-xs font-bold text-ink-700">{tr("Search center", "Центр поиска")}</label>
         <select id="petcare-city" className="mt-1 block min-h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm"
@@ -207,15 +245,20 @@ export default function NearbyPlaces() {
       </p>
       {locationError && <p className="text-sm text-amber-800 md:col-span-4" role="status">{locationError}</p>}
     </section>
+    {previewNotice && isOur && <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span><AlertCircle size={16} className="mr-2 inline" />{tr("Our Services are coming soon. Searching, GPS and bookings will be available after launch.", "Наши услуги скоро появятся. Поиск, геолокация и запись будут доступны после запуска.")}</span><button type="button" className="shrink-0 font-bold underline" onClick={() => setPreviewNotice(false)}>{tr("Close", "Закрыть")}</button></div>}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,1fr)]">
-      <TwoGisMap center={center} places={places} />
+      <div className="relative">
+        <TwoGisMap center={center} places={isOur ? [] : places} />
+        {isOur && <button type="button" onClick={showComingSoon} className="absolute inset-0 z-10 flex cursor-not-allowed items-end justify-center rounded-xl bg-slate-900/5 p-3" aria-label={tr("Map preview — Coming soon", "Предпросмотр карты — Скоро")}><span className="rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-primary-800 shadow-md">{tr("Map preview • Live search coming soon", "Предпросмотр карты • Поиск скоро")}</span></button>}
+      </div>
       <section className="max-h-[480px] space-y-3 overflow-y-auto" aria-label="Nearby results" aria-live="polite">
-        {kind === "emergency" && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertCircle size={16} className="mr-1 inline" />{tr("Always phone the clinic first: listed opening hours do not guarantee emergency admission.", "Перед поездкой обязательно позвоните: часы работы не гарантируют экстренный приём.")}</div>}
+        {!isOur && kind === "emergency" && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertCircle size={16} className="mr-1 inline" />{tr("Always phone the clinic first: listed opening hours do not guarantee emergency admission.", "Перед поездкой обязательно позвоните: часы работы не гарантируют экстренный приём.")}</div>}
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
         {pending && <p role="status" className="rounded-xl border bg-white p-4 text-sm">{tr("Searching 2GIS...", "Идёт поиск в 2ГИС...")}</p>}
-        {!pending && !error && !searched && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("Select a city or GPS, then press Find places.", "Выберите город или используйте геолокацию, затем нажмите «Найти места».")}</p>}
-        {!pending && searched && !error && places.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("No verified matches for this filter and radius. Try a larger radius or All hours; never assume a clinic is open without calling.", "Нет подтверждённых результатов для выбранного фильтра и радиуса. Увеличьте радиус или выберите «Любое время». Всегда уточняйте работу клиники по телефону.")}</p>}
-        {!pending && !error && places.map((place) => <article key={place.id} className="rounded-xl border border-stone-200 bg-white p-4">
+        {isOur && <div className="rounded-xl border border-primary-100 bg-primary-50 p-5 text-sm text-ink-700"><h2 className="font-extrabold">{tr("PetCare appointments are coming soon", "Запись через PetCare скоро появится")}</h2><p className="mt-2 leading-6">{tr("When Our Services launches, you will be able to choose clinics, compare ratings and book at a time that works for you. No providers or availability are offered in preview mode.", "После запуска вы сможете выбирать клиники, сравнивать рейтинги и записываться на удобное время. В режиме просмотра реальные организации и свободные места не предлагаются.")}</p></div>}
+        {!isOur && !pending && !error && !searched && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("Select a city or GPS, then press Find places.", "Выберите город или используйте геолокацию, затем нажмите «Найти места».")}</p>}
+        {!isOur && !pending && searched && !error && places.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("No verified matches for this filter and radius. Try a larger radius or All hours; never assume a clinic is open without calling.", "Нет подтверждённых результатов для выбранного фильтра и радиуса. Увеличьте радиус или выберите «Любое время». Всегда уточняйте работу клиники по телефону.")}</p>}
+        {!isOur && !pending && !error && places.map((place) => <article key={place.id} className="rounded-xl border border-stone-200 bg-white p-4">
           <h2 className="text-sm font-extrabold text-ink-900">{place.name}</h2>
           <p className="mt-1 flex gap-1 text-xs text-ink-600"><MapPin size={14} className="shrink-0" />{place.address || tr("Address unavailable", "Адрес не указан")}</p>
           {place.opening === "24_7" && <p className="mt-2 text-xs font-semibold text-primary-700">{tr("24/7 according to 2GIS", "Круглосуточно по данным 2ГИС")}</p>}

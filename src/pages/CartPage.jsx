@@ -136,7 +136,7 @@ export default function CartPage() {
                   <Plus size={14} />
                 </button>
               </div>
-              <span className="w-24 text-right text-sm font-extrabold">{item.price * item.qty} {t("common.egp", "EGP")}</span>
+              <span className="w-24 text-right text-sm font-extrabold">{item.price * item.qty} {t("common.rub", "₽")}</span>
               <button
                 type="button"
                 aria-label={`Remove ${item.name} from cart`}
@@ -218,19 +218,19 @@ export default function CartPage() {
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between text-ink-500">
                 <span>{t("cart.subtotal", "Subtotal")}</span>
-                <span>{subtotal} {t("common.egp", "EGP")}</span>
+                <span>{subtotal} {t("common.rub", "₽")}</span>
               </div>
               <div className="flex justify-between text-ink-500">
                 <span>{t("cart.discount", "Discount")}</span>
-                <span>-{discount} {t("common.egp", "EGP")}</span>
+                <span>-{discount} {t("common.rub", "₽")}</span>
               </div>
               <div className="flex justify-between text-ink-500">
                 <span>{t("cart.delivery", "Delivery")}</span>
-                <span>{deliveryFee ? `${deliveryFee} ${t("common.egp", "EGP")}` : t("cart.free", "Free")}</span>
+                <span>{deliveryFee ? `${deliveryFee} ${t("common.rub", "₽")}` : t("cart.free", "Free")}</span>
               </div>
               <div className="flex justify-between border-t border-stone-100 pt-3 text-base font-extrabold">
                 <span>{t("cart.total", "Total")}</span>
-                <span>{total} {t("common.egp", "EGP")}</span>
+                <span>{total} {t("common.rub", "₽")}</span>
               </div>
             </div>
           </div>
