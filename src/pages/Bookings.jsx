@@ -119,7 +119,7 @@ export default function Bookings() {
                     <p className="mt-2 flex items-center gap-1 text-xs text-ink-500">
                       <MapPin size={13} /> {getCityName(booking.provider.city)}
                       <span className="mx-1">·</span>
-                      {booking.provider.price} {t("common.egp", "EGP")}
+                      {booking.provider.price} {t("common.rub", "₽")}
                     </p>
                     {booking.notes && <p className="mt-3 rounded-lg bg-stone-50 p-3 text-sm text-ink-700">{booking.notes}</p>}
                   </div>

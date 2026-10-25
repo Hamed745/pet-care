@@ -3,7 +3,6 @@ import { ArrowRight, Check, PackageCheck, ShoppingBag, Truck } from "lucide-reac
 import { useState } from "react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
-import { getStoreProductImage } from "../storeCatalog.js";
 import { btn, btn2, btnDanger, card } from "../ui.js";
 import { Badge, Button, EmptyState, Modal } from "../components/ui.jsx";
 import { OrderTimeline, ProductImage } from "../components/store/StoreComponents.jsx";
@@ -13,7 +12,7 @@ const statusStyle = { Preparing: "warning", Shipped: "success", Delivered: "succ
 export function Orders() {
   const { user, orders } = useApp();
   const { t, language } = useLanguage();
-  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.egp", "EGP")}`;
+  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
   if (!user) {
     return (
@@ -49,7 +48,7 @@ export function Orders() {
                   {order.items.slice(0, 3).map((item, index) => (
                     <ProductImage
                       key={`${order.id}-${item.id}-${index}`}
-                      src={getStoreProductImage(item.id) || item.image || item.images?.[0]}
+                      src={item.image || item.images?.[0]}
                       alt={item.name}
                       category={item.category}
                       className="size-12 rounded-lg border-2 border-white object-cover"
@@ -97,7 +96,7 @@ export function OrderDetails() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const order = orders.find((item) => item.id === id);
-  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.egp", "EGP")}`;
+  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
   if (!user) {
     return (
@@ -152,7 +151,7 @@ export function OrderDetails() {
         <section className="order-v3-items" aria-label="Items in this order">
           {order.items.map((item, index) => (
             <article key={`${item.id}-${index}`} className="order-v3-item">
-              <ProductImage src={getStoreProductImage(item.id) || item.image || item.images?.[0]} alt={item.name} category={item.category} className="order-v3-product-image" />
+              <ProductImage src={item.image || item.images?.[0]} alt={item.name} category={item.category} className="order-v3-product-image" />
               <div className="order-v3-product-copy">
                 <h2>{item.name}</h2>
                 <p>
@@ -221,7 +220,7 @@ export function OrderConfirmed() {
   const { orders } = useApp();
   const { t, language } = useLanguage();
   const order = orders.find((item) => item.id === id);
-  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.egp", "EGP")}`;
+  const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
   const estimated = order
     ? new Date(new Date(order.createdAt).getTime() + 4 * 86400000).toLocaleDateString(language === "ru" ? "ru-RU" : "en-US")
     : "3 to 5 business days";

@@ -59,12 +59,12 @@ export default function App() {
     <Layout>
         <Suspense fallback={<LoadingPage />}><Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/services" element={<Navigate to="/nearby/emergency" replace />} />
+          <Route path="/services" element={<Navigate to="/nearby/veterinary" replace />} />
           <Route path="/services/catalog" element={<ServicesHome />} />
-          <Route path="/services/veterinary" element={<Navigate to="/services/catalog/veterinary" replace />} />
+          <Route path="/services/veterinary" element={<Navigate to="/nearby/veterinary" replace />} />
           <Route path="/services/hotels" element={<Navigate to="/nearby/hotels" replace />} />
           <Route path="/services/daycare" element={<Navigate to="/nearby/daycare" replace />} />
-          <Route path="/services/vet" element={<Navigate to="/services/catalog/veterinary" replace />} />
+          <Route path="/services/vet" element={<Navigate to="/nearby/veterinary" replace />} />
 
                     <Route path="/services/grooming" element={<Navigate to="/nearby/grooming" replace />} />
           <Route path="/services/pet-sitting" element={<Navigate to="/nearby/pet-sitting" replace />} />
@@ -90,8 +90,8 @@ export default function App() {
           <Route path="/adoption/my-listings" element={<MyAdoptionListings />} />
           <Route path="/adoption/:id" element={<AdoptionDetails />} />
           <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
-          <Route path="/nearby/veterinary" element={<NearbyPlaces />} />
-          <Route path="/nearby/:kind" element={<NearbyPlaces />} />
+          <Route path="/nearby/our/:kind" element={<NearbyPlaces mode="our" />} />
+          <Route path="/nearby/:kind" element={<NearbyPlaces mode="public" />} />
           <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />
           <Route path="/emergency/demo" element={<Emergency />} />
           <Route path="/ai" element={<AI />} />

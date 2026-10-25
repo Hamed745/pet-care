@@ -44,7 +44,7 @@ export function CategoryTile({ category, count, onSelect }) {
 export function PriceTag({ product, price = product.price, className = "" }) {
   const { t } = useLanguage();
   const discount = product.oldPrice ? Math.round((1 - price / product.oldPrice) * 100) : 0;
-  return <span className={`inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${className}`}><strong className="font-extrabold text-ink-900">{price} {t("common.egp", "EGP")}</strong>{product.oldPrice && <><span className="text-xs text-ink-500 line-through">{product.oldPrice} {t("common.egp", "EGP")}</span><span className="text-[10px] font-extrabold text-danger-600">-{discount}%</span></>}</span>;
+  return <span className={`inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${className}`}><strong className="font-extrabold text-ink-900">{price} {t("common.rub", "₽")}</strong>{product.oldPrice && <><span className="text-xs text-ink-500 line-through">{product.oldPrice} {t("common.rub", "₽")}</span><span className="text-[10px] font-extrabold text-danger-600">-{discount}%</span></>}</span>;
 }
 
 export function QuantityStepper({ value, onChange, label, compact = false, max = Number.POSITIVE_INFINITY }) {

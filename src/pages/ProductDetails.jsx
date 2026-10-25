@@ -99,7 +99,7 @@ export default function ProductDetails() {
                       : "border-stone-300 text-ink-700 hover:bg-stone-50"
                   }`}
                 >
-                  {variantLabel(variant.label)} · {variant.price} {t("common.egp", "EGP")}
+                  {variantLabel(variant.label)} · {variant.price} {t("common.rub", "₽")}
                 </button>
               ))}
             </div>
