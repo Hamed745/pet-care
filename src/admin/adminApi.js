@@ -40,7 +40,11 @@ export const adminApi = {
   pets: () => request("/api/admin/pets"),
   orders: () => request("/api/admin/orders"),
   products: () => request("/api/admin/products"),
-  activity: () => request("/api/admin/activity"),
+  activity: (cursor = "") => request(`/api/admin/activity${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+  notifications: () => request("/api/admin/notifications"),
+  markNotificationsRead: () => request("/api/admin/notifications/read", { method: "POST" }),
+  reports: (days = "30") => request(`/api/admin/reports?days=${encodeURIComponent(days)}`),
+  geography: () => request("/api/admin/geography"),
   setSuspended: (uid, disabled, reason) =>
     request(`/api/admin/users/${encodeURIComponent(uid)}/suspension`, {
       method: "POST",

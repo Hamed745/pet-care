@@ -5,6 +5,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const { createHash } = require("node:crypto");
+const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -129,6 +130,27 @@ const unwrap = (doc) => {
   };
 };
 
+// Cost of goods is an admin-only accounting field. Never expose it to buyers.
+const publicOrder = (doc) => hideInternalOrderCosts(unwrap(doc));
+
+const loadRecentOrders = async (limit = 2000) => {
+  const docs = await db.collection("adminOrders").orderBy("createdAt", "desc").limit(limit).get();
+  return { orders: docs.docs.map(unwrap), limited: docs.size === limit };
+};
+
+async function listExistingAccountIds() {
+  const ids = new Set();
+  let disabledCount = 0;
+  let token;
+  do {
+    const batch = await auth.listUsers(1000, token);
+    batch.users.forEach((user) => ids.add(user.uid));
+    disabledCount += batch.users.filter((user) => user.disabled).length;
+    token = batch.pageToken;
+  } while (token && ids.size < 10000);
+  return { ids, disabledCount, limited: Boolean(token) };
+}
+
 const count = async (collectionName) =>
   (await db.collection(collectionName).count().get()).data().count;
 
@@ -193,7 +215,7 @@ app.get(
   ...signedInRoute(async (req, res) => {
     const docs = await db.collection("adminOrders")
       .where("userId", "==", req.authUser.uid).limit(100).get();
-    const orders = docs.docs.map(unwrap).sort((a, b) =>
+    const orders = docs.docs.map(publicOrder).sort((a, b) =>
       String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     res.set("Cache-Control", "no-store");
     res.json({ orders, limited: docs.size === 100 });
@@ -232,17 +254,19 @@ app.post(
 
     const orderId = `PC-${createHash("sha256").update(`${uid}:${requestId}`).digest("hex").slice(0, 24)}`;
     const orderRef = db.collection("adminOrders").doc(orderId);
-    await db.runTransaction(async (transaction) => {
+    const created = await db.runTransaction(async (transaction) => {
       // Idempotency: retrying the same checkout never charges stock twice.
       const existing = await transaction.get(orderRef);
       if (existing.exists) {
         if (existing.data().userId !== uid) throw new HttpError(409, "Order conflict.");
-        return;
+        return false;
       }
 
       const productRefs = items.map((item) => db.collection("adminProducts").doc(item.id));
       const productSnaps = await Promise.all(productRefs.map((ref) => transaction.get(ref)));
       let subtotal = 0;
+      let costOfGoods = 0;
+      let costsComplete = true;
       const orderItems = productSnaps.map((snap, index) => {
         const product = snap.data();
         const { qty } = items[index];
@@ -252,6 +276,11 @@ app.post(
           throw new HttpError(409, "A product is unavailable or has insufficient stock. Refresh the cart.");
         }
         subtotal += product.price * qty;
+        if (Number.isInteger(product.costPrice) && product.costPrice >= 0) {
+          costOfGoods += product.costPrice * qty;
+        } else {
+          costsComplete = false;
+        }
         if (!Number.isSafeInteger(subtotal)) throw new HttpError(400, "Order total is too large.");
         return {
           id: snap.id, name: product.name, category: product.category,
@@ -270,14 +299,16 @@ app.post(
       transaction.create(orderRef, {
         userId: uid, customerName: name, customerEmail: req.authUser.email || "",
         items: orderItems, subtotal, discount: 0, deliveryFee, total: subtotal + deliveryFee,
+        costOfGoods: costsComplete ? costOfGoods : null,
         address: { name, phone, city, address: street },
         paymentMethod: "Cash on delivery", paymentStatus: "unpaid", fulfilment: "delivery",
         status: "pending", history: [{ status: "pending", at: new Date().toISOString(), by: uid }],
         createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
+      return true;
     });
-
-    res.status(201).json({ order: unwrap(await orderRef.get()) });
+    if (created) await audit(uid, "order.placed", orderId).catch((err) => console.error("[order audit]", err?.message));
+    res.status(201).json({ order: publicOrder(await orderRef.get()) });
   })
 );
 
@@ -312,28 +343,16 @@ app.post(
         updatedAt: FieldValue.serverTimestamp(),
       });
     });
-    res.json({ order: unwrap(await orderRef.get()) });
+    await audit(req.authUser.uid, "order.cancelled_by_customer", orderId).catch((err) => console.error("[order audit]", err?.message));
+    res.json({ order: publicOrder(await orderRef.get()) });
   })
 );
 
 app.get(
   "/api/admin/overview",
   ...adminRoute(async (_req, res) => {
-    let usersCount = 0;
-    let disabledCount = 0;
-    const existingUserUids = new Set();
-    let pageToken;
-    let limitReached = false;
-
-    do {
-      const batch = await auth.listUsers(1000, pageToken);
-      usersCount += batch.users.length;
-      disabledCount += batch.users.filter((user) => user.disabled).length;
-      batch.users.forEach((user) => existingUserUids.add(user.uid));
-      pageToken = batch.pageToken;
-    } while (pageToken && usersCount < 10000);
-
-    if (pageToken) limitReached = true;
+    const accounts = await listExistingAccountIds();
+    const existingUserUids = accounts.ids;
 
     // Deleting an Authentication user does not automatically remove Firestore
     // documents. Exclude orphaned profiles and pets from live dashboard figures.
@@ -365,7 +384,7 @@ app.get(
       existingUserUids.has(doc.data().ownerUid)
     ).length;
 
-    const [productsCount, ordersCount, activeSnap, recentSnap] =
+    const [productsCount, ordersCount, activeSnap, recentOrders, productsSnap] =
       await Promise.all([
         count("adminProducts"),
         count("adminOrders"),
@@ -380,20 +399,86 @@ app.get(
           ])
           .count()
           .get(),
-        db.collection("adminOrders").orderBy("createdAt", "desc").limit(5).get(),
+        loadRecentOrders(),
+        db.collection("adminProducts").where("published", "==", true).limit(300).get(),
       ]);
 
+    const lowStockItems = productsSnap.docs
+      .filter((doc) => Number.isInteger(doc.data().stock) && doc.data().stock <= 5)
+      .map((doc) => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock }))
+      .sort((a, b) => a.stock - b.stock);
+
     res.json({
-      usersCount,
-      disabledCount,
+      usersCount: existingUserUids.size,
+      disabledCount: accounts.disabledCount,
       petsCount,
       productsCount,
       ordersCount,
       activeOrders: activeSnap.data().count,
       profilesWithCity,
       cities,
-      recentOrders: recentSnap.docs.map(unwrap),
-      partial: limitReached || profilesSnap.size === 10000 || petsSnap.size === 10000,
+      recentOrders: recentOrders.orders.slice(0, 5),
+      insights: summarizeOrders(recentOrders.orders, { days: 30 }),
+      lowStock: lowStockItems.slice(0, 8),
+      lowStockCount: lowStockItems.length,
+      partial: accounts.limited || profilesSnap.size === 10000 || petsSnap.size === 10000 || recentOrders.limited || productsSnap.size === 300,
+    });
+  })
+);
+
+app.get(
+  "/api/admin/notifications",
+  ...adminRoute(async (req, res) => {
+    const [ordersSnap, stateSnap] = await Promise.all([
+      db.collection("adminOrders").orderBy("createdAt", "desc").limit(60).get(),
+      db.collection("adminNotificationState").doc(req.authUser.uid).get(),
+    ]);
+    const notifications = makeOrderNotifications(ordersSnap.docs.map(unwrap), stamp(stateSnap.data()?.lastReadAt));
+    res.set("Cache-Control", "no-store");
+    res.json({ notifications, unreadCount: notifications.filter((item) => item.unread).length, limited: ordersSnap.size === 60 });
+  })
+);
+
+app.post(
+  "/api/admin/notifications/read",
+  ...adminRoute(async (req, res) => {
+    await db.collection("adminNotificationState").doc(req.authUser.uid).set({
+      lastReadAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await audit(req.authUser.uid, "notifications.mark_read", "orders");
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/reports",
+  ...adminRoute(async (req, res) => {
+    const period = String(req.query.days || "30");
+    if (!["7", "30", "90", "all"].includes(period)) throw new HttpError(400, "Invalid report period.");
+    const days = period === "all" ? 0 : Number(period);
+    const result = await loadRecentOrders();
+    res.set("Cache-Control", "no-store");
+    res.json({ ...summarizeOrders(result.orders, { days }), period, limited: result.limited });
+  })
+);
+
+app.get(
+  "/api/admin/geography",
+  ...adminRoute(async (_req, res) => {
+    const [accounts, profiles, recentOrders] = await Promise.all([
+      listExistingAccountIds(),
+      db.collection("adminUserProfiles").limit(10000).get(),
+      loadRecentOrders(),
+    ]);
+    const knownProfiles = profiles.docs
+      .filter((doc) => accounts.ids.has(doc.id))
+      .map((doc) => ({ city: doc.data().city }));
+    res.set("Cache-Control", "no-store");
+    res.json({
+      ...summarizeGeography(knownProfiles, recentOrders.orders),
+      usersCount: accounts.ids.size,
+      ordersCount: recentOrders.orders.length,
+      limited: accounts.limited || profiles.size === 10000 || recentOrders.limited,
     });
   })
 );
@@ -471,13 +556,33 @@ app.get(
 
 app.get(
   "/api/admin/activity",
-  ...adminRoute(async (_req, res) => {
-    const docs = await db
-      .collection("adminAuditLogs")
-      .orderBy("createdAt", "desc")
-      .limit(100)
-      .get();
-    res.json({ logs: docs.docs.map(unwrap) });
+  ...adminRoute(async (req, res) => {
+    const cursor = sanitize(req.query.cursor, 128);
+    const collection = db.collection("adminAuditLogs");
+    let query = collection.orderBy("createdAt", "desc");
+    if (cursor) {
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(cursor)) throw new HttpError(400, "Invalid activity cursor.");
+      const cursorDoc = await collection.doc(cursor).get();
+      if (!cursorDoc.exists) throw new HttpError(400, "Activity page has expired. Refresh the log.");
+      query = query.startAfter(cursorDoc);
+    }
+    const docs = await query.limit(41).get();
+    const pageDocs = docs.docs.slice(0, 40);
+    const actors = [...new Set(pageDocs.map((doc) => doc.data().actorUid).filter(Boolean))];
+    const actorNames = new Map();
+    if (actors.length) {
+      try {
+        const result = await auth.getUsers(actors.map((uid) => ({ uid })));
+        result.users.forEach((user) => actorNames.set(user.uid, user.displayName || user.email || user.uid));
+      } catch (error) {
+        console.warn("[activity] Actor display names unavailable:", error?.code || "unknown");
+      }
+    }
+    res.set("Cache-Control", "no-store");
+    res.json({
+      logs: pageDocs.map((doc) => ({ ...unwrap(doc), actorName: actorNames.get(doc.data().actorUid) || doc.data().actorUid || "—" })),
+      nextCursor: docs.size > 40 ? pageDocs.at(-1).id : "",
+    });
   })
 );
 
@@ -613,6 +718,8 @@ app.post(
     const description = sanitize(product.description, 1500);
     const imageUrl = sanitize(product.imageUrl, 1000);
     const price = Number(product.price);
+    const rawCostPrice = product.costPrice;
+    const costPrice = rawCostPrice === "" || rawCostPrice == null ? null : Number(rawCostPrice);
     const stock = Number(product.stock);
     const published = product.published === true;
 
@@ -621,6 +728,7 @@ app.post(
       !category ||
       !["dog", "cat", "bird", "fish", "small"].includes(petType) ||
       !Number.isInteger(price) || price < 0 || price > 10000000 ||
+      (costPrice !== null && (!Number.isInteger(costPrice) || costPrice < 0 || costPrice > 10000000)) ||
       !Number.isInteger(stock) || stock < 0 || stock > 10000000
     ) {
       throw new HttpError(400, "Invalid product fields.");
@@ -648,6 +756,7 @@ app.post(
       description,
       imageUrl,
       price,
+      costPrice,
       stock,
       published,
       updatedAt: FieldValue.serverTimestamp(),
