@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BellRing, BellOff, CheckCircle2, LoaderCircle, Volume2 } from "lucide-react";
 import { adminApi } from "./adminApi.js";
-import { isAdminPushSupported, listenForAdminPush, registerAdminPush, sendAdminPushTest, unregisterAdminPush } from "./adminPush.js";
+import { isAdminPushSupported, registerAdminPush, sendAdminPushTest, unregisterAdminPush } from "./adminPush.js";
 
 export default function AdminPushSettings() {
   const [supported, setSupported] = useState(null);
@@ -9,6 +9,12 @@ export default function AdminPushSettings() {
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const handlePush = () => setMessage("A new PetCare notification has arrived.");
+    window.addEventListener("petcare:push-notification", handlePush);
+    return () => window.removeEventListener("petcare:push-notification", handlePush);
+  }, []);
 
   const enable = useCallback(async () => {
     setBusy(true);
@@ -54,7 +60,6 @@ export default function AdminPushSettings() {
 
   useEffect(() => {
     let active = true;
-    let unsubscribe = () => {};
     isAdminPushSupported().then((value) => {
       if (!active) return;
       setSupported(value);
@@ -64,14 +69,8 @@ export default function AdminPushSettings() {
         }).catch(() => {});
       }
     });
-    listenForAdminPush(() => {
-      if (active) setMessage("A new PetCare notification has arrived.");
-    }).then((stop) => {
-      unsubscribe = stop;
-    }).catch(() => {});
     return () => {
       active = false;
-      unsubscribe();
     };
   }, []);
 
