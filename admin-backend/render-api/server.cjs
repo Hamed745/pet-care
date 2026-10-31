@@ -548,6 +548,10 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error." });
 });
 
-app.listen(PORT, () => {
-  console.log(`PetCare Admin API listening on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`PetCare Admin API listening on port ${PORT}`);
+  });
+}
+
+module.exports = app;

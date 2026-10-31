@@ -37,6 +37,8 @@ const Profile = lazy(() => import("./pages/Auth.jsx").then((module) => ({ defaul
 const Settings = lazy(() => import("./pages/Auth.jsx").then((module) => ({ default: module.Profile })));
 
 const NearbyPlaces = lazy(() => import("./features/nearby/NearbyPlaces.jsx"));
+const AdminApp = lazy(() => import("./admin/AdminApp.jsx"));
+const AdminGate = lazy(() => import("./admin/AdminGate.jsx"));
 
 function LoadingPage() {
   const { t } = useLanguage();
@@ -95,6 +97,7 @@ export default function App() {
           <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />
           <Route path="/emergency/demo" element={<Emergency />} />
           <Route path="/ai" element={<AI />} />
+          <Route path="/admin/*" element={<AdminGate><AdminApp /></AdminGate>} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<Forgot />} />

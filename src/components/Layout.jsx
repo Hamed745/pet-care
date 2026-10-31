@@ -10,6 +10,7 @@ import PetAvatar from "./PetAvatar.jsx";
 import PetBagIcon from "./icons/PetBagIcon.jsx";
 import { ToastStack } from "./ui.jsx";
 import LanguageSwitcher from "./LanguageSwitcher.jsx";
+import AdminEntryLink from "../admin/AdminEntryLink.jsx";
 
 function Brand() {
   return (
@@ -241,6 +242,7 @@ function Navbar() {
                       </span>
                     </div>
                     <div className="border-t border-stone-100 pt-2">
+                      <AdminEntryLink onClick={closeMenus} />
                       <Link
                         role="menuitem"
                         to="/profile"
@@ -405,6 +407,7 @@ function Navbar() {
               <div className="mt-5 grid grid-cols-2 gap-3">
                 {user ? (
                   <>
+                    <AdminEntryLink onClick={() => setMobileOpen(false)} className={btn2} />
                     <Link onClick={() => setMobileOpen(false)} to="/profile" className={btn2}>
                       {t("nav.profile", "Profile")}
                     </Link>

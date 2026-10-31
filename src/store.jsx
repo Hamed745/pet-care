@@ -7,6 +7,14 @@ import * as storeService from "./services/storeService.js";
 import * as communityService from "./services/communityService.js";
 import { products as storeProducts } from "./storeCatalog.js";
 import { PERSISTENCE_KEY } from "./config.js";
+import { adminApi } from "./admin/adminApi.js";
+// Optional centralized profile/pet metadata sync: legacy local-first features remain usable.
+const syncAdminData = (method, payload) => {
+  if (!authService.getCurrentAuthUser()) return;
+  adminApi[method](payload).catch((error) => {
+    console.warn("PetCare admin sync not ready:", error?.code || "unavailable");
+  });
+};
 const Ctx = createContext();
 export const useApp = () => useContext(Ctx);
 
@@ -86,7 +94,7 @@ export function AppProvider({ children }) {
     });
   }, [pets, setData]);
   const setUser = (value) => setData((current) => ({ ...current, user: typeof value === "function" ? value(current.user) : value }));
-  const saveUser = async (userData) => { const updated = await authService.updateUser(user, userData); setUser(updated); };
+  const saveUser = async (userData) => { const updated = await authService.updateUser(user, userData); setUser(updated); if (updated?.uid && authService.getCurrentAuthUser()?.uid === updated.uid) syncAdminData("syncProfile", {name:updated.name,city:updated.city,phone:updated.phone}); };
   const setCart = (value) => setData((current) => ({ ...current, cart: typeof value === "function" ? value(current.cart) : value }));
   const setPets = (value) => setData((current) => ({ ...current, pets: typeof value === "function" ? value(current.pets) : value }));
   const setBookings = (value) => setData((current) => ({ ...current, bookings: typeof value === "function" ? value(current.bookings) : value }));
@@ -101,12 +109,13 @@ export function AppProvider({ children }) {
   const setStoreSort = (storeSort) => setData((current) => ({ ...current, storeSort }));
   const createStoreOrder = async (orderData) => { const order = await storeService.createOrder(orderData); setData((current) => ({ ...current, orders: [order, ...(current.orders || initialData.orders)] })); return order; };
   const cancelStoreOrder = async (id) => { const nextOrders = await storeService.cancelOrder(orders, id); setData((current) => ({ ...current, orders: nextOrders })); };
-  const addPet = (pet) => setPets((current) => [...current, { ...pet, id: Date.now(), vaccines: [], meds: [] }]);
-  const createPet = async (pet) => { setPets(await petsService.createPet(pets, pet)); };
-  const updatePetInfo = async (id, petData) => { setPets(await petsService.updatePet(pets, id, petData)); };
+  const addPet = (pet) => { const nextPet = {...pet,id:Date.now(),ownerUid:authService.getCurrentAuthUser()?.uid||null,vaccines:[],meds:[]};setPets((current)=>[...current,nextPet]);if(nextPet.ownerUid)syncAdminData("syncPet",nextPet); };
+  const createPet = async (pet) => {const ownerUid=authService.getCurrentAuthUser()?.uid||null;const next = await petsService.createPet(pets,{...pet,ownerUid});setPets(next);const nextPet=next[next.length-1];if(ownerUid&&nextPet)syncAdminData("syncPet",nextPet);};
+  const updatePetInfo = async (id, petData) => {const next=await petsService.updatePet(pets,id,petData);setPets(next);const changed=next.find((pet)=>String(pet.id)===String(id));if(changed?.ownerUid&&changed.ownerUid===authService.getCurrentAuthUser()?.uid)syncAdminData("syncPet",changed);};
   const updatePet = (id, fn) => setPets((x) => x.map((p) => p.id === id ? fn(p) : p));
   const deletePet = async (id, { cancelBookings = true } = {}) => {
     const nextPets = await petsService.deletePet(pets, id);
+    if(pets.find((pet)=>String(pet.id)===String(id))?.ownerUid===authService.getCurrentAuthUser()?.uid)syncAdminData("deletePet",id);
     const nextBookings = await bookingsService.deleteBookingsForPet(bookings, id, cancelBookings);
     setData((current) => ({ ...current, pets: nextPets, bookings: nextBookings, calendarEvents: (current.calendarEvents || []).filter((event) => String(event.petId) !== String(id)) }));
   };
