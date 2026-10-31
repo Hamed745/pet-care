@@ -392,11 +392,14 @@ app.post(
     });
     if (created) {
       await audit(uid, "order.placed", orderId).catch((err) => console.error("[order audit]", err?.message));
-      await sendNewOrderPush({ id: orderId, total: subtotal + deliveryFee }).catch((err) =>
+    }
+    const savedOrder = await orderRef.get();
+    if (created) {
+      await sendNewOrderPush({ id: orderId, total: Number(savedOrder.data()?.total) || 0 }).catch((err) =>
         console.warn("[order push] Delivery attempt failed:", err?.code || err?.message || "unknown")
       );
     }
-    res.status(201).json({ order: publicOrder(await orderRef.get()) });
+    res.status(201).json({ order: publicOrder(savedOrder) });
   })
 );
 
