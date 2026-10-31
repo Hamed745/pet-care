@@ -513,6 +513,14 @@ app.post(
     const type = sanitize(pet.type, 60);
     const breed = sanitize(pet.breed, 100);
     const age = Number(pet.age);
+    const gender = ["Male", "Female"].includes(pet.gender) ? pet.gender : "";
+    const rawWeight = pet.weight === "" || pet.weight == null ? null : Number(pet.weight);
+    const weight = rawWeight !== null && Number.isFinite(rawWeight) && rawWeight >= 0 && rawWeight <= 1000
+      ? rawWeight
+      : null;
+    const healthStatus = ["Healthy", "Monitoring", "Under treatment"].includes(pet.healthStatus)
+      ? pet.healthStatus
+      : "";
 
     if (!/^[\w-]{1,80}$/.test(petId) || !name || !type || !Number.isFinite(age) || age < 0 || age > 120) {
       throw new HttpError(400, "Invalid pet data.");
@@ -531,6 +539,9 @@ app.post(
       type,
       breed,
       age,
+      gender,
+      weight,
+      healthStatus,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
