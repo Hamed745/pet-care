@@ -263,7 +263,7 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
     }
   };
 
-  return <ModalShell title={product.id?tx.editProduct:tx.newProduct} close={close}>
+  return <ModalShell title={product.id?tx.editProduct:tx.newProduct} close={()=>{if(!busy&&!uploading)close();}}>
     <form className="pa-product-form" onSubmit={saveProduct}>
       <label className="pa-form-field">{tx.productName}<input required maxLength={120} value={p.name} onChange={e=>update("name",e.target.value)}/></label>
       <div className="pa-fields-two">
@@ -283,7 +283,7 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
             <small>{tx.imageUploadHelp}</small>
             <label className="pa-outline-button pa-image-file-button">
               <UploadCloud size={15}/>{tx.imageUploadBrowse}
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseImage(e.target.files?.[0])}/>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{chooseImage(e.target.files?.[0]);e.target.value="";}}/>
             </label>
             {selectedImage&&<button type="button" className="pa-image-clear" onClick={()=>{setSelectedImage(null);setImageError("");}}> {tx.imageUploadRemove}</button>}
           </div>
@@ -292,7 +292,7 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
         {imageError&&<small className="pa-form-error" role="alert">{imageError}</small>}
       </div>
 
-      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>{update("imageUrl",e.target.value);if(p.imageStoragePath)update("imageStoragePath","");}}/><small>{tx.imageHelp}</small></label>
+      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>{setSelectedImage(null);update("imageUrl",e.target.value);if(p.imageStoragePath)update("imageStoragePath","");}}/><small>{tx.imageHelp}</small></label>
       {formError&&<div className="pa-alert pa-error" role="alert">{formError}</div>}
       <label className="pa-checkbox"><input type="checkbox" checked={Boolean(p.published)} onChange={e=>update("published",e.target.checked)}/>{tx.publishedLabel}</label>
       <div className="pa-modal-actions"><button type="button" className="pa-outline-button" onClick={close}>{tx.cancel}</button><button type="submit" disabled={busy||uploading} className="pa-primary-button">{uploading?tx.imageUploadProgress:tx.save}</button></div>
