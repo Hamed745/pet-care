@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronDown, Heart, Search, ShoppingBag, SlidersHorizontal, X } from "lucide-react";
-import { storeCategories, storeProducts, petShopTiles } from "../storeCatalog.js";
+import { storeCategories } from "../storeCatalog.js";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { btn, btn2, input } from "../ui.js";
@@ -22,7 +22,7 @@ function sortList(list, sort) {
 }
 
 export default function Storefront() {
-  const { storeSort, setStoreSort, cart } = useApp();
+  const { products: storeProducts, productsLoading, productsError, refreshProducts, storeSort, setStoreSort, cart } = useApp();
   const { t, productName } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -45,6 +45,7 @@ export default function Storefront() {
   ];
 
   useEffect(() => setSearchText(filters.q), [filters.q]);
+  useEffect(() => { refreshProducts(); }, [refreshProducts]);
   useEffect(() => { if (searchParams.has("sort")) setStoreSort(sort); }, [sort]);
   useEffect(() => {
     setLoading(true);
@@ -80,7 +81,7 @@ export default function Storefront() {
       return true;
     });
     return sortList(matches, sort);
-  }, [filters.q, filters.pet, filters.category, filters.brand, filters.min, filters.max, filters.age, filters.rating, filters.stock, filters.sale, filters.bestSeller, sort]);
+  }, [storeProducts, filters.q, filters.pet, filters.category, filters.brand, filters.min, filters.max, filters.age, filters.rating, filters.stock, filters.sale, filters.bestSeller, sort]);
 
   const suggestions = useMemo(() => {
     const term = searchText.trim().toLowerCase();
@@ -88,7 +89,7 @@ export default function Storefront() {
     const productMatches = storeProducts.filter((product) => `${product.name} ${product.brand} ${product.category}`.toLowerCase().includes(term)).slice(0, 4).map((product) => ({ type: "product", id: product.id, label: product.name, hint: `${product.brand} · ${product.category}` }));
     const categoryMatches = storeCategories.filter((category) => category.name.toLowerCase().includes(term)).slice(0, 2).map((category) => ({ type: "category", label: category.name, hint: t("store.category", "Category") }));
     return [...productMatches, ...categoryMatches].slice(0, 6);
-  }, [searchText, t]);
+  }, [searchText, t, storeProducts]);
   const chooseSuggestion = (suggestion) => {
     setSuggestionsOpen(false);
     setSuggestionIndex(-1);
@@ -164,8 +165,9 @@ export default function Storefront() {
       {activeChips.map(([key, label]) => <button key={Array.isArray(key) ? key.join("-") : key} type="button" onClick={() => Array.isArray(key) ? updateUrl({ [key[0]]: "", [key[1]]: "" }) : updateUrl({ [key]: "" })} className="inline-flex min-h-7 items-center gap-1 rounded-full bg-primary-50 px-2.5 text-[11px] font-bold text-primary-800">{label}<X size={12} /></button>)}
       {activeChips.length > 0 && <button type="button" onClick={clearAll} className="min-h-7 px-2 text-xs font-bold text-primary-700 underline">{t("adoption.clear_filters", "Clear all")}</button>}
       </div>
-      {loading ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="rounded-2xl border border-stone-200 bg-white p-3"><Skeleton className="aspect-[4/3]" /><Skeleton className="mt-3 h-3 w-2/3" /><Skeleton className="mt-2 h-4 w-full" /><Skeleton className="mt-3 h-4 w-1/3" /><Skeleton className="mt-4 h-10 w-full" /></div>)}</div> : collectionProducts.length ? <><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{collectionProducts.slice(0, visibleCount).map((product) => <ProductCard key={product.id} product={product} listing />)}</div>{visibleCount < collectionProducts.length && <div className="mt-8 text-center"><button type="button" className={btn2} onClick={() => setVisibleCount((count) => count + 12)}>Load more products</button></div>}</> : <div className="rounded-2xl border border-stone-200 bg-white px-6 py-14 text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-primary-50 text-primary-700"><ShoppingBag size={24} /></span><h2 className="mt-4 text-lg font-extrabold text-ink-900">No products found</h2><p className="mt-2 text-sm text-ink-500">Try changing your search or category.</p><button type="button" onClick={clearAll} className={`${btn} mt-4`}>{t("adoption.clear_filters", "Clear filters")}</button></div>}
-      <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} filters={filtersForDrawer} onChange={updateFilters} resultCount={filteredProducts.length} />
+      {productsError && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{productsError} — Please refresh the page to retry.</div>}
+      {loading || productsLoading ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="rounded-2xl border border-stone-200 bg-white p-3"><Skeleton className="aspect-[4/3]" /><Skeleton className="mt-3 h-3 w-2/3" /><Skeleton className="mt-2 h-4 w-full" /><Skeleton className="mt-3 h-4 w-1/3" /><Skeleton className="mt-4 h-10 w-full" /></div>)}</div> : collectionProducts.length ? <><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{collectionProducts.slice(0, visibleCount).map((product) => <ProductCard key={product.id} product={product} listing />)}</div>{visibleCount < collectionProducts.length && <div className="mt-8 text-center"><button type="button" className={btn2} onClick={() => setVisibleCount((count) => count + 12)}>Load more products</button></div>}</> : !productsError && <div className="rounded-2xl border border-stone-200 bg-white px-6 py-14 text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-primary-50 text-primary-700"><ShoppingBag size={24} /></span><h2 className="mt-4 text-lg font-extrabold text-ink-900">{storeProducts.length ? "No products found" : "No products published yet"}</h2><p className="mt-2 text-sm text-ink-500">{storeProducts.length ? "Try changing your search or category." : "The store will show products after the administrator publishes them."}</p>{storeProducts.length > 0 && <button type="button" onClick={clearAll} className={`${btn} mt-4`}>{t("adoption.clear_filters", "Clear filters")}</button>}</div>}
+      <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} products={storeProducts} filters={filtersForDrawer} onChange={updateFilters} resultCount={filteredProducts.length} />
     </section>
   </div>;
 }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Bell, CalendarCheck, CalendarDays, Cat, Check, ChevronDown, Clock3, Dog, Heart, House, MapPin, PawPrint, Scissors, Search, ShoppingBag, Siren, Stethoscope, Star, Tag, Bird, HandHeart } from "lucide-react";
-import { adoptions, products, providers } from "../data.js";
+import { adoptions, providers } from "../data.js";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import Media from "../components/Media.jsx";
+import { ProductImage } from "../components/store/StoreComponents.jsx";
 import { Button, Card, Rating, SectionTitle } from "../components/ui.jsx";
 import { btn, btn2 } from "../ui.js";
 import PetAvatar from "../components/PetAvatar.jsx";
@@ -97,7 +98,7 @@ function HeroPhoto({ src }) {
 }
 
 export default function Home() {
-  const { user, pets, bookings, calendarEvents, notifications } = useApp();
+  const { user, pets, bookings, calendarEvents, notifications, products, productsLoading, productsError } = useApp();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [service, setService] = useState("vet");
@@ -483,11 +484,11 @@ export default function Home() {
           {t("home.visit_store", "Visit store")} <ArrowRight size={15} className="inline" />
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {productsLoading ? <p className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-ink-500">Loading products…</p> : productsError ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">The store is temporarily unavailable.</p> : featuredProducts.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {featuredProducts.map((product) => (
           <Card key={product.id} className="overflow-hidden !p-0">
             <Link to={`/store/${product.id}`}>
-              <Media src={product.images?.[0] || product.image} alt={product.name} className="aspect-square w-full object-cover" />
+              <ProductImage src={product.images?.[0] || product.image} alt={product.name} category={product.category} className="aspect-square w-full object-cover" />
             </Link>
             <div className="p-4">
               <span className="text-xs font-semibold text-ink-500">
@@ -498,7 +499,7 @@ export default function Home() {
             </div>
           </Card>
         ))}
-      </div>
+      </div> : <p className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-ink-500">No products published yet. Check back when the store opens.</p>}
     </section>
   </div>;
 }

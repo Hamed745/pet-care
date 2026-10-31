@@ -1,11 +1,11 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import usePersistentState from "./hooks/usePersistentState.js";
 import * as petsService from "./services/petsService.js";
 import * as bookingsService from "./services/bookingsService.js";
 import * as authService from "./services/authService.js";
 import * as storeService from "./services/storeService.js";
+import { shopApi } from "./services/shopApi.js";
 import * as communityService from "./services/communityService.js";
-import { products as storeProducts } from "./storeCatalog.js";
 import { PERSISTENCE_KEY } from "./config.js";
 import { adminApi } from "./admin/adminApi.js";
 // Optional centralized profile/pet metadata sync: legacy local-first features remain usable.
@@ -18,10 +18,6 @@ const syncAdminData = (method, payload) => {
 const Ctx = createContext();
 export const useApp = () => useContext(Ctx);
 
-const orderLine = (productId, qty) => {
-  const product = storeProducts.find((item) => item.id === productId);
-  return { id: product.id, name: product.name, image: product.image, price: product.price, qty, variant: null };
-};
 const createVaccinationId = () => `vaccine-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`}`;
 const initialData = {
   user: null,
@@ -41,10 +37,7 @@ const initialData = {
   favorites: [],
   recentlyViewed: [],
   storeSort: "featured",
-  orders: [
-    { id: "PC-1048", items: [orderLine(1, 1), orderLine(11, 2)], subtotal: 1210, discount: 0, deliveryFee: 0, total: 1210, address: { name: "Mina Hassan", phone: "01000000001", city: "Cairo", address: "Garden City" }, status: "Delivered", createdAt: "2026-08-16T10:00:00.000Z" },
-    { id: "PC-1062", items: [orderLine(2, 1), orderLine(16, 1)], subtotal: 780, discount: 80, deliveryFee: 35, total: 735, address: { name: "Mina Hassan", phone: "01000000001", city: "Cairo", address: "Garden City" }, status: "Shipped", createdAt: "2026-09-18T10:00:00.000Z" },
-  ],
+  orders: [],
   pets: [
     { id: 1, name: "Luna", type: "Cat", breed: "Persian", age: 2, gender: "Female", weight: 4, healthStatus: "Healthy", notes: "", vaccines: [{ id: "vaccine-1-initial-rabies", petId: 1, name: "Rabies", date: "2026-05-01", next: "2027-05-01" }], meds: [], medicalVisits: [] },
   ],
@@ -71,7 +64,7 @@ export function AppProvider({ children }) {
       .forEach((pet) => syncAdminData("syncPet", pet));
   }), []);
   const [notice, setNotice] = useState([]);
-  const { user, cart, bookings, pets, reports, favorites, recentlyViewed, orders, storeSort, calendarEvents, notifications, adoptionListings } = {
+  const { user, cart, bookings, pets, reports, favorites, recentlyViewed, storeSort, calendarEvents, notifications, adoptionListings } = {
     ...initialData,
     ...data,
     user: data?.user && typeof data.user === "object" ? data.user : null,
@@ -84,9 +77,68 @@ export function AppProvider({ children }) {
     adoptionListings: Array.isArray(data?.adoptionListings) ? data.adoptionListings : initialData.adoptionListings,
     favorites: Array.isArray(data?.favorites) ? data.favorites : initialData.favorites,
     recentlyViewed: Array.isArray(data?.recentlyViewed) ? data.recentlyViewed.slice(0, 8) : initialData.recentlyViewed,
-    orders: Array.isArray(data?.orders) ? data.orders : initialData.orders,
     storeSort: ["featured", "price-asc", "price-desc", "rating", "newest"].includes(data?.storeSort) ? data.storeSort : initialData.storeSort,
   };
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState("");
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState("");
+  const productsRequest = useRef(0);
+  const ordersRequest = useRef(0);
+
+  const refreshProducts = useCallback(async () => {
+    const requestNumber = ++productsRequest.current;
+    setProductsLoading(true);
+    setProductsError("");
+    try {
+      const liveProducts = await shopApi.products();
+      if (requestNumber !== productsRequest.current) return;
+      setProducts(liveProducts);
+      const published = new Map(liveProducts.map((product) => [product.id, product]));
+      // Old demo products and unpublished products must not survive in the cart.
+      setData((current) => ({ ...current, cart: (Array.isArray(current.cart) ? current.cart : []).flatMap((item) => {
+        const product = published.get(String(item.id));
+        if (!product || product.stock <= 0) return [];
+        const qty = Number(item.qty);
+        return Number.isInteger(qty) && qty > 0
+          ? [{ ...product, qty: Math.min(qty, product.stock), variant: null }]
+          : [];
+      }) }));
+    } catch (error) {
+      if (requestNumber === productsRequest.current) setProductsError(error.message || "The store could not be loaded.");
+    } finally {
+      if (requestNumber === productsRequest.current) setProductsLoading(false);
+    }
+  }, [setData]);
+  useEffect(() => { refreshProducts(); }, [refreshProducts]);
+
+  const refreshOrders = useCallback(async () => {
+    const requestNumber = ++ordersRequest.current;
+    const uid = authService.getCurrentAuthUser()?.uid;
+    if (!uid) { setOrders([]); setOrdersLoading(false); return; }
+    setOrdersLoading(true);
+    setOrdersError("");
+    try {
+      const liveOrders = await shopApi.orders();
+      if (requestNumber === ordersRequest.current && authService.getCurrentAuthUser()?.uid === uid) setOrders(liveOrders);
+    } catch (error) {
+      if (requestNumber === ordersRequest.current && authService.getCurrentAuthUser()?.uid === uid) setOrdersError(error.message || "Could not load orders.");
+    } finally {
+      if (requestNumber === ordersRequest.current && authService.getCurrentAuthUser()?.uid === uid) setOrdersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = authService.subscribeToAuthState((firebaseUser) => {
+      setOrdersError("");
+      if (!firebaseUser) { ordersRequest.current++; setOrders([]); setOrdersLoading(false); return; }
+      setOrdersLoading(true);
+      refreshOrders();
+    });
+    return unsubscribe;
+  }, [refreshOrders]);
   useEffect(() => {
     const usedIds = new Set();
     let needsMigration = false;
@@ -125,8 +177,30 @@ export function AppProvider({ children }) {
   const toggleFavorite = async (id) => { const nextFavorites = await storeService.toggleFavorite(favorites, id); setData((current) => ({ ...current, favorites: nextFavorites })); };
   const markProductViewed = async (id) => { const nextRecentlyViewed = await storeService.addRecentlyViewed(recentlyViewed, id); setData((current) => ({ ...current, recentlyViewed: nextRecentlyViewed })); };
   const setStoreSort = (storeSort) => setData((current) => ({ ...current, storeSort }));
-  const createStoreOrder = async (orderData) => { const order = await storeService.createOrder(orderData); setData((current) => ({ ...current, orders: [order, ...(current.orders || initialData.orders)] })); return order; };
-  const cancelStoreOrder = async (id) => { const nextOrders = await storeService.cancelOrder(orders, id); setData((current) => ({ ...current, orders: nextOrders })); };
+  const createStoreOrder = async (orderData) => {
+    const order = await shopApi.checkout({
+      requestId: orderData.requestId,
+      items: orderData.items.map(({ id, qty }) => ({ id, qty })),
+      address: orderData.address,
+      paymentMethod: orderData.paymentMethod,
+      expectedSubtotal: orderData.subtotal - orderData.discount,
+    });
+    ordersRequest.current++;
+    setOrdersLoading(false);
+    setOrders((current) => [order, ...current.filter((item) => item.id !== order.id)]);
+    setProducts((current) => current.map((product) => {
+      const purchased = order.items?.find((item) => item.id === product.id);
+      return purchased ? { ...product, stock: Math.max(0, product.stock - purchased.qty) } : product;
+    }));
+    return order;
+  };
+  const cancelStoreOrder = async (id) => {
+    const order = await shopApi.cancelOrder(id);
+    ordersRequest.current++;
+    setOrdersLoading(false);
+    setOrders((current) => current.map((item) => item.id === id ? order : item));
+    refreshProducts();
+  };
   const addPet = (pet) => { const nextPet = {...pet,id:Date.now(),ownerUid:authService.getCurrentAuthUser()?.uid||null,vaccines:[],meds:[]};setPets((current)=>[...current,nextPet]);if(nextPet.ownerUid)syncAdminData("syncPet",nextPet); };
   const createPet = async (pet) => {const ownerUid=authService.getCurrentAuthUser()?.uid||null;const next = await petsService.createPet(pets,{...pet,ownerUid});setPets(next);const nextPet=next[next.length-1];if(ownerUid&&nextPet)syncAdminData("syncPet",nextPet);};
   const updatePetInfo = async (id, petData) => {const next=await petsService.updatePet(pets,id,petData);setPets(next);const changed=next.find((pet)=>String(pet.id)===String(id));if(changed?.ownerUid&&changed.ownerUid===authService.getCurrentAuthUser()?.uid)syncAdminData("syncPet",changed);};
@@ -190,5 +264,5 @@ export function AppProvider({ children }) {
   const dismissStorageError = () => setStorageError("");
   const showToast = (message, variant = "success", action) => setNotice((current) => [{ id: `${Date.now()}-${Math.random()}`, message, variant, action }, ...current].slice(0, 3));
   const dismissToast = (id) => setNotice((current) => current.filter((item) => item.id !== id));
-  return <Ctx.Provider value={{ user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, updateVaccine, addMedication, deleteVaccine, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ products, productsLoading, productsError, refreshProducts, ordersLoading, ordersError, refreshOrders, user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, updateVaccine, deleteVaccine, addMedication, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
 }

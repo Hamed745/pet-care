@@ -1,23 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Heart, RotateCcw, ShieldCheck, Star, Truck } from "lucide-react";
-import { storeProducts } from "../storeCatalog.js";
+import { ArrowLeft, Check, Heart, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { btn, btn2, card } from "../ui.js";
 import { Badge, EmptyState, Rating } from "../components/ui.jsx";
 import { Gallery, PriceTag, ProductCard, QuantityStepper } from "../components/store/StoreComponents.jsx";
 
-const demoReviews = [
-  { name: "Nadia R.", date: "September 2026", rating: 5, text: "Thoughtful quality and just the right size for our daily routine." },
-  { name: "Omar K.", date: "August 2026", rating: 5, text: "Arrived quickly and feels sturdy. My pet settled into it straight away." },
-  { name: "Salma M.", date: "July 2026", rating: 4, text: "Good value and exactly as described. I would order it again." },
-];
-
 export default function ProductDetails() {
   const { id } = useParams();
+  const { products: storeProducts, productsLoading, productsError, cart, markProductViewed, favorites, toggleFavorite, addCartProduct, showToast } = useApp();
   const product = storeProducts.find((item) => String(item.id) === id);
-  const { cart, markProductViewed, favorites, toggleFavorite, addCartProduct, showToast } = useApp();
   const { t, language, productName, productDescription, productDetails, variantLabel } = useLanguage();
   const name = product ? productName(product) : "";
   const [activeTab, setActiveTab] = useState("Description");
@@ -32,6 +25,8 @@ export default function ProductDetails() {
   useEffect(() => { if (product) markProductViewed(product.id); }, [product?.id]);
   useEffect(() => { setQuantity((current) => Math.min(current, Math.max(1, remainingStock))); }, [product?.id, remainingStock]);
 
+  if (productsLoading) return <p className="py-12 text-center text-sm text-ink-500">Loading product…</p>;
+  if (productsError) return <p role="alert" className="py-12 text-center text-sm text-red-700">{productsError}</p>;
   if (!product) return <div className="mx-auto max-w-xl py-8"><EmptyState title={t("common.page_not_found", "Product not found")} description={t("common.page_not_found_desc", "This item may have moved or is no longer available.")} icon={ArrowLeft} action={<Link className={btn} to="/store">{t("cart.browse_store", "Back to store")}</Link>} /></div>;
 
   const add = async () => {
@@ -49,11 +44,6 @@ export default function ProductDetails() {
     Details: t("store.product_details"),
     Reviews: t("store.customer_reviews"),
   };
-  const localizedReviews = [
-    { name: "Nadia R.", date: t("catalog.review_date_1"), rating: 5, text: t("catalog.review_1") },
-    { name: "Omar K.", date: t("catalog.review_date_2"), rating: 5, text: t("catalog.review_2") },
-    { name: "Salma M.", date: t("catalog.review_date_3"), rating: 4, text: t("catalog.review_3") },
-  ];
   const tabItems = ["Description", "Details", "Reviews"];
 
   return <div>
@@ -161,36 +151,7 @@ export default function ProductDetails() {
         {activeTab === "Reviews" && (
           <div id="reviews">
             <h2 className="text-lg font-extrabold">{t("store.customer_reviews", "Customer reviews")}</h2>
-            <div className="mt-4 grid gap-6 md:grid-cols-[220px_1fr]">
-              <div>
-                <div className="text-4xl font-extrabold">{product.rating}</div>
-                <Rating value={product.rating} count={product.reviewsCount} className="mt-2" />
-                {[5, 4, 3, 2, 1].map((stars) => (
-                  <div key={stars} className="mt-2 flex items-center gap-2 text-xs">
-                    <span className="w-8">{stars} {t("common.stars", "stars")}</span>
-                    <span className="h-2 flex-1 overflow-hidden rounded bg-stone-100">
-                      <span className="block h-full rounded bg-accent-400" style={{ width: `${stars === 5 ? 74 : stars === 4 ? 19 : 7}%` }} />
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div className="divide-y divide-stone-100">
-                {localizedReviews.map((review) => (
-                  <article key={review.name} className="py-3 first:pt-0">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-extrabold">{review.name}</span>
-                      <time className="text-xs text-ink-500">{review.date}</time>
-                    </div>
-                    <span className="mt-1 flex gap-0.5 text-accent-500" aria-label={`${review.rating} stars`}>
-                      {Array.from({ length: review.rating }, (_, index) => (
-                        <Star key={index} size={13} fill="currentColor" />
-                      ))}
-                    </span>
-                    <p className="mt-2 text-sm leading-6 text-ink-700">{review.text}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
+            <p className="mt-4 text-sm text-ink-500">No verified customer reviews yet.</p>
           </div>
         )}
       </div>

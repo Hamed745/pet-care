@@ -1,16 +1,17 @@
 import { Link, useParams } from "react-router-dom";
 import { ArrowRight, Check, PackageCheck, ShoppingBag, Truck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { btn, btn2, btnDanger, card } from "../ui.js";
 import { Badge, Button, EmptyState, Modal } from "../components/ui.jsx";
 import { OrderTimeline, ProductImage } from "../components/store/StoreComponents.jsx";
 
-const statusStyle = { Preparing: "warning", Shipped: "success", Delivered: "success", Cancelled: "danger" };
+const statusStyle = { Placed: "warning", Preparing: "warning", Shipped: "success", Delivered: "success", Cancelled: "danger" };
 
 export function Orders() {
-  const { user, orders } = useApp();
+  const { user, orders, ordersLoading, ordersError, refreshOrders } = useApp();
+  useEffect(() => { refreshOrders(); }, [refreshOrders]);
   const { t, language } = useLanguage();
   const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
@@ -30,6 +31,9 @@ export function Orders() {
       </div>
     );
   }
+
+  if (ordersLoading) return <p className="py-12 text-center text-sm text-ink-500">Loading your orders…</p>;
+  if (ordersError) return <p role="alert" className="py-12 text-center text-sm text-red-700">{ordersError}</p>;
 
   return (
     <div>
@@ -91,10 +95,12 @@ export function Orders() {
 
 export function OrderDetails() {
   const { id } = useParams();
-  const { user, orders, cancelStoreOrder } = useApp();
+  const { user, orders, ordersLoading, ordersError, refreshOrders, cancelStoreOrder } = useApp();
+  useEffect(() => { refreshOrders(); }, [refreshOrders]);
   const { t, language } = useLanguage();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
   const order = orders.find((item) => item.id === id);
   const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
@@ -114,6 +120,9 @@ export function OrderDetails() {
       </div>
     );
   }
+
+  if (ordersLoading) return <p className="py-12 text-center text-sm text-ink-500">Loading order details…</p>;
+  if (ordersError) return <p role="alert" className="py-12 text-center text-sm text-red-700">{ordersError}</p>;
 
   if (!order) {
     return (
@@ -137,6 +146,9 @@ export function OrderDetails() {
     try {
       await cancelStoreOrder(order.id);
       setCancelOpen(false);
+      setCancelError("");
+    } catch (error) {
+      setCancelError(error.message || "Could not cancel this order.");
     } finally {
       setCancelling(false);
     }
@@ -191,7 +203,7 @@ export function OrderDetails() {
             <p>{order.address.address}, {order.address.city}</p>
             {order.paymentMethod && <p className="order-v3-payment">{order.paymentMethod}</p>}
           </section>
-          {order.status === "Preparing" && (
+          {order.serverStatus === "pending" && (
             <button type="button" className={`${btnDanger} w-full`} onClick={() => setCancelOpen(true)}>
               {t("orders.cancel_order", "Cancel order")}
             </button>
@@ -199,6 +211,7 @@ export function OrderDetails() {
         </aside>
       </div>
       <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title={t("orders.cancel_modal_title", "Cancel this order?")}>
+        {cancelError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{cancelError}</p>}
         <p className="text-sm leading-6 text-ink-500">
           {t("orders.cancel_modal_desc", "This order can only be cancelled before it ships.")}
         </p>
@@ -217,7 +230,7 @@ export function OrderDetails() {
 
 export function OrderConfirmed() {
   const { id } = useParams();
-  const { orders } = useApp();
+  const { orders, ordersLoading, ordersError } = useApp();
   const { t, language } = useLanguage();
   const order = orders.find((item) => item.id === id);
   const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
@@ -225,6 +238,8 @@ export function OrderConfirmed() {
     ? new Date(new Date(order.createdAt).getTime() + 4 * 86400000).toLocaleDateString(language === "ru" ? "ru-RU" : "en-US")
     : "3 to 5 business days";
 
+  if (ordersLoading) return <p className="py-12 text-center text-sm text-ink-500">Loading order confirmation…</p>;
+  if (ordersError) return <p role="alert" className="py-12 text-center text-sm text-red-700">{ordersError}</p>;
   if (!order) {
     return (
       <div className="mx-auto max-w-xl py-8">

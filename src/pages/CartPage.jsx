@@ -1,24 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
-import { products as storeProducts } from "../storeCatalog.js";
 import { btn, btn2, card, input } from "../ui.js";
 import { EmptyState } from "../components/ui.jsx";
 import { PriceTag, ProductImage } from "../components/store/StoreComponents.jsx";
 
 const fieldNames = ["name", "phone", "city", "address"];
-const cartItemStock = (item) => item.stock ?? storeProducts.find((product) => product.id === item.id)?.stock ?? Number.POSITIVE_INFINITY;
+const cartItemStock = (item, products) => products.find((product) => product.id === String(item.id))?.stock ?? 0;
 
 export default function CartPage() {
-  const { cart, updateCartQuantity, removeCartProduct, clearCart, createStoreOrder, user } = useApp();
+  const { cart, products, productsLoading, productsError, refreshProducts, updateCartQuantity, removeCartProduct, clearCart, createStoreOrder, user } = useApp();
+  useEffect(() => { refreshProducts(); }, [refreshProducts]);
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [address, setAddress] = useState({ name: user?.name || "", phone: user?.phone || "", city: user?.city || "", address: "" });
   const [paymentMethod, setPaymentMethod] = useState("Cash on delivery");
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [requestId] = useState(() => globalThis.crypto.randomUUID());
   const subtotal = cart.reduce((sum, item) => sum + (item.oldPrice || item.price) * item.qty, 0);
   const discount = cart.reduce((sum, item) => sum + Math.max(0, (item.oldPrice || item.price) - item.price) * item.qty, 0);
   const deliveryFee = subtotal >= 1200 ? 0 : cart.length ? 35 : 0;
@@ -45,6 +46,7 @@ export default function CartPage() {
     setSubmitting(true);
     try {
       const order = await createStoreOrder({
+        requestId,
         items: cart.map(({ id, name, brand, category, image, images, price, oldPrice, qty, variant }) => ({
           id,
           name,
@@ -65,11 +67,15 @@ export default function CartPage() {
       });
       await clearCart();
       navigate(`/order-confirmed/${order.id}`);
+    } catch (error) {
+      setErrors((current) => ({ ...current, checkout: error.message || "Could not place your order." }));
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (productsLoading) return <p className="py-12 text-center text-sm text-ink-500">Checking current products and prices…</p>;
+  if (productsError) return <p role="alert" className="py-12 text-center text-sm text-red-700">{productsError}</p>;
   if (!cart.length) {
     return (
       <div className="mx-auto max-w-xl py-8">
@@ -129,7 +135,7 @@ export default function CartPage() {
                 <button
                   type="button"
                   aria-label={`Increase quantity of ${item.name}`}
-                  disabled={cart.filter((entry) => entry.id === item.id).reduce((sum, entry) => sum + entry.qty, 0) >= cartItemStock(item)}
+                  disabled={cart.filter((entry) => entry.id === item.id).reduce((sum, entry) => sum + entry.qty, 0) >= cartItemStock(item, products)}
                   className={`${btn2} size-9 min-h-9 p-0`}
                   onClick={() => updateCartQuantity(item.id, 1, item.variant?.id)}
                 >
@@ -210,7 +216,6 @@ export default function CartPage() {
             {t("cart.payment_method", "Payment method")}
             <select className={`${input} mt-2`} value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
               <option value="Cash on delivery">{t("cart.cash_on_delivery", "Cash on delivery")}</option>
-              <option value="Card (demo)">{t("cart.card_demo", "Card (demo)")}</option>
             </select>
           </label>
           <div className="border-t border-stone-100 pt-4">
@@ -245,7 +250,9 @@ export default function CartPage() {
               <MapPin size={14} /> {t("cart.local_delivery", "Local delivery")}
             </span>
           </div>
-          <button disabled={submitting} className={`${btn} w-full`}>
+          {!user && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Please <Link to="/login" state={{ from: "/cart" }} className="font-bold underline">sign in</Link> before placing your order.</p>}
+          {errors.checkout && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errors.checkout}</p>}
+          <button disabled={submitting || !user} className={`${btn} w-full`}>
             {submitting ? t("cart.placing_order", "Placing order...") : <><ShoppingBag size={17} /> {t("cart.place_order", "Place order")}</>}
           </button>
           <Link to="/store" className="block text-center text-xs font-bold text-primary-700">

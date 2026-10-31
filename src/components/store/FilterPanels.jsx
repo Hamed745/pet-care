@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { Button } from "../ui.jsx";
-import { storeCategories, storeProducts } from "../../storeCatalog.js";
+import { storeCategories } from "../../storeCatalog.js";
 import { useLanguage } from "../../i18n/LanguageContext.jsx";
 
-function FilterControls({ filters, onChange }) {
+function FilterControls({ filters, onChange, products = [] }) {
   const { t } = useLanguage();
-  const brands = [...new Set(storeProducts.map((product) => product.brand))].sort();
+  const brands = [...new Set(products.map((product) => product.brand))].sort();
 
   const petTypes = [
     ["dog", t("common.dogs", "Dogs")],
@@ -45,7 +45,7 @@ function FilterControls({ filters, onChange }) {
             t(`categories.${name}`, name),
             filters.category === name,
             () => onChange({ category: filters.category === name ? "" : name }),
-            storeProducts.filter((product) => product.category === name).length
+            products.filter((product) => product.category === name).length
           )
         )}
       </fieldset>
@@ -53,7 +53,7 @@ function FilterControls({ filters, onChange }) {
         <legend className="mb-2 text-sm font-extrabold">{t("store.brand", "Brand")}</legend>
         {brands.map((brand) =>
           check(brand, filters.brand === brand, () => onChange({ brand: filters.brand === brand ? "" : brand }),
-            storeProducts.filter((product) => product.brand === brand).length
+            products.filter((product) => product.brand === brand).length
           )
         )}
       </fieldset>
@@ -105,7 +105,7 @@ function FilterControls({ filters, onChange }) {
   );
 }
 
-export function FilterSidebar({ filters, onChange }) {
+export function FilterSidebar({ filters, onChange, products }) {
   const { t } = useLanguage();
   return (
     <aside aria-label="Product filters" className="sticky top-[92px] max-h-[calc(100vh-108px)] overflow-y-auto rounded-xl border border-stone-200 bg-white p-4">
@@ -113,12 +113,12 @@ export function FilterSidebar({ filters, onChange }) {
         <SlidersHorizontal size={17} className="text-primary-700" />
         <h2 className="font-extrabold">{t("store.filter_by", "Filters")}</h2>
       </div>
-      <FilterControls filters={filters} onChange={onChange} />
+      <FilterControls filters={filters} onChange={onChange} products={products} />
     </aside>
   );
 }
 
-export function FilterDrawer({ open, onClose, filters, onChange, resultCount }) {
+export function FilterDrawer({ open, onClose, filters, onChange, resultCount, products }) {
   const { t } = useLanguage();
   const panelRef = useRef(null);
   const closeRef = useRef(onClose);
@@ -154,7 +154,7 @@ export function FilterDrawer({ open, onClose, filters, onChange, resultCount }) 
           </button>
         </header>
         <div className="overflow-y-auto px-5 py-4">
-          <FilterControls filters={filters} onChange={onChange} />
+          <FilterControls filters={filters} onChange={onChange} products={products} />
         </div>
         <footer className="border-t border-stone-100 p-4">
           <Button type="button" className="w-full" onClick={onClose}>

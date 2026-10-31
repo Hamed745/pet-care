@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const { createHash } = require("node:crypto");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -166,6 +167,152 @@ const signedInRoute = (handler) => [authenticate, asyncRoute(handler)];
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "petcare-admin-api" });
 });
+
+// The public shop is intentionally empty until an administrator publishes products.
+app.get(
+  "/api/store/products",
+  asyncRoute(async (_req, res) => {
+    const docs = await db.collection("adminProducts").where("published", "==", true).limit(300).get();
+    res.set("Cache-Control", "no-store");
+    res.json({
+      products: docs.docs.map((doc) => {
+        const p = doc.data();
+        return {
+          id: doc.id, name: p.name, category: p.category, petType: p.petType,
+          description: p.description || "", imageUrl: p.imageUrl || "",
+          price: p.price, stock: p.stock, createdAt: stamp(p.createdAt),
+        };
+      }),
+      limited: docs.size === 300,
+    });
+  })
+);
+
+app.get(
+  "/api/store/orders",
+  ...signedInRoute(async (req, res) => {
+    const docs = await db.collection("adminOrders")
+      .where("userId", "==", req.authUser.uid).limit(100).get();
+    const orders = docs.docs.map(unwrap).sort((a, b) =>
+      String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    res.set("Cache-Control", "no-store");
+    res.json({ orders, limited: docs.size === 100 });
+  })
+);
+
+app.post(
+  "/api/store/orders",
+  ...signedInRoute(async (req, res) => {
+    const uid = req.authUser.uid;
+    const requestId = sanitize(req.body?.requestId, 50);
+    const rawItems = req.body?.items;
+    const address = req.body?.address || {};
+    const name = sanitize(address.name, 100);
+    const phone = sanitize(address.phone, 30);
+    const city = sanitize(address.city, 100);
+    const street = sanitize(address.address, 250);
+
+    if (!/^[0-9a-f-]{36}$/i.test(requestId) || !Array.isArray(rawItems) ||
+        rawItems.length < 1 || rawItems.length > 30 || !name || !city || !street ||
+        !/^[+()\d\s-]{7,30}$/.test(phone) || req.body?.paymentMethod !== "Cash on delivery") {
+      throw new HttpError(400, "Invalid checkout details. Sign in and use cash on delivery.");
+    }
+
+    const ids = new Set();
+    const items = rawItems.map((item) => {
+      const id = sanitize(item?.id, 120);
+      const qty = Number(item?.qty);
+      if (!/^[A-Za-z0-9_-]{1,120}$/.test(id) || !Number.isInteger(qty) ||
+          qty < 1 || qty > 100 || ids.has(id)) {
+        throw new HttpError(400, "Invalid order items.");
+      }
+      ids.add(id);
+      return { id, qty };
+    });
+
+    const orderId = `PC-${createHash("sha256").update(`${uid}:${requestId}`).digest("hex").slice(0, 24)}`;
+    const orderRef = db.collection("adminOrders").doc(orderId);
+    await db.runTransaction(async (transaction) => {
+      // Idempotency: retrying the same checkout never charges stock twice.
+      const existing = await transaction.get(orderRef);
+      if (existing.exists) {
+        if (existing.data().userId !== uid) throw new HttpError(409, "Order conflict.");
+        return;
+      }
+
+      const productRefs = items.map((item) => db.collection("adminProducts").doc(item.id));
+      const productSnaps = await Promise.all(productRefs.map((ref) => transaction.get(ref)));
+      let subtotal = 0;
+      const orderItems = productSnaps.map((snap, index) => {
+        const product = snap.data();
+        const { qty } = items[index];
+        if (!snap.exists || product.published !== true ||
+            !Number.isInteger(product.price) || product.price < 0 ||
+            !Number.isInteger(product.stock) || product.stock < qty) {
+          throw new HttpError(409, "A product is unavailable or has insufficient stock. Refresh the cart.");
+        }
+        subtotal += product.price * qty;
+        if (!Number.isSafeInteger(subtotal)) throw new HttpError(400, "Order total is too large.");
+        return {
+          id: snap.id, name: product.name, category: product.category,
+          image: product.imageUrl || "", price: product.price, qty,
+        };
+      });
+
+      const deliveryFee = subtotal >= 1200 ? 0 : 35;
+      if (subtotal !== req.body.expectedSubtotal) {
+        throw new HttpError(409, "Prices have changed. Refresh the cart before checkout.");
+      }
+      productRefs.forEach((ref, index) => transaction.update(ref, {
+        stock: productSnaps[index].data().stock - items[index].qty,
+        updatedAt: FieldValue.serverTimestamp(),
+      }));
+      transaction.create(orderRef, {
+        userId: uid, customerName: name, customerEmail: req.authUser.email || "",
+        items: orderItems, subtotal, discount: 0, deliveryFee, total: subtotal + deliveryFee,
+        address: { name, phone, city, address: street },
+        paymentMethod: "Cash on delivery", paymentStatus: "unpaid", fulfilment: "delivery",
+        status: "pending", history: [{ status: "pending", at: new Date().toISOString(), by: uid }],
+        createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    res.status(201).json({ order: unwrap(await orderRef.get()) });
+  })
+);
+
+app.post(
+  "/api/store/orders/:orderId/cancel",
+  ...signedInRoute(async (req, res) => {
+    const orderId = sanitize(req.params.orderId, 128);
+    if (!/^PC-[0-9a-f]{24}$/.test(orderId)) throw new HttpError(400, "Invalid order ID.");
+    const orderRef = db.collection("adminOrders").doc(orderId);
+    await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(orderRef);
+      if (!snap.exists || snap.data().userId !== req.authUser.uid) {
+        throw new HttpError(404, "Order not found.");
+      }
+      const order = snap.data();
+      if (order.status !== "pending") throw new HttpError(409, "This order cannot be cancelled now.");
+      const refs = order.items.map((item) => db.collection("adminProducts").doc(item.id));
+      const products = await Promise.all(refs.map((ref) => transaction.get(ref)));
+      refs.forEach((ref, index) => {
+        if (products[index].exists) transaction.update(ref, {
+          stock: products[index].data().stock + order.items[index].qty,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+      transaction.update(orderRef, {
+        status: "cancelled",
+        history: [...(order.history || []).slice(-99), {
+          status: "cancelled", at: new Date().toISOString(), by: req.authUser.uid,
+        }],
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    res.json({ order: unwrap(await orderRef.get()) });
+  })
+);
 
 app.get(
   "/api/admin/overview",
@@ -401,6 +548,20 @@ app.post(
       }
       if (status === "ready_for_pickup" && record.fulfilment === "delivery") {
         throw new HttpError(409, "Delivery orders cannot use store pickup.");
+      }
+
+      if (status === "cancelled" || status === "rejected") {
+        const items = Array.isArray(record.items) ? record.items : [];
+        const productRefs = items.map((item) => db.collection("adminProducts").doc(item.id));
+        const productSnaps = await Promise.all(productRefs.map((productRef) => transaction.get(productRef)));
+        productRefs.forEach((productRef, index) => {
+          if (productSnaps[index].exists && Number.isInteger(items[index].qty)) {
+            transaction.update(productRef, {
+              stock: productSnaps[index].data().stock + items[index].qty,
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+          }
+        });
       }
 
       const history = [...(record.history || []).slice(-99), {

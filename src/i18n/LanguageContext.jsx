@@ -146,6 +146,7 @@ export function LanguageProvider({ children }) {
 
   const productDescription = useCallback((product) => {
     if (!product) return "";
+    if (product.description) return product.description;
     const petsKey = product.petType === "small"
       ? "common.small_pets"
       : product.petType === "fish"

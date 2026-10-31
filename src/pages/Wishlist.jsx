@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { Heart, ShoppingBag } from "lucide-react";
-import { storeProducts } from "../storeCatalog.js";
 import { useApp } from "../store.jsx";
 import { btn, card } from "../ui.js";
 import { EmptyState } from "../components/ui.jsx";
@@ -8,7 +7,7 @@ import { ProductCard } from "../components/store/StoreComponents.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 
 export default function Wishlist() {
-  const { user, favorites, toggleFavorite } = useApp();
+  const { user, favorites, toggleFavorite, products: storeProducts, productsLoading, productsError } = useApp();
   const { t } = useLanguage();
 
   if (!user) {
@@ -24,7 +23,9 @@ export default function Wishlist() {
     );
   }
 
-  const savedProducts = favorites.map((id) => storeProducts.find((product) => product.id === id)).filter(Boolean);
+  if (productsLoading) return <p className="py-12 text-center text-sm text-ink-500">Loading saved products…</p>;
+  if (productsError) return <p role="alert" className="py-12 text-center text-sm text-red-700">{productsError}</p>;
+  const savedProducts = favorites.map((id) => storeProducts.find((product) => product.id === String(id))).filter(Boolean);
 
   if (!savedProducts.length) {
     return (
