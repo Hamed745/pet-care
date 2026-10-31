@@ -21,8 +21,12 @@ export function validateProductImage(file) {
 function safeFileName(file) {
   const extension = file.type === "image/jpeg" ? "jpg"
     : file.type === "image/png" ? "png" : "webp";
-  const base = String(file.name || "product-image")
-    .replace(/\\.[^.]*$/, "")
+  const originalName = String(file.name || "product-image");
+  const extensionIndex = originalName.lastIndexOf(".");
+  const nameWithoutExtension = extensionIndex > 0
+    ? originalName.slice(0, extensionIndex)
+    : originalName;
+  const base = nameWithoutExtension
     .normalize("NFKD")
     .replace(/[^A-Za-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "")
