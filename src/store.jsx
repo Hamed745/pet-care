@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import usePersistentState from "./hooks/usePersistentState.js";
 import * as petsService from "./services/petsService.js";
 import * as bookingsService from "./services/bookingsService.js";
@@ -52,6 +52,24 @@ const initialData = {
 
 export function AppProvider({ children }) {
   const [data, setData, storageError, setStorageError] = usePersistentState(PERSISTENCE_KEY, initialData);
+  const latestData = useRef(data);
+  useEffect(() => { latestData.current = data; }, [data]);
+  // Reconcile records made in earlier sessions when Firebase restores a login.
+  // Only send records explicitly owned by this UID; never adopt demo/guest pets.
+  useEffect(() => authService.subscribeToAuthState((firebaseUser) => {
+    if (!firebaseUser) return;
+    const saved = latestData.current || {};
+    if (saved.user?.uid === firebaseUser.uid) {
+      syncAdminData("syncProfile", {
+        name: saved.user.name,
+        city: saved.user.city,
+        phone: saved.user.phone,
+      });
+    }
+    (Array.isArray(saved.pets) ? saved.pets : [])
+      .filter((pet) => pet.ownerUid === firebaseUser.uid && pet.id != null)
+      .forEach((pet) => syncAdminData("syncPet", pet));
+  }), []);
   const [notice, setNotice] = useState([]);
   const { user, cart, bookings, pets, reports, favorites, recentlyViewed, orders, storeSort, calendarEvents, notifications, adoptionListings } = {
     ...initialData,

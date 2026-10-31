@@ -7,7 +7,7 @@ import { btn, btn2, card, input } from "../ui.js";
 import Media from "../components/Media.jsx";
 import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
-import { getCurrentAuthUser, loginWithEmail, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
+import { getCurrentAuthUser, loginWithEmail, logoutUser, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -80,11 +80,6 @@ function PasswordInput({ id, label, value, onChange, required = true, placeholde
   );
 }
 
-const INITIAL_SAVED_ACCOUNTS = [
-  { email: "hamedhegazy197@gmail.com", password: "password123" },
-  { email: "ha6456278@gmail.com", password: "password123" },
-];
-
 export function Login() {
   const { user, saveUser } = useApp();
   const { t } = useLanguage();
@@ -96,9 +91,12 @@ export function Login() {
   const [savedAccounts, setSavedAccounts] = useState(() => {
     try {
       const stored = localStorage.getItem("petcare_saved_accounts");
-      return stored ? JSON.parse(stored) : INITIAL_SAVED_ACCOUNTS;
+      const accounts = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(accounts)) return [];
+      return [...new Set(accounts.map((account) => account?.email).filter((email) => typeof email === "string" && email.includes("@")))]
+        .map((email) => ({ email }));
     } catch {
-      return INITIAL_SAVED_ACCOUNTS;
+      return [];
     }
   });
 
@@ -145,7 +143,7 @@ export function Login() {
   const selectAccount = (acc, event) => {
     event?.preventDefault();
     event?.stopPropagation();
-    setF((prev) => ({ ...prev, email: acc.email, password: acc.password || "" }));
+    setF((prev) => ({ ...prev, email: acc.email, password: "" }));
     setShowAccounts(false);
     emailInputRef.current?.blur();
   };
@@ -168,10 +166,7 @@ export function Login() {
       if (f.remember) {
         setSavedAccounts((prev) => {
           const exists = prev.some((a) => a.email === f.email);
-          if (exists) {
-            return prev.map((a) => (a.email === f.email ? { email: f.email, password: f.password } : a));
-          }
-          return [...prev, { email: f.email, password: f.password }];
+          return exists ? prev : [...prev, { email: f.email }];
         });
       }
 
@@ -749,7 +744,7 @@ export function Profile() {
             })}
           </nav>
 
-          <button type="button" className="mt-3 flex min-h-10 shrink-0 items-center gap-3 rounded-xl border-t border-stone-100 px-3 py-2.5 text-left text-sm font-semibold text-danger-600 transition hover:bg-red-50 lg:mt-auto" onClick={() => { setUser(null); nav("/"); }}><LogOut size={16} />{t("nav.logout")}</button>
+          <button type="button" className="mt-3 flex min-h-10 shrink-0 items-center gap-3 rounded-xl border-t border-stone-100 px-3 py-2.5 text-left text-sm font-semibold text-danger-600 transition hover:bg-red-50 lg:mt-auto" onClick={async () => { try { await logoutUser(); setUser(null); nav("/"); } catch { showToast("Unable to sign out. Please try again.", "error"); } }}><LogOut size={16} />{t("nav.logout")}</button>
         </aside>
 
         <main className="min-w-0">

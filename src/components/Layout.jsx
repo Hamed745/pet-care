@@ -11,6 +11,7 @@ import PetBagIcon from "./icons/PetBagIcon.jsx";
 import { ToastStack } from "./ui.jsx";
 import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import AdminEntryLink from "../admin/AdminEntryLink.jsx";
+import { logoutUser } from "../services/authService.js";
 
 function Brand() {
   return (
@@ -26,7 +27,7 @@ function Brand() {
 }
 
 function Navbar() {
-  const { cart, user, setUser, notifications = [] } = useApp();
+  const { cart, user, setUser, notifications = [], showToast } = useApp();
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -207,6 +208,13 @@ function Navbar() {
               </Link>
             )}
 
+            {user && (
+              <AdminEntryLink
+                compact
+                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-3 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+              />
+            )}
+
             {user ? (
               <div className="relative" data-menu-root>
                 <button
@@ -242,7 +250,7 @@ function Navbar() {
                       </span>
                     </div>
                     <div className="border-t border-stone-100 pt-2">
-                      <AdminEntryLink onClick={closeMenus} />
+                      <AdminEntryLink onClick={closeMenus} menuItem />
                       <Link
                         role="menuitem"
                         to="/profile"
@@ -310,10 +318,15 @@ function Navbar() {
                     <div className="mt-2 border-t border-stone-100 pt-2">
                       <button
                         role="menuitem"
-                        onClick={() => {
-                          setUser(null);
-                          setUserOpen(false);
-                          navigate("/");
+                        onClick={async () => {
+                          try {
+                            await logoutUser();
+                            setUser(null);
+                            setUserOpen(false);
+                            navigate("/");
+                          } catch {
+                            showToast("Unable to sign out. Please try again.", "error");
+                          }
                         }}
                         className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold text-danger-600 hover:bg-red-50"
                       >
@@ -407,7 +420,7 @@ function Navbar() {
               <div className="mt-5 grid grid-cols-2 gap-3">
                 {user ? (
                   <>
-                    <AdminEntryLink onClick={() => setMobileOpen(false)} className={btn2} />
+                    <AdminEntryLink onClick={() => setMobileOpen(false)} className={`${btn2} border-primary-300 bg-primary-50 text-primary-800`} />
                     <Link onClick={() => setMobileOpen(false)} to="/profile" className={btn2}>
                       {t("nav.profile", "Profile")}
                     </Link>
