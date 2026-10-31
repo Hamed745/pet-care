@@ -221,7 +221,7 @@ async function sendNewOrderPush(order) {
   const statuses = await Promise.all(adminUids.map(async (uid) => {
     try {
       const user = await auth.getUser(uid);
-      return [uid, user.customClaims?.petcareAdmin === true ? true : false];
+      return [uid, user.disabled !== true && user.customClaims?.petcareAdmin === true ? true : false];
     } catch (error) {
       if (error?.code === "auth/user-not-found") return [uid, false];
       console.warn("[order push] Could not verify admin account:", error?.code || "unknown");
