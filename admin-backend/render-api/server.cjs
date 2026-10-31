@@ -865,6 +865,7 @@ app.post(
     const petType = sanitize(product.petType, 40);
     const description = sanitize(product.description, 1500);
     const imageUrl = sanitize(product.imageUrl, 1000);
+    const imageStoragePath = sanitize(product.imageStoragePath, 500);
     const price = Number(product.price);
     const rawCostPrice = product.costPrice;
     const costPrice = rawCostPrice === "" || rawCostPrice == null ? null : Number(rawCostPrice);
@@ -885,6 +886,13 @@ app.post(
     if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
       throw new HttpError(400, "Product image must be an HTTPS URL.");
     }
+    const imagePathPrefix = `products/${actorUid}/`;
+    if (imageStoragePath && (
+      !imageStoragePath.startsWith(imagePathPrefix) ||
+      !/^[A-Za-z0-9._-]{1,180}$/.test(imageStoragePath.slice(imagePathPrefix.length))
+    )) {
+      throw new HttpError(400, "Product image must be uploaded to this administrator's product folder.");
+    }
 
     const suppliedId = Boolean(product.id);
     const id = suppliedId ? sanitize(product.id, 120) : db.collection("adminProducts").doc().id;
@@ -903,6 +911,7 @@ app.post(
       petType,
       description,
       imageUrl,
+      imageStoragePath,
       price,
       costPrice,
       stock,
