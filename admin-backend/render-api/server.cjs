@@ -950,8 +950,7 @@ app.post(
       if (
         !/^[A-Za-z0-9_-]{1,128}$/.test(imageKitFileId) ||
         !endpoint ||
-        !imageUrl.startsWith(`${endpoint}/`) ||
-        false
+        !imageUrl.startsWith(`${endpoint}/`)
       ) {
         throw new HttpError(400, "Invalid ImageKit product image details.");
       }
