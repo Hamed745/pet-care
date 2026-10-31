@@ -4,6 +4,7 @@ import { Activity, ArrowLeft, BarChart3, BellRing, Check, ChevronRight, Clipboar
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { adminApi } from "./adminApi.js";
 import AdminPushSettings from "./AdminPushSettings.jsx";
+import AdminPushListener from "./AdminPushListener.jsx";
 import { adminText } from "./i18n.js";
 import { insightsText } from "./insightsText.js";
 import { OverviewInsights, NotificationsView, ReportsView, GeographyView, ActivityView } from "./AdminInsights.jsx";
@@ -106,6 +107,7 @@ export default function AdminApp() {
   const [mobileOpen,setMobileOpen]=useState(false);
   return (
     <div className="pa-shell">
+      <AdminPushListener/>
       <aside className={`pa-sidebar ${mobileOpen ? "pa-sidebar-open" : ""}`}>
         <div className="pa-sidebar-brand"><div className="pa-brand-symbol"><PawPrint size={22}/></div><div><strong>PetCare</strong><small>ADMIN CONSOLE</small></div></div>
         <div className="pa-sidebar-caption">CONTROL CENTER</div>
