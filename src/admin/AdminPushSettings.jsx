@@ -21,6 +21,7 @@ export default function AdminPushSettings() {
     setMessage("");
     try {
       await registerAdminPush();
+      localStorage.setItem("petcare-admin-push-disabled", "false");
       setEnabled(true);
       setPermission(Notification.permission);
       setMessage("Push notifications are enabled on this device.");
@@ -36,6 +37,7 @@ export default function AdminPushSettings() {
     setMessage("");
     try {
       await unregisterAdminPush();
+      localStorage.setItem("petcare-admin-push-disabled", "true");
       setEnabled(false);
       setMessage("Push notifications were disabled on this device.");
     } catch (error) {
@@ -63,8 +65,9 @@ export default function AdminPushSettings() {
     isAdminPushSupported().then((value) => {
       if (!active) return;
       setSupported(value);
-      if (value && Notification.permission === "granted") {
+      if (value && Notification.permission === "granted" && localStorage.getItem("petcare-admin-push-disabled") !== "true") {
         registerAdminPush().then(() => {
+          localStorage.setItem("petcare-admin-push-disabled", "false");
           if (active) setEnabled(true);
         }).catch(() => {});
       }
