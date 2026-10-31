@@ -60,6 +60,10 @@ export const adminApi = {
     }),
   saveProduct: (product) =>
     request("/api/admin/products", { method: "POST", payload: { product } }),
+  imageKitUploadAuth: () =>
+    request("/api/admin/imagekit/upload-auth", { method: "POST" }),
+  deleteImageKitFile: (fileId) =>
+    request(`/api/admin/imagekit/files/${encodeURIComponent(fileId)}`, { method: "DELETE" }),
   syncProfile: (profile) =>
     request("/api/profile/sync", { method: "POST", payload: { profile } }),
   syncPet: (pet) =>
