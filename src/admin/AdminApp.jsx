@@ -251,6 +251,9 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
       const saved=await submit(productToSave);
       if(uploaded&&!saved){
         await deleteProductImage(uploaded.imageStoragePath).catch(()=>{});
+        setFormError(tx.productSaveFailed);
+      }else if(!saved){
+        setFormError(tx.productSaveFailed);
       }else if(saved&&oldStoragePath&&oldStoragePath!==productToSave.imageStoragePath){
         await deleteProductImage(oldStoragePath).catch(()=>{});
       }
