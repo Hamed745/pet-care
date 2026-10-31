@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Activity, ArrowLeft, BarChart3, BellRing, Check, ChevronRight, ClipboardList, LayoutDashboard, LoaderCircle, MapPin, Package, PawPrint, Plus, RefreshCw, Search, Settings2, ShieldCheck, ShoppingBag, Users, X } from "lucide-react";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { adminApi } from "./adminApi.js";
+import AdminPushSettings from "./AdminPushSettings.jsx";
+import AdminPushListener from "./AdminPushListener.jsx";
 import { adminText } from "./i18n.js";
 import { insightsText } from "./insightsText.js";
 import { OverviewInsights, NotificationsView, ReportsView, GeographyView, ActivityView } from "./AdminInsights.jsx";
@@ -105,6 +107,7 @@ export default function AdminApp() {
   const [mobileOpen,setMobileOpen]=useState(false);
   return (
     <div className="pa-shell">
+      <AdminPushListener/>
       <aside className={`pa-sidebar ${mobileOpen ? "pa-sidebar-open" : ""}`}>
         <div className="pa-sidebar-brand"><div className="pa-brand-symbol"><PawPrint size={22}/></div><div><strong>PetCare</strong><small>ADMIN CONSOLE</small></div></div>
         <div className="pa-sidebar-caption">CONTROL CENTER</div>
@@ -130,7 +133,7 @@ export default function AdminApp() {
         {page==="orders" && <><div className="pa-tools"><Search size={17}/><input aria-label={tx.search} value={query} onChange={e=>setQuery(e.target.value)} placeholder={`${tx.search} # / ${tx.customer}…`}/></div><Box><div className="pa-card-heading"><h2>{tx.orders}</h2><small>{tx.statusNote}</small></div>{filter(rows.orders,["id","customerName","customerEmail","status"]).length?<Table heads={[tx.order,tx.customer,tx.amount,tx.status,tx.action]}>{filter(rows.orders,["id","customerName","customerEmail","status"]).map(o=><tr key={o.id}><td><strong>#{o.id}</strong><small>{dateDisplay(o.createdAt,language)}</small></td><td>{o.customerName||o.customerEmail||o.userId||"—"}</td><td>{money(o.total,language)}</td><td><StatusPill status={o.status} label={orderStageLabel(o.status,tx)}/></td><td><button className="pa-outline-button" onClick={()=>setEditingOrder(o)}>{tx.details}</button></td></tr>)}</Table>:<Empty tx={tx} hint={tx.dataNotice}/>}</Box></>}
         {page==="products" && <><div className="pa-action-bar"><p>{tx.productsHint}</p><button className="pa-primary-button" type="button" onClick={()=>setEditingProduct({name:"",price:"",costPrice:"",stock:"",category:"Food",petType:"dog",description:"",imageUrl:"",published:false})}><Plus size={16}/>{tx.newProduct}</button></div><Box>{filter(rows.products,["name","category","petType"]).length?<Table heads={[tx.productName,tx.category,tx.price,ix.costPrice,tx.stock,tx.state,tx.action]}>{filter(rows.products,["name","category","petType"]).map(p=><tr key={p.id}><td><strong>{p.name}</strong></td><td>{p.category}</td><td>{money(p.price,language)}</td><td>{p.costPrice == null ? "—" : money(p.costPrice,language)}</td><td>{p.stock}</td><td><StatusPill status={p.published?"active":"draft"}/></td><td><button className="pa-outline-button" onClick={()=>setEditingProduct(p)}>{tx.editProduct}</button></td></tr>)}</Table>:<Empty tx={tx} hint={tx.legacyNotice}/>}</Box><div className="pa-info-banner"><Package size={18}/><span>{tx.legacyNotice}</span></div></>}
         {page==="cities" && <GeographyView data={rows} language={language}/>}
-        {page==="notifications" && <NotificationsView data={rows} language={language} busy={busy} onMarkRead={()=>run(adminApi.markNotificationsRead,()=>setUnreadCount(0))} onOpenOrder={openNotifiedOrder}/>}
+        {page==="notifications" && <><AdminPushSettings/><NotificationsView data={rows} language={language} busy={busy} onMarkRead={()=>run(adminApi.markNotificationsRead,()=>setUnreadCount(0))} onOpenOrder={openNotifiedOrder}/></>}
         {page==="reports" && <ReportsView data={rows} language={language} days={reportDays} onDaysChange={setReportDays}/>}
         {page==="settings" && <Box><div className="pa-card-heading"><h2><ShieldCheck size={20}/>{tx.settings}</h2></div><div className="pa-info-banner"><ShieldCheck size={20}/>{tx.settingsHint}</div><p className="pa-muted">{tx.legacyNotice}</p></Box>}
         {page==="audit" && <ActivityView data={rows} language={language} onNext={chooseAuditPage} onPrevious={previousAuditPage} canPrevious={auditHistory.length>0} page={auditHistory.length+1}/>}

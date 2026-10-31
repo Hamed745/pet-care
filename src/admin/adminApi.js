@@ -43,6 +43,9 @@ export const adminApi = {
   activity: (cursor = "") => request(`/api/admin/activity${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
   notifications: () => request("/api/admin/notifications"),
   markNotificationsRead: () => request("/api/admin/notifications/read", { method: "POST" }),
+  registerPushToken: (token) => request("/api/admin/push/register", { method: "POST", payload: { token, userAgent: navigator.userAgent } }),
+  unregisterPushToken: (token) => request("/api/admin/push/unregister", { method: "POST", payload: { token } }),
+  testPushNotification: () => request("/api/admin/push/test", { method: "POST" }),
   reports: (days = "30") => request(`/api/admin/reports?days=${encodeURIComponent(days)}`),
   geography: () => request("/api/admin/geography"),
   setSuspended: (uid, disabled, reason) =>
