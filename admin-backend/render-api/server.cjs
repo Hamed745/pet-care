@@ -9,6 +9,7 @@ const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInterna
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getMessaging } = require("firebase-admin/messaging");
 
 const PORT = Number(process.env.PORT || 10000);
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "";
@@ -163,6 +164,88 @@ const audit = (actorUid, action, targetId, reason = "") =>
     createdAt: FieldValue.serverTimestamp(),
   });
 
+const PUSH_TOKEN_COLLECTION = "adminPushTokens";
+const invalidPushTokenCodes = new Set([
+  "messaging/registration-token-not-registered",
+  "messaging/invalid-registration-token",
+]);
+
+const pushTokenDocumentId = (token) =>
+  createHash("sha256").update(token).digest("hex");
+
+async function sendPushToTokenDocs(tokenDocs, data) {
+  const validDocs = tokenDocs.filter((doc) => {
+    const token = doc.data()?.token;
+    return typeof token === "string" && token.length >= 50 && token.length <= 4096;
+  });
+  let successCount = 0;
+  let failureCount = tokenDocs.length - validDocs.length;
+
+  for (let index = 0; index < validDocs.length; index += 500) {
+    const batch = validDocs.slice(index, index + 500);
+    const response = await getMessaging().sendEachForMulticast({
+      tokens: batch.map((doc) => doc.data().token),
+      data,
+      webpush: { headers: { TTL: "3600", Urgency: "high" } },
+    });
+
+    successCount += response.successCount;
+    failureCount += response.failureCount;
+
+    const staleRefs = response.responses
+      .map((result, resultIndex) => ({
+        result,
+        ref: batch[resultIndex].ref,
+      }))
+      .filter(({ result }) =>
+        !result.success && invalidPushTokenCodes.has(result.error?.code)
+      )
+      .map(({ ref }) => ref);
+
+    await Promise.all(staleRefs.map((ref) => ref.delete().catch(() => {})));
+  }
+
+  return { successCount, failureCount };
+}
+
+async function sendNewOrderPush(order) {
+  const snapshot = await db.collection(PUSH_TOKEN_COLLECTION).limit(2000).get();
+  if (snapshot.empty) return { successCount: 0, failureCount: 0 };
+
+  const candidateDocs = snapshot.docs.filter((doc) => {
+    const data = doc.data() || {};
+    return typeof data.uid === "string" && data.uid &&
+      typeof data.token === "string" && data.token.length >= 50;
+  });
+  const adminUids = [...new Set(candidateDocs.map((doc) => doc.data().uid))];
+  const statuses = await Promise.all(adminUids.map(async (uid) => {
+    try {
+      const user = await auth.getUser(uid);
+      return [uid, user.disabled !== true && user.customClaims?.petcareAdmin === true ? true : false];
+    } catch (error) {
+      if (error?.code === "auth/user-not-found") return [uid, false];
+      console.warn("[order push] Could not verify admin account:", error?.code || "unknown");
+      return [uid, null];
+    }
+  }));
+  const statusByUid = new Map(statuses);
+  const staleDocs = candidateDocs.filter((doc) => statusByUid.get(doc.data().uid) === false);
+  await Promise.all(staleDocs.map((doc) => doc.ref.delete().catch(() => {})));
+
+  const activeDocs = candidateDocs.filter((doc) => statusByUid.get(doc.data().uid) === true);
+  if (!activeDocs.length) return { successCount: 0, failureCount: 0 };
+
+  const total = Number.isFinite(order.total) ? Math.max(0, Math.round(order.total)) : 0;
+  return sendPushToTokenDocs(activeDocs, {
+    type: "new_order",
+    title: "New PetCare order",
+    body: `Order #${String(order.id)} · RUB ${total.toLocaleString("en-US")}`,
+    orderId: String(order.id),
+    url: "/admin?section=notifications",
+    tag: `petcare-new-order-${String(order.id)}`,
+  });
+}
+
 const authenticate = asyncRoute(async (req, res, next) => {
   const header = req.get("authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -307,8 +390,16 @@ app.post(
       });
       return true;
     });
-    if (created) await audit(uid, "order.placed", orderId).catch((err) => console.error("[order audit]", err?.message));
-    res.status(201).json({ order: publicOrder(await orderRef.get()) });
+    if (created) {
+      await audit(uid, "order.placed", orderId).catch((err) => console.error("[order audit]", err?.message));
+    }
+    const savedOrder = await orderRef.get();
+    if (created) {
+      await sendNewOrderPush({ id: orderId, total: Number(savedOrder.data()?.total) || 0 }).catch((err) =>
+        console.warn("[order push] Delivery attempt failed:", err?.code || err?.message || "unknown")
+      );
+    }
+    res.status(201).json({ order: publicOrder(savedOrder) });
   })
 );
 
@@ -447,6 +538,63 @@ app.post(
     }, { merge: true });
     await audit(req.authUser.uid, "notifications.mark_read", "orders");
     res.json({ ok: true });
+  })
+);
+
+app.post(
+  "/api/admin/push/register",
+  ...adminRoute(async (req, res) => {
+    const token = sanitize(req.body?.token, 4096);
+    if (token.length < 50) throw new HttpError(400, "Invalid browser push token.");
+
+    const ref = db.collection(PUSH_TOKEN_COLLECTION).doc(pushTokenDocumentId(token));
+    await ref.set({
+      uid: req.authUser.uid,
+      token,
+      userAgent: sanitize(req.body?.userAgent, 300),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    res.json({ ok: true });
+  })
+);
+
+app.post(
+  "/api/admin/push/unregister",
+  ...adminRoute(async (req, res) => {
+    const token = sanitize(req.body?.token, 4096);
+    if (token.length < 50) throw new HttpError(400, "Invalid browser push token.");
+
+    const ref = db.collection(PUSH_TOKEN_COLLECTION).doc(pushTokenDocumentId(token));
+    const snapshot = await ref.get();
+    if (snapshot.exists && snapshot.data()?.uid === req.authUser.uid) {
+      await ref.delete();
+    }
+    res.json({ ok: true });
+  })
+);
+
+app.post(
+  "/api/admin/push/test",
+  ...adminRoute(async (req, res) => {
+    const snapshot = await db.collection(PUSH_TOKEN_COLLECTION)
+      .where("uid", "==", req.authUser.uid)
+      .get();
+    if (snapshot.empty) {
+      throw new HttpError(409, "No push-enabled device is registered for this admin account.");
+    }
+
+    const result = await sendPushToTokenDocs(snapshot.docs, {
+      type: "test",
+      title: "PetCare test notification",
+      body: "Push notifications are working on this device.",
+      url: "/admin?section=notifications",
+      tag: `petcare-test-${Date.now()}`,
+    });
+    if (!result.successCount) {
+      throw new HttpError(502, "Firebase could not deliver the test notification. Check the browser token and Firebase Cloud Messaging configuration.");
+    }
+    res.json({ ok: true, ...result });
   })
 );
 
