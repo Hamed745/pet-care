@@ -951,7 +951,7 @@ app.post(
         !/^[A-Za-z0-9_-]{1,128}$/.test(imageKitFileId) ||
         !endpoint ||
         !imageUrl.startsWith(`${endpoint}/`) ||
-        (imageKitFilePath && !imageKitFilePath.startsWith("/"))
+        false
       ) {
         throw new HttpError(400, "Invalid ImageKit product image details.");
       }
@@ -978,6 +978,7 @@ app.post(
       imageUrl,
       imageKitFileId,
       imageKitFilePath,
+      imageStoragePath: FieldValue.delete(),
       price,
       costPrice,
       stock,
