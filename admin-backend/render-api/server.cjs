@@ -293,7 +293,9 @@ app.post(
         throw new HttpError(404, "Order not found.");
       }
       const order = snap.data();
-      if (order.status !== "pending") throw new HttpError(409, "This order cannot be cancelled now.");
+      if (order.status !== "pending" || hasOrderEverShipped(order)) {
+        throw new HttpError(409, "This order cannot be cancelled now.");
+      }
       const refs = order.items.map((item) => db.collection("adminProducts").doc(item.id));
       const products = await Promise.all(refs.map((ref) => transaction.get(ref)));
       refs.forEach((ref, index) => {
@@ -509,17 +511,32 @@ app.post(
   })
 );
 
-const transitions = {
-  pending: ["confirmed", "rejected", "cancelled"],
-  confirmed: ["preparing", "cancelled"],
-  preparing: ["out_for_delivery", "ready_for_pickup", "cancelled"],
-  out_for_delivery: ["delivered"],
-  ready_for_pickup: ["picked_up"],
-  delivered: [],
-  picked_up: [],
-  cancelled: [],
-  rejected: [],
-};
+// All four tracking stages are directly selectable, including correcting a
+// prematurely completed order. Cancellation remains final because stock was
+// restored, and shipped orders require a separate returns/refunds workflow.
+const terminalOrderStatuses = new Set(["cancelled", "rejected"]);
+const deliveryStages = ["pending", "preparing", "out_for_delivery", "delivered"];
+const pickupStages = ["pending", "preparing", "ready_for_pickup", "picked_up"];
+const orderStatusTargets = new Set([...deliveryStages, ...pickupStages, "cancelled", "rejected"]);
+const shippedStatuses = new Set(["out_for_delivery", "ready_for_pickup", "delivered", "picked_up"]);
+
+function hasOrderEverShipped(order) {
+  return order.shippingStarted === true || shippedStatuses.has(order.status) ||
+    (order.history || []).some(({ status }) => shippedStatuses.has(status));
+}
+
+function canAdminChangeOrderStatus(order, nextStatus) {
+  const previous = order.status || "pending";
+  if (previous === nextStatus || terminalOrderStatuses.has(previous)) return false;
+
+  if (nextStatus === "cancelled" || nextStatus === "rejected") {
+    // Includes the history check so backdating a shipment cannot restore stock.
+    return ["pending", "confirmed", "preparing"].includes(previous) && !hasOrderEverShipped(order);
+  }
+
+  const stages = order.fulfilment === "pickup" ? pickupStages : deliveryStages;
+  return stages.includes(nextStatus);
+}
 
 app.post(
   "/api/admin/orders/:orderId/status",
@@ -529,7 +546,7 @@ app.post(
     const status = sanitize(req.body?.status, 40);
     const note = sanitize(req.body?.note, 250);
 
-    if (!orderId || !Object.hasOwn(transitions, status)) {
+    if (!orderId || !orderStatusTargets.has(status)) {
       throw new HttpError(400, "Invalid order or status.");
     }
 
@@ -540,7 +557,7 @@ app.post(
 
       const record = snap.data();
       const previous = record.status || "pending";
-      if (!(transitions[previous] || []).includes(status)) {
+      if (!canAdminChangeOrderStatus(record, status)) {
         throw new HttpError(409, `Status transition ${previous} -> ${status} is not allowed.`);
       }
       if (status === "out_for_delivery" && record.fulfilment === "pickup") {
@@ -572,6 +589,9 @@ app.post(
       }];
       transaction.update(ref, {
         status,
+        // Sticky flag: reversing a tracking stage must not make shipped stock
+        // eligible for cancellation/restocking, even if history is truncated.
+        shippingStarted: hasOrderEverShipped(record) || shippedStatuses.has(status),
         history,
         updatedAt: FieldValue.serverTimestamp(),
       });

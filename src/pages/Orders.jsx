@@ -9,9 +9,28 @@ import { OrderTimeline, ProductImage } from "../components/store/StoreComponents
 
 const statusStyle = { Placed: "warning", Preparing: "warning", Shipped: "success", Delivered: "success", Cancelled: "danger" };
 
+// Keep both the order list and the detailed tracking view in sync without
+// flashing a loading screen on each background refresh.
+function useLiveOrderTracking(refreshOrders, intervalMs) {
+  useEffect(() => {
+    const refreshVisibleOrders = () => {
+      if (document.visibilityState === "visible") refreshOrders({ silent: true });
+    };
+    const timer = window.setInterval(refreshVisibleOrders, intervalMs);
+    window.addEventListener("focus", refreshVisibleOrders);
+    document.addEventListener("visibilitychange", refreshVisibleOrders);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshVisibleOrders);
+      document.removeEventListener("visibilitychange", refreshVisibleOrders);
+    };
+  }, [refreshOrders, intervalMs]);
+}
+
 export function Orders() {
   const { user, orders, ordersLoading, ordersError, refreshOrders } = useApp();
   useEffect(() => { refreshOrders(); }, [refreshOrders]);
+  useLiveOrderTracking(refreshOrders, 30000);
   const { t, language } = useLanguage();
   const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
@@ -97,11 +116,16 @@ export function OrderDetails() {
   const { id } = useParams();
   const { user, orders, ordersLoading, ordersError, refreshOrders, cancelStoreOrder } = useApp();
   useEffect(() => { refreshOrders(); }, [refreshOrders]);
+  useLiveOrderTracking(refreshOrders, 15000);
   const { t, language } = useLanguage();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const order = orders.find((item) => item.id === id);
+  const canCancel = order?.serverStatus === "pending" && order.shippingStarted !== true &&
+    !(order.history || []).some((entry) =>
+      ["out_for_delivery", "ready_for_pickup", "delivered", "picked_up"].includes(entry.status)
+    );
   const money = (value) => `${Number(value || 0).toLocaleString()} ${t("common.rub", "₽")}`;
 
   if (!user) {
@@ -203,7 +227,7 @@ export function OrderDetails() {
             <p>{order.address.address}, {order.address.city}</p>
             {order.paymentMethod && <p className="order-v3-payment">{order.paymentMethod}</p>}
           </section>
-          {order.serverStatus === "pending" && (
+          {canCancel && (
             <button type="button" className={`${btnDanger} w-full`} onClick={() => setCancelOpen(true)}>
               {t("orders.cancel_order", "Cancel order")}
             </button>

@@ -114,17 +114,16 @@ export function AppProvider({ children }) {
   }, [setData]);
   useEffect(() => { refreshProducts(); }, [refreshProducts]);
 
-  const refreshOrders = useCallback(async () => {
+  const refreshOrders = useCallback(async ({ silent = false } = {}) => {
     const requestNumber = ++ordersRequest.current;
     const uid = authService.getCurrentAuthUser()?.uid;
     if (!uid) { setOrders([]); setOrdersLoading(false); return; }
-    setOrdersLoading(true);
-    setOrdersError("");
+    if (!silent) { setOrdersLoading(true); setOrdersError(""); }
     try {
       const liveOrders = await shopApi.orders();
       if (requestNumber === ordersRequest.current && authService.getCurrentAuthUser()?.uid === uid) setOrders(liveOrders);
     } catch (error) {
-      if (requestNumber === ordersRequest.current && authService.getCurrentAuthUser()?.uid === uid) setOrdersError(error.message || "Could not load orders.");
+      if (!silent && requestNumber === ordersRequest.current && authService.getCurrentAuthUser()?.uid === uid) setOrdersError(error.message || "Could not load orders.");
     } finally {
       if (requestNumber === ordersRequest.current && authService.getCurrentAuthUser()?.uid === uid) setOrdersLoading(false);
     }

@@ -10,13 +10,20 @@ const navItems = [
   { key:"overview",icon:LayoutDashboard },{ key:"users",icon:Users },{ key:"pets",icon:PawPrint },
   { key:"orders",icon:ShoppingBag },{ key:"products",icon:Package },{ key:"cities",icon:MapPin },{ key:"notifications",icon:BellRing },{ key:"reports",icon:BarChart3 },{ key:"audit",icon:Activity },{ key:"settings",icon:Settings2 },
 ];
-const activeStatuses = ["pending","confirmed","preparing","out_for_delivery","ready_for_pickup"];
-const orderTransitions = {
-  pending:["confirmed","rejected","cancelled"], confirmed:["preparing","cancelled"],
-  preparing:["out_for_delivery","ready_for_pickup","cancelled"],
-  out_for_delivery:["delivered"], ready_for_pickup:["picked_up"],
-  delivered:[],picked_up:[],cancelled:[],rejected:[],
-};
+const orderDeliveryStages = ["pending", "preparing", "out_for_delivery", "delivered"];
+const orderPickupStages = ["pending", "preparing", "ready_for_pickup", "picked_up"];
+const orderStageLabel = (status, tx) => ({
+  pending:tx.stagePlaced, confirmed:tx.stagePreparing, preparing:tx.stagePreparing,
+  out_for_delivery:tx.stageShipped, ready_for_pickup:tx.stageReadyPickup,
+  delivered:tx.stageDelivered, picked_up:tx.stagePickedUp,
+  cancelled:tx.stageCancelled, rejected:tx.stageRejected,
+})[status] || niceStatus(status);
+const isFinalCancellation = (status) => ["cancelled", "rejected"].includes(status);
+const orderEverShipped = (order) => order.shippingStarted === true ||
+  ["out_for_delivery", "ready_for_pickup", "delivered", "picked_up"].includes(order.status) ||
+  (order.history || []).some((entry) =>
+    ["out_for_delivery", "ready_for_pickup", "delivered", "picked_up"].includes(entry.status)
+  );
 const niceStatus = (s) => (s || "pending").replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const dateDisplay = (value, language) => {
   const stamp = value?.seconds ? value.seconds * 1000 : value?.toDate ? value.toDate() : value;
@@ -35,7 +42,7 @@ const Empty = ({tx, hint}) => <div className="pa-empty"><Package size={30}/><str
 const Th = ({children}) => <th className="pa-th">{children}</th>;
 const Table = ({heads,children}) => <div className="pa-table-scroll"><table className="pa-table"><thead><tr>{heads.map((h)=> <Th key={h}>{h}</Th>)}</tr></thead><tbody>{children}</tbody></table></div>;
 const Metric = ({label,value,icon:Icon}) => <div className="pa-metric"><span className="pa-metric-icon"><Icon size={19}/></span><span className="pa-metric-value">{value ?? "—"}</span><span className="pa-metric-label">{label}</span></div>;
-const StatusPill = ({status}) => <span className={`pa-pill pa-${status?.replaceAll("_","-") || "pending"}`}>{niceStatus(status)}</span>;
+const StatusPill = ({status,label}) => <span className={`pa-pill pa-${status?.replaceAll("_","-") || "pending"}`}>{label || niceStatus(status)}</span>;
 
 export default function AdminApp() {
   const {language} = useLanguage();
@@ -90,12 +97,12 @@ export default function AdminApp() {
         {page==="overview" && <>
           <div className="pa-metrics"><Metric icon={Users} label={tx.totalUsers} value={overview.usersCount ?? "—"}/><Metric icon={PawPrint} label={tx.totalPets} value={overview.petsCount ?? "—"}/><Metric icon={ShoppingBag} label={tx.activeOrders} value={overview.activeOrders ?? "—"}/><Metric icon={Package} label={tx.totalProducts} value={overview.productsCount ?? "—"}/></div>
           <div className="pa-columns"><Box><div className="pa-card-heading"><h2><BarChart3 size={20}/>{tx.topCities}</h2><button className="pa-text-action" onClick={()=>go("cities")}>{tx.details} <ChevronRight size={14}/></button></div><p className="pa-card-caption">{tx.cityDescription}</p><CityBars cities={overview.cities || []} tx={tx}/><p className="pa-muted">{tx.cityCoverage}: {overview.profilesWithCity ?? 0}/{overview.usersCount ?? "—"}</p></Box>
-          <Box><div className="pa-card-heading"><h2><ClipboardList size={20}/>{tx.orders}</h2><button className="pa-text-action" onClick={()=>go("orders")}>{tx.details} <ChevronRight size={14}/></button></div>{(overview.recentOrders||[]).length?overview.recentOrders.map(o=><div className="pa-simple-row" key={o.id}><span><b>#{o.id}</b><small>{dateDisplay(o.createdAt,language)}</small></span><StatusPill status={o.status}/></div>):<Empty tx={tx} hint={tx.dataNotice}/>}</Box></div>
+          <Box><div className="pa-card-heading"><h2><ClipboardList size={20}/>{tx.orders}</h2><button className="pa-text-action" onClick={()=>go("orders")}>{tx.details} <ChevronRight size={14}/></button></div>{(overview.recentOrders||[]).length?overview.recentOrders.map(o=><div className="pa-simple-row" key={o.id}><span><b>#{o.id}</b><small>{dateDisplay(o.createdAt,language)}</small></span><StatusPill status={o.status} label={orderStageLabel(o.status,tx)}/></div>):<Empty tx={tx} hint={tx.dataNotice}/>}</Box></div>
           <div className="pa-info-banner"><ShieldCheck size={19}/><span>{tx.dataNotice}</span></div>
         </>}
         {page==="users" && <><div className="pa-tools"><Search size={17}/><input aria-label={tx.search} value={query} onChange={e=>setQuery(e.target.value)} placeholder={`${tx.search} ${tx.name} / ${tx.email}…`}/></div><Box><div className="pa-card-heading"><h2>{tx.users}</h2><small>{tx.adminUsersHint}</small></div>{filter(rows.users,["name","email","city","uid"]).length ? <Table heads={[tx.name,tx.city,tx.state,tx.action]}>{filter(rows.users,["name","email","city","uid"]).map(u=><tr key={u.uid}><td><strong>{u.name || u.email || "—"}</strong><small>{u.email}</small></td><td>{u.city || "—"}</td><td><StatusPill status={u.disabled?"suspended":"active"}/></td><td><button className="pa-outline-button" onClick={()=>setEditingUser(u)}>{u.disabled?tx.restore:tx.suspend}</button></td></tr>)}</Table>:<Empty tx={tx}/>}<div className="pa-pager"><button disabled={userPageHistory.length===0||loading} onClick={()=>{setUserToken(userPageHistory.at(-1));setUserPageHistory(h=>h.slice(0,-1));}}>‹</button><span>{tx.records}: {rows.users?.length || 0}</span><button disabled={!rows.nextPageToken||loading} onClick={()=>chooseUserPage(rows.nextPageToken)}>{tx.nextPage} ›</button></div></Box></>}
         {page==="pets" && <><div className="pa-tools"><Search size={17}/><input aria-label={tx.search} value={query} onChange={e=>setQuery(e.target.value)} placeholder={`${tx.search} ${tx.animal}…`}/></div><Box><div className="pa-card-heading"><h2>{tx.pets}</h2><small>{tx.readOnly}</small></div>{filter(rows.pets,["name","type","breed","ownerName"]).length?<Table heads={[tx.animal,tx.species,tx.breed,tx.age,tx.owner,tx.action]}>{filter(rows.pets,["name","type","breed","ownerName"]).map(p=><tr key={p.id}><td><strong>{p.name || "—"}</strong></td><td>{p.type || "—"}</td><td>{p.breed || "—"}</td><td>{p.age != null ? p.age : "—"}</td><td>{p.ownerName || p.ownerUid?.slice(0,8) || "—"}</td><td><button className="pa-outline-button" type="button" onClick={()=>setViewingPet(p)}>{tx.details}</button></td></tr>)}</Table>:<Empty tx={tx} hint={tx.dataNotice}/>}</Box></>}
-        {page==="orders" && <><div className="pa-tools"><Search size={17}/><input aria-label={tx.search} value={query} onChange={e=>setQuery(e.target.value)} placeholder={`${tx.search} # / ${tx.customer}…`}/></div><Box><div className="pa-card-heading"><h2>{tx.orders}</h2><small>{tx.statusNote}</small></div>{filter(rows.orders,["id","customerName","customerEmail","status"]).length?<Table heads={[tx.order,tx.customer,tx.amount,tx.status,tx.action]}>{filter(rows.orders,["id","customerName","customerEmail","status"]).map(o=><tr key={o.id}><td><strong>#{o.id}</strong><small>{dateDisplay(o.createdAt,language)}</small></td><td>{o.customerName||o.customerEmail||o.userId||"—"}</td><td>{money(o.total,language)}</td><td><StatusPill status={o.status}/></td><td><button className="pa-outline-button" onClick={()=>setEditingOrder(o)}>{tx.details}</button></td></tr>)}</Table>:<Empty tx={tx} hint={tx.dataNotice}/>}</Box></>}
+        {page==="orders" && <><div className="pa-tools"><Search size={17}/><input aria-label={tx.search} value={query} onChange={e=>setQuery(e.target.value)} placeholder={`${tx.search} # / ${tx.customer}…`}/></div><Box><div className="pa-card-heading"><h2>{tx.orders}</h2><small>{tx.statusNote}</small></div>{filter(rows.orders,["id","customerName","customerEmail","status"]).length?<Table heads={[tx.order,tx.customer,tx.amount,tx.status,tx.action]}>{filter(rows.orders,["id","customerName","customerEmail","status"]).map(o=><tr key={o.id}><td><strong>#{o.id}</strong><small>{dateDisplay(o.createdAt,language)}</small></td><td>{o.customerName||o.customerEmail||o.userId||"—"}</td><td>{money(o.total,language)}</td><td><StatusPill status={o.status} label={orderStageLabel(o.status,tx)}/></td><td><button className="pa-outline-button" onClick={()=>setEditingOrder(o)}>{tx.details}</button></td></tr>)}</Table>:<Empty tx={tx} hint={tx.dataNotice}/>}</Box></>}
         {page==="products" && <><div className="pa-action-bar"><p>{tx.productsHint}</p><button className="pa-primary-button" type="button" onClick={()=>setEditingProduct({name:"",price:"",stock:"",category:"Food",petType:"dog",description:"",imageUrl:"",published:false})}><Plus size={16}/>{tx.newProduct}</button></div><Box>{filter(rows.products,["name","category","petType"]).length?<Table heads={[tx.productName,tx.category,tx.price,tx.stock,tx.state,tx.action]}>{filter(rows.products,["name","category","petType"]).map(p=><tr key={p.id}><td><strong>{p.name}</strong></td><td>{p.category}</td><td>{money(p.price,language)}</td><td>{p.stock}</td><td><StatusPill status={p.published?"active":"draft"}/></td><td><button className="pa-outline-button" onClick={()=>setEditingProduct(p)}>{tx.editProduct}</button></td></tr>)}</Table>:<Empty tx={tx} hint={tx.legacyNotice}/>}</Box><div className="pa-info-banner"><Package size={18}/><span>{tx.legacyNotice}</span></div></>}
         {page==="cities" && <><div className="pa-metrics"><Metric icon={Users} label={tx.totalUsers} value={rows.usersCount??"—"}/><Metric icon={MapPin} label={tx.cityCoverage} value={rows.profilesWithCity??0}/><Metric icon={BarChart3} label={tx.city} value={(rows.cities||[]).length}/></div><Box><div className="pa-card-heading"><h2>{tx.cityBreakdown}</h2><small>{tx.cityDescription}</small></div><CityBars tx={tx} cities={rows.cities||[]} onSelect={setCity} selected={city}/>{city && <div className="pa-city-detail"><h3>{city}</h3><p>{tx.count}: {(rows.cities||[]).find(x=>x.city===city)?.count||0}</p></div>}</Box><div className="pa-info-banner"><MapPin size={19}/><span>{tx.adminUsersHint}</span></div></>}
         {page==="notifications" && <Box><div className="pa-card-heading"><h2><BellRing size={20}/>{tx.notifications}</h2><small>{tx.notificationsHint}</small></div>{(rows.recentOrders||[]).filter(o=>o.status==="pending").length?(rows.recentOrders||[]).filter(o=>o.status==="pending").map(o=><div className="pa-simple-row" key={o.id}><span><b>#{o.id}</b><small>{dateDisplay(o.createdAt,language)}</small></span><button type="button" className="pa-outline-button" onClick={()=>go("orders")}>{tx.orders}</button></div>):<Empty tx={tx} hint={tx.notificationsHint}/>}</Box>}
@@ -132,14 +139,20 @@ function PetDetailsModal({tx,pet,language,close}) {
 }
 function UserModal({tx,user,close,submit,busy}) {const [reason,setReason]=useState("");return <ModalShell title={user.disabled?tx.restore:tx.suspend} close={close}><p className="pa-muted">{user.name||user.email} — {tx.confirmSuspend}</p><form onSubmit={e=>{e.preventDefault();if(reason.trim().length>=5)submit(reason.trim())}}><label className="pa-form-field">{tx.reason}<textarea required minLength={5} maxLength={300} rows={3} value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="pa-modal-actions"><button className="pa-outline-button" type="button" onClick={close}>{tx.cancel}</button><button className="pa-primary-button" type="submit" disabled={busy||reason.trim().length<5}>{busy?"…":tx.confirm}</button></div></form></ModalShell>}
 function OrderModal({tx,order,close,submit,busy,lang}) {
-  const options = orderTransitions[order.status] || [];
-  const [status,setStatus] = useState(options[0] || "");
+  const closed = isFinalCancellation(order.status);
+  const stages = order.fulfilment === "pickup" ? orderPickupStages : orderDeliveryStages;
+  const initialStatus = order.status === "confirmed" ? "preparing" : order.status;
+  const [status,setStatus] = useState(initialStatus);
   const [note,setNote] = useState("");
+  const [confirming,setConfirming] = useState(false);
+  const canCancel = ["pending", "confirmed", "preparing"].includes(order.status) && !orderEverShipped(order);
+  const hasChange = status !== order.status;
+  const changeStatus = (value) => { setStatus(value); setConfirming(false); };
   return <ModalShell title={`${tx.order} #${order.id}`} close={close}>
     <div className="pa-order-info">
       <p><b>{tx.customer}:</b> {order.customerName || order.userId || "—"}</p>
       <p><b>{tx.amount}:</b> {money(order.total,lang)}</p>
-      <p><b>{tx.statusCurrent}:</b> {niceStatus(order.status)}</p>
+      <p><b>{tx.statusCurrent}:</b> {orderStageLabel(order.status,tx)}</p>
       <p><b>{tx.orderMethod}:</b> {order.fulfilment || "—"}</p>
       <p><b>{tx.payment}:</b> {order.paymentMethod || order.paymentStatus || "—"}</p>
       <p><b>{tx.phone}:</b> {order.address?.phone || "—"}</p>
@@ -150,11 +163,16 @@ function OrderModal({tx,order,close,submit,busy,lang}) {
       <Package size={15}/><span>{item.name || item.id} × {item.qty}<small>{money(item.price * item.qty,lang)}</small></span>
     </div>)}</div>
     <h3 className="pa-mini-heading">{tx.orderHistory}</h3>
-    <div className="pa-history">{(order.history || []).map((x,i)=><div key={i}><Check size={14}/><span>{niceStatus(x.status)}<small>{dateDisplay(x.at,lang)} {x.note || ""}</small></span></div>)}</div>
-    {options.length ? <form onSubmit={e=>{e.preventDefault();submit(status,note)}}>
-      <label className="pa-form-field">{tx.status}<select value={status} onChange={e=>setStatus(e.target.value)}>{options.map(x=><option key={x} value={x}>{niceStatus(x)}</option>)}</select></label>
+    <div className="pa-history">{(order.history || []).map((x,i)=><div key={i}><Check size={14}/><span>{orderStageLabel(x.status,tx)}<small>{dateDisplay(x.at,lang)} {x.note || ""}</small></span></div>)}</div>
+    {!closed ? <form onSubmit={e=>{e.preventDefault();if(!hasChange||busy)return;if(!confirming){setConfirming(true);return;}submit(status,note)}}>
+      <p className="pa-muted">{tx.statusDirect}</p>
+      <label className="pa-form-field">{tx.status}<select value={status} onChange={e=>changeStatus(e.target.value)}>
+        <optgroup label={tx.deliveryStages}>{stages.map(x=><option key={x} value={x}>{orderStageLabel(x,tx)}</option>)}</optgroup>
+        {canCancel && <optgroup label={tx.orderClosure}><option value="cancelled">{tx.stageCancelled}</option><option value="rejected">{tx.stageRejected}</option></optgroup>}
+      </select></label>
       <label className="pa-form-field">{tx.notes}<textarea rows={2} value={note} maxLength={250} onChange={e=>setNote(e.target.value)}/></label>
-      <div className="pa-modal-actions"><button type="button" className="pa-outline-button" onClick={close}>{tx.cancel}</button><button type="submit" disabled={busy} className="pa-primary-button">{tx.save}</button></div>
+      {confirming && <div role="alert" className="pa-info-banner"><ShieldCheck size={18}/><span><b>{orderStageLabel(order.status,tx)} → {orderStageLabel(status,tx)}</b><br/>{isFinalCancellation(status)?tx.statusCancelWarning:tx.statusConfirm}</span></div>}
+      <div className="pa-modal-actions"><button type="button" className="pa-outline-button" onClick={confirming?()=>setConfirming(false):close}>{confirming?tx.back:tx.cancel}</button><button type="submit" disabled={busy||!hasChange} className="pa-primary-button">{busy?"…":confirming?tx.confirmUpdate:tx.save}</button></div>
     </form> : <div className="pa-info-banner">{tx.complete}</div>}
   </ModalShell>;
 }
