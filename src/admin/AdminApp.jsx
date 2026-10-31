@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, ArrowLeft, BarChart3, BellRing, Check, ChevronRight, ClipboardList, LayoutDashboard, LoaderCircle, MapPin, Package, PawPrint, Plus, RefreshCw, Search, Settings2, ShieldCheck, ShoppingBag, Users, X } from "lucide-react";
+import { Activity, ArrowLeft, BarChart3, BellRing, Check, ChevronRight, ClipboardList, ImagePlus, LayoutDashboard, LoaderCircle, MapPin, Package, PawPrint, Plus, RefreshCw, Search, Settings2, ShieldCheck, ShoppingBag, UploadCloud, Users, X } from "lucide-react";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { adminApi } from "./adminApi.js";
+import { deleteProductImage, uploadProductImage, validateProductImage } from "./productImages.js";
 import AdminPushSettings from "./AdminPushSettings.jsx";
 import AdminPushListener from "./AdminPushListener.jsx";
 import { adminText } from "./i18n.js";
@@ -98,7 +99,7 @@ export default function AdminApp() {
   const go = (name) => {setPage(name);setQuery("");setNotice("");setEditingOrder(null);setEditingUser(null);setEditingProduct(null);setViewingPet(null);};
   const rows = payload[page] || {};
   const filter = (items,fields) => (items || []).filter((item) => !query || fields.some((field)=> String(field.split(".").reduce((r,k)=> r?.[k],item) || "").toLowerCase().includes(query.toLowerCase())));
-  const run = async (task,onSuccess) => {setBusy(true);setError("");try {await task();setNotice(tx.success);onSuccess?.();await fetchPage(page,page==="users"?userToken:page==="audit"?auditCursor:"");}catch(err){setError(humanError(err,tx));}finally{setBusy(false);}};
+  const run = async (task,onSuccess) => {setBusy(true);setError("");try {await task();setNotice(tx.success);onSuccess?.();await fetchPage(page,page==="users"?userToken:page==="audit"?auditCursor:"");return true;}catch(err){setError(humanError(err,tx));return false;}finally{setBusy(false);}};
   const overview = payload.overview || {};
   const chooseUserPage = (token) => {setUserPageHistory((h)=>[...h,userToken]);setUserToken(token);};
   const chooseAuditPage = (token) => {setAuditHistory((h)=>[...h,auditCursor]);setAuditCursor(token);};
@@ -206,9 +207,64 @@ function OrderModal({tx,order,close,submit,busy,lang}) {
 }
 function ProductModal({tx,ix,product,close,submit,busy}) {
   const [p,setP]=useState({...product});
+  const [selectedImage,setSelectedImage]=useState(null);
+  const [previewUrl,setPreviewUrl]=useState(product.imageUrl||"");
+  const [uploading,setUploading]=useState(false);
+  const [uploadProgress,setUploadProgress]=useState(0);
+  const [imageError,setImageError]=useState("");
+  const [formError,setFormError]=useState("");
   const update=(key,value)=>setP(x=>({...x,[key]:value}));
+
+  useEffect(()=>{
+    if(!selectedImage){setPreviewUrl(p.imageUrl||"");return;}
+    const objectUrl=URL.createObjectURL(selectedImage);
+    setPreviewUrl(objectUrl);
+    return ()=>URL.revokeObjectURL(objectUrl);
+  },[selectedImage,p.imageUrl]);
+
+  const chooseImage=(file)=>{
+    if(!file)return;
+    const validationError=validateProductImage(file);
+    if(validationError){setSelectedImage(null);setImageError(validationError);return;}
+    setSelectedImage(file);
+    setImageError("");
+    setFormError("");
+  };
+  const saveProduct=async(e)=>{
+    e.preventDefault();
+    setFormError("");
+    let uploaded=null;
+    const oldStoragePath=p.imageStoragePath||"";
+    try{
+      let productToSave={
+        ...p,
+        price:Number(p.price),
+        stock:Number(p.stock),
+        costPrice:p.costPrice==null||p.costPrice===""?null:Number(p.costPrice),
+      };
+      if(selectedImage){
+        setUploading(true);
+        setUploadProgress(0);
+        uploaded=await uploadProductImage(selectedImage,setUploadProgress);
+        productToSave={...productToSave,...uploaded};
+      }
+      const saved=await submit(productToSave);
+      if(uploaded&&!saved){
+        await deleteProductImage(uploaded.imageStoragePath).catch(()=>{});
+      }else if(saved&&oldStoragePath&&oldStoragePath!==productToSave.imageStoragePath){
+        await deleteProductImage(oldStoragePath).catch(()=>{});
+      }
+    }catch(error){
+      if(uploaded)await deleteProductImage(uploaded.imageStoragePath).catch(()=>{});
+      setFormError(error?.message||tx.imageUploadFailed);
+    }finally{
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
   return <ModalShell title={product.id?tx.editProduct:tx.newProduct} close={close}>
-    <form className="pa-product-form" onSubmit={e=>{e.preventDefault();submit({...p,price:Number(p.price),stock:Number(p.stock),costPrice:p.costPrice==null||p.costPrice===""?null:Number(p.costPrice)})}}>
+    <form className="pa-product-form" onSubmit={saveProduct}>
       <label className="pa-form-field">{tx.productName}<input required maxLength={120} value={p.name} onChange={e=>update("name",e.target.value)}/></label>
       <div className="pa-fields-two">
         <label className="pa-form-field">{tx.price}<input required type="number" min="0" step="1" value={p.price} onChange={e=>update("price",e.target.value)}/></label>
@@ -217,9 +273,29 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
       <label className="pa-form-field">{tx.stock}<input required type="number" min="0" step="1" value={p.stock} onChange={e=>update("stock",e.target.value)}/></label>
       <div className="pa-fields-two"><label className="pa-form-field">{tx.category}<select value={p.category} onChange={e=>update("category",e.target.value)}>{["Food","Treats","Toys","Grooming and care","Accessories","Beds and sleep","Training","Health and supplements","Cleaning and litter","Travel and carriers","Aquariums and habitats"].map(c=><option key={c}>{c}</option>)}</select></label><label className="pa-form-field">{tx.petType}<select value={p.petType} onChange={e=>update("petType",e.target.value)}>{["dog","cat","bird","fish","small"].map(c=><option key={c}>{c}</option>)}</select></label></div>
       <label className="pa-form-field">{tx.description}<textarea rows={3} maxLength={1500} value={p.description||""} onChange={e=>update("description",e.target.value)}/></label>
-      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>update("imageUrl",e.target.value)}/><small>{tx.imageHelp}</small></label>
+
+      <div className="pa-form-field">
+        <span>{tx.imageUpload}</span>
+        <div className="pa-image-picker" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();chooseImage(e.dataTransfer.files?.[0]);}}>
+          {previewUrl ? <img className="pa-image-preview" src={previewUrl} alt={tx.imagePreview}/> : <span className="pa-image-placeholder"><ImagePlus size={26}/>{tx.imagePreview}</span>}
+          <div className="pa-image-picker-copy">
+            <strong>{selectedImage?selectedImage.name:tx.imageUploadChoose}</strong>
+            <small>{tx.imageUploadHelp}</small>
+            <label className="pa-outline-button pa-image-file-button">
+              <UploadCloud size={15}/>{tx.imageUploadBrowse}
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseImage(e.target.files?.[0])}/>
+            </label>
+            {selectedImage&&<button type="button" className="pa-image-clear" onClick={()=>{setSelectedImage(null);setImageError("");}}> {tx.imageUploadRemove}</button>}
+          </div>
+        </div>
+        {uploading&&<div className="pa-upload-progress"><div><span>{tx.imageUploadProgress}</span><strong>{uploadProgress}%</strong></div><span><i style={{width:`${uploadProgress}%`}}/></span></div>}
+        {imageError&&<small className="pa-form-error" role="alert">{imageError}</small>}
+      </div>
+
+      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>{update("imageUrl",e.target.value);if(p.imageStoragePath)update("imageStoragePath","");}}/><small>{tx.imageHelp}</small></label>
+      {formError&&<div className="pa-alert pa-error" role="alert">{formError}</div>}
       <label className="pa-checkbox"><input type="checkbox" checked={Boolean(p.published)} onChange={e=>update("published",e.target.checked)}/>{tx.publishedLabel}</label>
-      <div className="pa-modal-actions"><button type="button" className="pa-outline-button" onClick={close}>{tx.cancel}</button><button type="submit" disabled={busy} className="pa-primary-button">{tx.save}</button></div>
+      <div className="pa-modal-actions"><button type="button" className="pa-outline-button" onClick={close}>{tx.cancel}</button><button type="submit" disabled={busy||uploading} className="pa-primary-button">{uploading?tx.imageUploadProgress:tx.save}</button></div>
     </form>
   </ModalShell>;
 }
