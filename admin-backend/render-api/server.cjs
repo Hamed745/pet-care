@@ -172,6 +172,7 @@ app.get(
   ...adminRoute(async (_req, res) => {
     let usersCount = 0;
     let disabledCount = 0;
+    const existingUserUids = new Set();
     let pageToken;
     let limitReached = false;
 
@@ -179,16 +180,23 @@ app.get(
       const batch = await auth.listUsers(1000, pageToken);
       usersCount += batch.users.length;
       disabledCount += batch.users.filter((user) => user.disabled).length;
+      batch.users.forEach((user) => existingUserUids.add(user.uid));
       pageToken = batch.pageToken;
     } while (pageToken && usersCount < 10000);
 
     if (pageToken) limitReached = true;
 
-    const profilesSnap = await db.collection("adminUserProfiles").limit(10000).get();
+    // Deleting an Authentication user does not automatically remove Firestore
+    // documents. Exclude orphaned profiles and pets from live dashboard figures.
+    const [profilesSnap, petsSnap] = await Promise.all([
+      db.collection("adminUserProfiles").limit(10000).get(),
+      db.collection("adminPetSummaries").select("ownerUid").limit(10000).get(),
+    ]);
     const cityCounts = new Map();
     let profilesWithCity = 0;
 
     profilesSnap.forEach((doc) => {
+      if (!existingUserUids.has(doc.id)) return;
       const city = sanitize(doc.data().city, 100);
       if (!city) return;
       profilesWithCity += 1;
@@ -204,9 +212,12 @@ app.get(
       .sort((a, b) => b.count - a.count || a.city.localeCompare(b.city))
       .slice(0, 100);
 
-    const [petsCount, productsCount, ordersCount, activeSnap, recentSnap] =
+    const petsCount = petsSnap.docs.filter((doc) =>
+      existingUserUids.has(doc.data().ownerUid)
+    ).length;
+
+    const [productsCount, ordersCount, activeSnap, recentSnap] =
       await Promise.all([
-        count("adminPetSummaries"),
         count("adminProducts"),
         count("adminOrders"),
         db
@@ -233,7 +244,7 @@ app.get(
       profilesWithCity,
       cities,
       recentOrders: recentSnap.docs.map(unwrap),
-      partial: limitReached || profilesSnap.size === 10000,
+      partial: limitReached || profilesSnap.size === 10000 || petsSnap.size === 10000,
     });
   })
 );
@@ -270,7 +281,18 @@ app.get(
   "/api/admin/pets",
   ...adminRoute(async (_req, res) => {
     const docs = await db.collection("adminPetSummaries").limit(250).get();
-    res.json({ pets: docs.docs.map(unwrap), limited: docs.size === 250 });
+    const ownerUids = [...new Set(docs.docs.map((doc) => doc.data().ownerUid).filter(Boolean))];
+    const existingOwners = new Set();
+    for (let index = 0; index < ownerUids.length; index += 100) {
+      const result = await auth.getUsers(
+        ownerUids.slice(index, index + 100).map((uid) => ({ uid }))
+      );
+      result.users.forEach((user) => existingOwners.add(user.uid));
+    }
+    res.json({
+      pets: docs.docs.filter((doc) => existingOwners.has(doc.data().ownerUid)).map(unwrap),
+      limited: docs.size === 250,
+    });
   })
 );
 
