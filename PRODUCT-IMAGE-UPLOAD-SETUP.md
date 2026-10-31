@@ -1,39 +1,57 @@
-# PetCare product image uploads
+# PetCare product image uploads (ImageKit)
 
-The admin product form now accepts a photo from the administrator's computer. The browser uploads the selected file to Firebase Storage, obtains a download URL, and saves that URL and its Storage path with the product in Firestore. Customers can then see the image from the public storefront; the file is not kept only on the administrator's local computer.
+The admin product form lets an administrator select or drag a product photo from their computer. The browser requests short-lived upload authentication from the PetCare Admin API, uploads the file directly to ImageKit, then saves the returned URL and ImageKit file ID with the product in Firestore.
 
 ## Supported files
 
 - JPEG/JPG, PNG, and WebP
 - Maximum file size: 5 MB
-- Upload progress and an image preview are shown in the product form.
-- A manually entered HTTPS image URL remains available as an optional fallback.
+- Image preview and upload progress are shown in the product form.
+- A manually entered HTTPS image URL remains available as a fallback.
+- Replacing an ImageKit photo removes the old asset after the product record has been saved.
 
-## Firebase setup
+## ImageKit setup
 
-1. Open the Firebase project used by PetCare and confirm that **Storage** is enabled and the default bucket exists.
-2. From the repository root, deploy the included Storage rules to the same Firebase project:
-   ```powershell
-   npx firebase-tools deploy --only storage --project pet-care-d663b
-   ```
-   If Firebase CLI asks you to sign in, sign in with an account that has permission to manage Firebase Storage rules.
-3. The existing frontend `VITE_FIREBASE_STORAGE_BUCKET` setting must point to that project's bucket. No service-account JSON or private VAPID key is needed in the frontend.
-4. Deploy the frontend and Render API changes from this branch. The Render API validates and stores the uploaded file path with the product record.
+In the ImageKit dashboard, open Developer → API Keys and Configuration → URL endpoints.
 
-## Security
+Add these environment variables to the Backend Vercel project (petcare-api), not the frontend project:
 
-- Product image reads are public so shoppers can see published product photos.
-- Upload, replacement, and deletion require a signed-in account with the verified `petcareAdmin: true` Firebase custom claim.
-- Each administrator can write only within their own `products/{uid}/` folder.
-- Storage rules accept only JPEG, PNG, or WebP files up to 5 MB.
-- Firebase Admin service-account credentials remain on the Backend and are not used by the browser upload flow.
+| Variable | Value |
+| --- | --- |
+| IMAGEKIT_PUBLIC_KEY | The account's public_ key |
+| IMAGEKIT_PRIVATE_KEY | The account's private_ key |
+| IMAGEKIT_URL_ENDPOINT | The account URL endpoint, e.g. https://ik.imagekit.io/your_imagekit_id/ |
 
-## Admin workflow
+Set them for Production (and Preview if you test preview deployments). Never add the private key to a VITE_ variable, the frontend project, GitHub, or a chat message.
 
-1. Open Admin Dashboard → Products → Add product (or edit an existing product).
-2. Select **Choose from computer** or drag an image into the upload area.
-3. Check the preview and upload progress.
-4. Save the product. The uploaded image is stored in Firebase Storage and its download URL is saved automatically.
-5. Publish the product to make it visible in the public store.
+After adding or changing Backend environment variables, redeploy the Backend.
 
-If Storage is not enabled for the Firebase project, enable it in Firebase Console first, then deploy the included rules.
+## How the secure upload works
+
+1. The admin signs in with the existing PetCare account.
+2. The frontend asks the Backend for upload authentication.
+3. The Backend verifies the Firebase ID token and the petcareAdmin: true custom claim.
+4. The Backend signs a short-lived ImageKit upload token using IMAGEKIT_PRIVATE_KEY.
+5. The browser uploads the image to ImageKit using the public key and short-lived signature.
+6. The Backend saves the ImageKit URL, file ID, and file path with the product in Firestore.
+7. When an image is replaced, the Backend deletes the old ImageKit asset after the product save succeeds.
+
+The private API key remains on the Backend. The frontend does not need an ImageKit SDK or a Firebase Storage bucket.
+
+## Deployment and testing
+
+1. Merge this change into main.
+2. Pull the latest main locally:
+   powershell: git pull --ff-only origin main
+3. Add the three ImageKit variables to the Backend Vercel project and redeploy it.
+4. Wait for both Backend and Frontend Vercel deployments to become Ready.
+5. Open Admin Dashboard → Products → Add product.
+6. Select a JPG, PNG, or WebP image up to 5 MB and save the product.
+7. Confirm the image URL opens, the product appears in the storefront, and the image remains after a page refresh.
+8. Edit the product with another image and verify the new image appears and the old asset is deleted.
+
+## Notes
+
+- No Firebase Storage setup or Firebase Blaze upgrade is required for product photos.
+- Firestore remains the product database; ImageKit stores only media files.
+- Existing Firebase Authentication, Firestore data, inventory, and order workflows remain unchanged.

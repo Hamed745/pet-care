@@ -234,7 +234,7 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
     e.preventDefault();
     setFormError("");
     let uploaded=null;
-    const oldStoragePath=p.imageStoragePath||"";
+    const oldImageKitFileId=p.imageKitFileId||"";
     try{
       let productToSave={
         ...p,
@@ -250,15 +250,15 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
       }
       const saved=await submit(productToSave);
       if(uploaded&&!saved){
-        await deleteProductImage(uploaded.imageStoragePath).catch(()=>{});
+        await deleteProductImage(uploaded.imageKitFileId).catch(()=>{});
         setFormError(tx.productSaveFailed);
       }else if(!saved){
         setFormError(tx.productSaveFailed);
-      }else if(saved&&oldStoragePath&&oldStoragePath!==productToSave.imageStoragePath){
-        await deleteProductImage(oldStoragePath).catch(()=>{});
+      }else if(saved&&oldImageKitFileId&&oldImageKitFileId!==productToSave.imageKitFileId){
+        await deleteProductImage(oldImageKitFileId).catch(()=>{});
       }
     }catch(error){
-      if(uploaded)await deleteProductImage(uploaded.imageStoragePath).catch(()=>{});
+      if(uploaded)await deleteProductImage(uploaded.imageKitFileId).catch(()=>{});
       setFormError(error?.message||tx.imageUploadFailed);
     }finally{
       setUploading(false);
@@ -295,7 +295,7 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
         {imageError&&<small className="pa-form-error" role="alert">{imageError}</small>}
       </div>
 
-      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>{setSelectedImage(null);update("imageUrl",e.target.value);if(p.imageStoragePath)update("imageStoragePath","");}}/><small>{tx.imageHelp}</small></label>
+      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>{setSelectedImage(null);update("imageUrl",e.target.value);if(p.imageKitFileId)update("imageKitFileId","");if(p.imageKitFilePath)update("imageKitFilePath","");}}/><small>{tx.imageHelp}</small></label>
       {formError&&<div className="pa-alert pa-error" role="alert">{formError}</div>}
       <label className="pa-checkbox"><input type="checkbox" checked={Boolean(p.published)} onChange={e=>update("published",e.target.checked)}/>{tx.publishedLabel}</label>
       <div className="pa-modal-actions"><button type="button" className="pa-outline-button" onClick={close}>{tx.cancel}</button><button type="submit" disabled={busy||uploading} className="pa-primary-button">{uploading?tx.imageUploadProgress:tx.save}</button></div>

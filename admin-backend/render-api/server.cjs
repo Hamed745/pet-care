@@ -4,7 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { createHash } = require("node:crypto");
+const { createHash, createHmac, randomUUID } = require("node:crypto");
 const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
@@ -856,6 +856,64 @@ app.post(
 );
 
 app.post(
+  "/api/admin/imagekit/upload-auth",
+  ...adminRoute(async (_req, res) => {
+    const publicKey = process.env.IMAGEKIT_PUBLIC_KEY || "";
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY || "";
+    if (!publicKey.startsWith("public_") || !privateKey.startsWith("private_")) {
+      throw new HttpError(503, "Image uploads are not configured. Ask the platform administrator to configure ImageKit.");
+    }
+
+    const token = randomUUID();
+    const expire = Math.floor(Date.now() / 1000) + 10 * 60;
+    const signature = createHmac("sha1", privateKey)
+      .update(token + expire)
+      .digest("hex");
+
+    res.set("Cache-Control", "no-store");
+    res.json({ token, expire, signature, publicKey });
+  })
+);
+
+app.delete(
+  "/api/admin/imagekit/files/:fileId",
+  ...adminRoute(async (req, res) => {
+    const actorUid = req.authUser.uid;
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY || "";
+    const fileId = sanitize(req.params.fileId, 128);
+    if (!privateKey.startsWith("private_")) {
+      throw new HttpError(503, "ImageKit deletion is not configured.");
+    }
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(fileId)) {
+      throw new HttpError(400, "Invalid ImageKit file ID.");
+    }
+
+    const response = await fetch(
+      `https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${privateKey}:`).toString("base64")}`,
+        },
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+
+    if (response.status === 404) {
+      res.json({ ok: true, alreadyDeleted: true });
+      return;
+    }
+    if (!response.ok) {
+      console.warn("[imagekit] File deletion failed:", response.status);
+      throw new HttpError(502, "ImageKit could not delete the product image. Try again.");
+    }
+
+    await audit(actorUid, "product.image.delete", fileId);
+    res.json({ ok: true });
+  })
+);
+
+app.post(
   "/api/admin/products",
   ...adminRoute(async (req, res) => {
     const actorUid = req.authUser.uid;
@@ -865,7 +923,8 @@ app.post(
     const petType = sanitize(product.petType, 40);
     const description = sanitize(product.description, 1500);
     const imageUrl = sanitize(product.imageUrl, 1000);
-    const imageStoragePath = sanitize(product.imageStoragePath, 500);
+    const imageKitFileId = sanitize(product.imageKitFileId, 128);
+    const imageKitFilePath = sanitize(product.imageKitFilePath, 500);
     const price = Number(product.price);
     const rawCostPrice = product.costPrice;
     const costPrice = rawCostPrice === "" || rawCostPrice == null ? null : Number(rawCostPrice);
@@ -886,12 +945,18 @@ app.post(
     if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
       throw new HttpError(400, "Product image must be an HTTPS URL.");
     }
-    const imagePathPrefix = `products/${actorUid}/`;
-    if (imageStoragePath && (
-      !imageStoragePath.startsWith(imagePathPrefix) ||
-      !/^[A-Za-z0-9._-]{1,180}$/.test(imageStoragePath.slice(imagePathPrefix.length))
-    )) {
-      throw new HttpError(400, "Product image must be uploaded to this administrator's product folder.");
+    if (imageKitFileId) {
+      let endpoint = process.env.IMAGEKIT_URL_ENDPOINT || "";
+      while (endpoint.endsWith("/")) endpoint = endpoint.slice(0, -1);
+      if (
+        !/^[A-Za-z0-9_-]{1,128}$/.test(imageKitFileId) ||
+        !endpoint ||
+        !imageUrl.startsWith(`${endpoint}/`)
+      ) {
+        throw new HttpError(400, "Invalid ImageKit product image details.");
+      }
+    } else if (imageKitFilePath) {
+      throw new HttpError(400, "ImageKit file path requires a file ID.");
     }
 
     const suppliedId = Boolean(product.id);
@@ -911,7 +976,9 @@ app.post(
       petType,
       description,
       imageUrl,
-      imageStoragePath,
+      imageKitFileId,
+      imageKitFilePath,
+      imageStoragePath: FieldValue.delete(),
       price,
       costPrice,
       stock,
