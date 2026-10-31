@@ -946,7 +946,8 @@ app.post(
       throw new HttpError(400, "Product image must be an HTTPS URL.");
     }
     if (imageKitFileId) {
-      const endpoint = (process.env.IMAGEKIT_URL_ENDPOINT || "").replace(/\\/+$/, "");
+      let endpoint = process.env.IMAGEKIT_URL_ENDPOINT || "";
+      while (endpoint.endsWith("/")) endpoint = endpoint.slice(0, -1);
       if (
         !/^[A-Za-z0-9_-]{1,128}$/.test(imageKitFileId) ||
         !endpoint ||
