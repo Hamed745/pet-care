@@ -1,6 +1,6 @@
 const LEGACY_KEY = "petcare-demo-v1";
 const GUEST_KEY = "petcare-guest-v2";
-const accountKey = (uid) => uid ? `petcare-account-v2:${uid}` : GUEST_KEY;
+export const accountKey = (uid) => uid ? `petcare-account-v2:${uid}` : GUEST_KEY;
 
 function readJson(key) {
   try {
