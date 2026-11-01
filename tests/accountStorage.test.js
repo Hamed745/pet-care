@@ -70,3 +70,26 @@ test("previously saved profile from another UID is not shared", () => {
   assert.equal(getStoredAccountProfile("uid-a")?.city, "Cairo");
   assert.equal(getStoredAccountProfile("uid-b"), null);
 });
+
+test("mixed pets inside an existing account key are excluded by ownerUid", () => {
+  setup({
+    "petcare-account-v2:uid-a": {
+      user: { uid: "uid-b", email: "should-not-appear@example.test" },
+      pets: [
+        { id: "10", name: "A cat", ownerUid: "uid-a" },
+        { id: "11", name: "B dog", ownerUid: "uid-b" },
+        { id: "12", name: "Legacy Luna" },
+      ],
+    },
+  });
+  const result = readAccountData("uid-a", empty);
+  assert.deepEqual(result.pets.map((pet) => pet.name), ["A cat"]);
+  assert.equal(result.user, null);
+});
+
+test("a new user never inherits the old demo pet list", () => {
+  setup();
+  const result = readAccountData("uid-new", empty);
+  assert.deepEqual(result.pets, []);
+  assert.equal(result.user, null);
+});
