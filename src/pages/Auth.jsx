@@ -8,6 +8,7 @@ import Media from "../components/Media.jsx";
 import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
 import { getCurrentAuthUser, loginWithEmail, logoutUser, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
+import { getStoredAccountProfile } from "../hooks/useAccountPersistentState.js";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -85,43 +86,9 @@ export function Login() {
   const { t } = useLanguage();
   const nav = useNavigate();
   const location = useLocation();
-  const emailInputRef = useRef(null);
-  const dropdownRef = useRef(null);
-
-  const [savedAccounts, setSavedAccounts] = useState(() => {
-    try {
-      const stored = localStorage.getItem("petcare_saved_accounts");
-      const accounts = stored ? JSON.parse(stored) : [];
-      if (!Array.isArray(accounts)) return [];
-      return [...new Set(accounts.map((account) => account?.email).filter((email) => typeof email === "string" && email.includes("@")))]
-        .map((email) => ({ email }));
-    } catch {
-      return [];
-    }
-  });
-
   const [f, setF] = useState({ email: "", password: "", remember: true });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [showAccounts, setShowAccounts] = useState(false);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("petcare_saved_accounts", JSON.stringify(savedAccounts));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [savedAccounts]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowAccounts(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const loginErrorMessage = (error) => {
     switch (error?.code) {
@@ -140,20 +107,6 @@ export function Login() {
     }
   };
 
-  const selectAccount = (acc, event) => {
-    event?.preventDefault();
-    event?.stopPropagation();
-    setF((prev) => ({ ...prev, email: acc.email, password: "" }));
-    setShowAccounts(false);
-    emailInputRef.current?.blur();
-  };
-
-  const removeAccount = (emailToRemove, event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setSavedAccounts((prev) => prev.filter((acc) => acc.email !== emailToRemove));
-  };
-
   const submit = async (event) => {
     event.preventDefault();
     if (saving) return;
@@ -163,14 +116,7 @@ export function Login() {
       const credential = await loginWithEmail(f.email, f.password, f.remember);
       const firebaseUser = credential.user;
 
-      if (f.remember) {
-        setSavedAccounts((prev) => {
-          const exists = prev.some((a) => a.email === f.email);
-          return exists ? prev : [...prev, { email: f.email }];
-        });
-      }
-
-      const savedProfile = user?.uid === firebaseUser.uid ? user : {};
+      const savedProfile = user?.uid === firebaseUser.uid ? user : (getStoredAccountProfile(firebaseUser.uid) || {});
       await saveUser({
         uid: firebaseUser.uid,
         name: firebaseUser.displayName || "",
@@ -195,61 +141,19 @@ export function Login() {
       <form className="mt-7 space-y-5" onSubmit={submit}>
         <label htmlFor="login-email" className="block text-[11px] font-bold text-ink-700">
           {t("auth.email_address")}
-          <span ref={dropdownRef} className="relative mt-2 block">
-            <Mail
-              size={16}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 cursor-pointer"
-              onClick={() => emailInputRef.current?.focus()}
-            />
+          <span className="relative mt-2 block">
+            <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
             <input
-              ref={emailInputRef}
               id="login-email"
               name="email"
               autoComplete="username"
               required
               type="email"
-              className={`${input} pl-10 pr-12`}
+              className={`${input} pl-10`}
               placeholder="you@example.com"
               value={f.email}
-              onFocus={() => setShowAccounts(true)}
               onChange={(event) => setF({ ...f, email: event.target.value })}
             />
-            <button
-              type="button"
-              aria-label="Select saved account"
-              onClick={() => setShowAccounts(!showAccounts)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-lg bg-stone-100 p-1.5 text-ink-700 hover:bg-stone-200 transition"
-            >
-              <Key size={14} />
-              <ChevronDown size={12} />
-            </button>
-
-            {showAccounts && savedAccounts.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-20 mt-1.5 overflow-hidden rounded-xl border border-stone-800 bg-ink-900 p-1 text-white shadow-xl">
-                <div className="flex items-center justify-between border-b border-stone-800 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                  <span>{t("auth.saved_accounts", "SAVED ACCOUNTS:")}</span>
-                  <button type="button" onClick={() => setShowAccounts(false)} className="text-stone-400 hover:text-white">✕</button>
-                </div>
-                {savedAccounts.map((acc) => (
-                  <div
-                    key={acc.email}
-                    onMouseDown={(e) => selectAccount(acc, e)}
-                    className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold text-stone-200 hover:bg-stone-800 hover:text-white transition group"
-                  >
-                    <span>{acc.email}</span>
-                    <button
-                      type="button"
-                      aria-label="Delete saved account"
-                      onMouseDown={(e) => removeAccount(acc.email, e)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="rounded p-1 text-stone-400 hover:bg-stone-700 hover:text-red-400 transition"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </span>
         </label>
 
