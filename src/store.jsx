@@ -1,12 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import usePersistentState from "./hooks/usePersistentState.js";
+import useAccountPersistentState, { transferGuestCart } from "./hooks/useAccountPersistentState.js";
 import * as petsService from "./services/petsService.js";
 import * as bookingsService from "./services/bookingsService.js";
 import * as authService from "./services/authService.js";
 import * as storeService from "./services/storeService.js";
 import { shopApi } from "./services/shopApi.js";
 import * as communityService from "./services/communityService.js";
-import { PERSISTENCE_KEY } from "./config.js";
 import { adminApi } from "./admin/adminApi.js";
 // Optional centralized profile/pet metadata sync: legacy local-first features remain usable.
 const syncAdminData = (method, payload) => {
@@ -44,15 +43,27 @@ const initialData = {
 };
 
 export function AppProvider({ children }) {
-  const [data, setData, storageError, setStorageError] = usePersistentState(PERSISTENCE_KEY, initialData);
+  const [authUid, setAuthUid] = useState(undefined);
+  const [data, setData, storageError, setStorageError] = useAccountPersistentState(authUid, initialData);
   const latestData = useRef(data);
   useEffect(() => { latestData.current = data; }, [data]);
-  // Reconcile records made in earlier sessions when Firebase restores a login.
-  // Only send records explicitly owned by this UID; never adopt demo/guest pets.
-  useEffect(() => authService.subscribeToAuthState((firebaseUser) => {
-    if (!firebaseUser) return;
+  // Keep local drafts in a distinct namespace for each Firebase user.
+  // A guest's shopping cart may follow them when they sign in, but pet records
+  // and bookings must never move to a different account.
+  useEffect(() => {
+    let previousUid = authService.getCurrentAuthUser()?.uid || null;
+    return authService.subscribeToAuthState((firebaseUser) => {
+      const nextUid = firebaseUser?.uid || null;
+      if (nextUid && previousUid !== nextUid) transferGuestCart(nextUid, initialData);
+      previousUid = nextUid;
+      setAuthUid(nextUid);
+    });
+  }, []);
+  // Sync only records explicitly owned by the account whose session is active.
+  useEffect(() => {
+    if (!authUid) return;
     const saved = latestData.current || {};
-    if (saved.user?.uid === firebaseUser.uid) {
+    if (saved.user?.uid === authUid) {
       syncAdminData("syncProfile", {
         name: saved.user.name,
         city: saved.user.city,
@@ -60,9 +71,9 @@ export function AppProvider({ children }) {
       });
     }
     (Array.isArray(saved.pets) ? saved.pets : [])
-      .filter((pet) => pet.ownerUid === firebaseUser.uid && pet.id != null)
+      .filter((pet) => pet.ownerUid === authUid && pet.id != null)
       .forEach((pet) => syncAdminData("syncPet", pet));
-  }), []);
+  }, [authUid]);
   const [notice, setNotice] = useState([]);
   const { user, cart, bookings, pets, reports, favorites, recentlyViewed, storeSort, calendarEvents, notifications, adoptionListings } = {
     ...initialData,
@@ -263,5 +274,6 @@ export function AppProvider({ children }) {
   const dismissStorageError = () => setStorageError("");
   const showToast = (message, variant = "success", action) => setNotice((current) => [{ id: `${Date.now()}-${Math.random()}`, message, variant, action }, ...current].slice(0, 3));
   const dismissToast = (id) => setNotice((current) => current.filter((item) => item.id !== id));
+  if (authUid === undefined) return <div role="status" className="p-8 text-center">Checking your session…</div>;
   return <Ctx.Provider value={{ products, productsLoading, productsError, refreshProducts, ordersLoading, ordersError, refreshOrders, user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, updateVaccine, deleteVaccine, addMedication, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
 }
