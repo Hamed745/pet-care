@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import useAccountPersistentState, { transferGuestCart } from "./hooks/useAccountPersistentState.js";
+import useAccountPersistentState, { getStoredAccountProfile, transferGuestCart } from "./hooks/useAccountPersistentState.js";
 import * as petsService from "./services/petsService.js";
 import * as bookingsService from "./services/bookingsService.js";
 import * as authService from "./services/authService.js";
@@ -57,6 +57,23 @@ export function AppProvider({ children }) {
       if (nextUid && previousUid !== nextUid) transferGuestCart(nextUid, initialData);
       previousUid = nextUid;
       setAuthUid(nextUid);
+      if (nextUid) {
+        // A remembered Firebase session must also hydrate the UI account.
+        const saved = getStoredAccountProfile(nextUid) || {};
+        setData((current) => ({
+          ...current,
+          user: current.user?.uid === nextUid ? current.user : {
+            uid: nextUid,
+            email: firebaseUser.email || "",
+            name: saved.name || firebaseUser.displayName || "",
+            phone: saved.phone || "",
+            city: saved.city || "",
+            avatar: saved.avatar || "",
+            photoURL: firebaseUser.photoURL || "",
+            emailVerified: firebaseUser.emailVerified,
+          },
+        }));
+      }
     });
   }, []);
   // Sync only records explicitly owned by the account whose session is active.
