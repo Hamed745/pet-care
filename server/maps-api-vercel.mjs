@@ -88,7 +88,7 @@ async function handle(req, res) {
   try {
     if (url.pathname === "/api/place-details") {
       const id = url.searchParams.get("id") || "";
-      if (!/^\\d{3,24}$/.test(id)) return json(res, 400, { error: "Invalid place ID." });
+      if (!/^\d{3,24}$/.test(id)) return json(res, 400, { error: "Invalid place ID." });
       const base = {
         id, locale: "ru_RU",
         fields: "items.point,items.full_address_name,items.schedule",
