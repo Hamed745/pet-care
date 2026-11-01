@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "../../i18n/LanguageContext.jsx";
 
 /** Browser-exposed map-tile key: restrict by allowed domain in 2GIS Platform Manager. */
-export default function TwoGisMap({ center, places }) {
+export default function TwoGisMap({ center, places, onSelectPlace }) {
   const { isRussian } = useLanguage();
   const tr = (english, russian) => isRussian ? russian : english;
   const nodeRef = useRef(null);
   const mapRef = useRef(null);
   const moduleRef = useRef(null);
   const markersRef = useRef([]);
+  const onSelectPlaceRef = useRef(onSelectPlace);
+  onSelectPlaceRef.current = onSelectPlace;
   const [error, setError] = useState("");
   const [ready, setReady] = useState(0);
   const key = import.meta.env.VITE_2GIS_MAP_KEY;
@@ -58,7 +60,11 @@ export default function TwoGisMap({ center, places }) {
     if (!map || !mapgl) return;
     markersRef.current.forEach((marker) => marker.destroy());
     markersRef.current = places.filter((place) => Number.isFinite(place.lon) && Number.isFinite(place.lat))
-      .map((place) => new mapgl.Marker(map, { coordinates: [place.lon, place.lat] }));
+      .map((place) => {
+        const marker = new mapgl.Marker(map, { coordinates: [place.lon, place.lat] });
+        marker.on("click", () => onSelectPlaceRef.current?.(place));
+        return marker;
+      });
   }, [places, ready]);
 
   if (!key) {

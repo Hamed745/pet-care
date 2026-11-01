@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AlertCircle, CalendarCheck2, Clock3, LocateFixed, MapPin, Navigation, Search, ShieldCheck, Star, Sparkles } from "lucide-react";
 import TwoGisMap from "./TwoGisMap.jsx";
+import PlaceDetailsModal from "./PlaceDetailsModal.jsx";
 import { NEARBY_CATEGORIES, RUSSIAN_CITY_CENTERS } from "./nearbyCategories.js";
 import { fetchNearbyPlaces } from "../../services/nearbyPlacesService.js";
 import { useLanguage } from "../../i18n/LanguageContext.jsx";
@@ -49,6 +50,7 @@ export default function NearbyPlaces({ mode = "public" }) {
   const [error, setError] = useState("");
   const [previewNotice, setPreviewNotice] = useState(false);
   const [searchTarget, setSearchTarget] = useState(null);
+  const [selectedPlace, setSelectedPlace] = useState(null);
   const center = useMemo(() => location || customCity || RUSSIAN_CITY_CENTERS[city] || RUSSIAN_CITY_CENTERS.krasnoyarsk, [city, customCity, location]);
   const selectedCityName = location
     ? `${tr("My location", "Моё местоположение")}${locationName ? ` — ${locationName}` : ""}`
@@ -58,6 +60,7 @@ export default function NearbyPlaces({ mode = "public" }) {
     setPreviewNotice(true);
   }
   function clearResults() {
+    setSelectedPlace(null);
     setPlaces([]);
     setSearched(false);
     setError("");
@@ -192,7 +195,7 @@ export default function NearbyPlaces({ mode = "public" }) {
       {!isOur && <p className="mt-2 text-xs text-ink-500">{tr("Results come from 2GIS; distances are straight-line. Call to confirm opening and emergency admission.", "Данные организаций — из 2ГИС, расстояния указаны по прямой. Уточняйте время работы и экстренный приём по телефону.")}</p>}
     </header>
     <nav className="flex flex-wrap gap-2" aria-label="Nearby place categories">
-      {Object.entries(NEARBY_CATEGORIES).filter(([id]) => id !== "hotels").map(([id, info]) => <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
+      {Object.entries(NEARBY_CATEGORIES).map(([id, info]) => <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
         className={`rounded-lg px-3 py-2 text-sm font-semibold ${kind === id ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700"}`}>
         {tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label)}
       </Link>)}
@@ -248,7 +251,7 @@ export default function NearbyPlaces({ mode = "public" }) {
     {previewNotice && isOur && <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span><AlertCircle size={16} className="mr-2 inline" />{tr("Our Services are coming soon. Searching, GPS and bookings will be available after launch.", "Наши услуги скоро появятся. Поиск, геолокация и запись будут доступны после запуска.")}</span><button type="button" className="shrink-0 font-bold underline" onClick={() => setPreviewNotice(false)}>{tr("Close", "Закрыть")}</button></div>}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,1fr)]">
       <div className="relative">
-        <TwoGisMap center={center} places={isOur ? [] : places} />
+        <TwoGisMap center={center} places={isOur ? [] : places} onSelectPlace={setSelectedPlace} />
         {isOur && <button type="button" onClick={showComingSoon} className="absolute inset-0 z-10 flex cursor-not-allowed items-end justify-center rounded-xl bg-slate-900/5 p-3" aria-label={tr("Map preview — Coming soon", "Предпросмотр карты — Скоро")}><span className="rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-primary-800 shadow-md">{tr("Map preview • Live search coming soon", "Предпросмотр карты • Поиск скоро")}</span></button>}
       </div>
       <section className="max-h-[480px] space-y-3 overflow-y-auto" aria-label="Nearby results" aria-live="polite">
@@ -258,15 +261,21 @@ export default function NearbyPlaces({ mode = "public" }) {
         {isOur && <div className="rounded-xl border border-primary-100 bg-primary-50 p-5 text-sm text-ink-700"><h2 className="font-extrabold">{tr("PetCare appointments are coming soon", "Запись через PetCare скоро появится")}</h2><p className="mt-2 leading-6">{tr("When Our Services launches, you will be able to choose clinics, compare ratings and book at a time that works for you. No providers or availability are offered in preview mode.", "После запуска вы сможете выбирать клиники, сравнивать рейтинги и записываться на удобное время. В режиме просмотра реальные организации и свободные места не предлагаются.")}</p></div>}
         {!isOur && !pending && !error && !searched && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("Select a city or GPS, then press Find places.", "Выберите город или используйте геолокацию, затем нажмите «Найти места».")}</p>}
         {!isOur && !pending && searched && !error && places.length === 0 && <p className="rounded-xl border bg-white p-4 text-sm text-ink-500">{tr("No verified matches for this filter and radius. Try a larger radius or All hours; never assume a clinic is open without calling.", "Нет подтверждённых результатов для выбранного фильтра и радиуса. Увеличьте радиус или выберите «Любое время». Всегда уточняйте работу клиники по телефону.")}</p>}
-        {!isOur && !pending && !error && places.map((place) => <article key={place.id} className="rounded-xl border border-stone-200 bg-white p-4">
-          <h2 className="text-sm font-extrabold text-ink-900">{place.name}</h2>
+        {!isOur && !pending && !error && places.map((place) => <article key={place.id} className="rounded-xl border border-stone-200 bg-white p-4 transition hover:border-primary-300 hover:shadow-sm">
+          <h2 className="text-sm font-extrabold text-ink-900"><button type="button" className="text-left hover:text-primary-700 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-700" onClick={() => setSelectedPlace(place)}>{place.name}</button></h2>
           <p className="mt-1 flex gap-1 text-xs text-ink-600"><MapPin size={14} className="shrink-0" />{place.address || tr("Address unavailable", "Адрес не указан")}</p>
           {place.opening === "24_7" && <p className="mt-2 text-xs font-semibold text-primary-700">{tr("24/7 according to 2GIS", "Круглосуточно по данным 2ГИС")}</p>}
           {place.opening === "open_now" && <p className="mt-2 text-xs font-semibold text-primary-700">{tr("Open now according to listed schedule", "Открыто сейчас по указанному расписанию")}</p>}
           <p className="mt-2 text-xs text-ink-600">{place.distanceKm != null ? `${place.distanceKm.toFixed(1)} ${tr("km straight-line", "км по прямой")}` : tr("Distance unavailable", "Расстояние неизвестно")}</p>
-          {place.url && <a href={place.url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary-700 px-3 py-2 text-xs font-bold text-white"><Navigation size={14} /> {tr("Open in 2GIS / Directions", "Открыть в 2ГИС / Маршрут")}</a>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => setSelectedPlace(place)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary-700 px-3 py-2 text-xs font-bold text-white hover:bg-primary-800">
+              <Search size={14} /> {tr("View details & contacts", "Информация и контакты")}
+            </button>
+            {place.url && <a href={place.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 px-3 py-2 text-xs font-bold text-primary-800 hover:bg-primary-50"><Navigation size={14} /> {tr("2GIS / Directions", "2ГИС / Маршрут")}</a>}
+          </div>
         </article>)}
       </section>
     </div>
+    <PlaceDetailsModal place={selectedPlace} onClose={() => setSelectedPlace(null)} categoryName={categoryName} />
   </div>;
 }

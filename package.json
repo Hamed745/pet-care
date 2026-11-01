@@ -7,7 +7,7 @@
     "build": "vite build",
     "dev:maps:web": "vite --config vite.maps.config.js",
     "dev:maps:api": "node --env-file=.env.server.local server/maps-api.mjs",
-    "test": "node --test tests/accountStorage.test.js admin-backend/render-api/tests/adminInsights.test.cjs admin-backend/render-api/tests/ownerPets.test.cjs"
+    "test": "node --test tests/accountStorage.test.js admin-backend/render-api/tests/adminInsights.test.cjs admin-backend/render-api/tests/ownerPets.test.cjs tests/mapsPlaceDetails.test.mjs"
   },
   "dependencies": {
     "@2gis/mapgl": "^1.79.0",
