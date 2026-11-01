@@ -95,10 +95,13 @@ export function AppProvider({ children }) {
   const { user, cart, bookings, pets, reports, favorites, recentlyViewed, storeSort, calendarEvents, notifications, adoptionListings } = {
     ...initialData,
     ...data,
-    user: data?.user && typeof data.user === "object" ? data.user : null,
+    // Do not trust stored profile/pet arrays without checking ownership.
+    user: authUid && data?.user?.uid === authUid ? data.user : null,
     cart: Array.isArray(data?.cart) ? data.cart : initialData.cart,
     bookings: Array.isArray(data?.bookings) ? data.bookings : initialData.bookings,
-    pets: Array.isArray(data?.pets) ? data.pets : initialData.pets,
+    pets: authUid && Array.isArray(data?.pets)
+      ? data.pets.filter((pet) => pet && pet.ownerUid === authUid)
+      : [],
     reports: Array.isArray(data?.reports) ? data.reports : initialData.reports,
     calendarEvents: Array.isArray(data?.calendarEvents) ? data.calendarEvents : initialData.calendarEvents,
     notifications: Array.isArray(data?.notifications) ? data.notifications : initialData.notifications,
@@ -291,6 +294,6 @@ export function AppProvider({ children }) {
   const dismissStorageError = () => setStorageError("");
   const showToast = (message, variant = "success", action) => setNotice((current) => [{ id: `${Date.now()}-${Math.random()}`, message, variant, action }, ...current].slice(0, 3));
   const dismissToast = (id) => setNotice((current) => current.filter((item) => item.id !== id));
-  if (authUid === undefined) return <div role="status" className="p-8 text-center">Checking your session…</div>;
+  if (authUid === undefined || authUid !== (authService.getCurrentAuthUser()?.uid || null)) return <div role="status" className="p-8 text-center">Checking your session…</div>;
   return <Ctx.Provider value={{ products, productsLoading, productsError, refreshProducts, ordersLoading, ordersError, refreshOrders, user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, updateVaccine, deleteVaccine, addMedication, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
 }
