@@ -51,7 +51,7 @@ function PetFormModal({ pet, onClose, onSaved }) {
 }
 
 export function MyPets() {
-  const { pets, deletePet, bookings, showToast, user } = useApp();
+  const { pets, petsLoading, petsError, deletePet, bookings, showToast, user } = useApp();
   const { t, isRussian } = useLanguage();
   const [editingPet, setEditingPet] = useState(null);
   const [deletingPet, setDeletingPet] = useState(null);
@@ -84,6 +84,8 @@ export function MyPets() {
         <Link to="/pets/new" className={`${btn} min-h-10`}><Plus size={16} />{t("pets.add_pet")}</Link>
       </header>
 
+    {petsLoading && <p role="status" className="mb-4 text-sm text-ink-500">Loading your saved pets…</p>}
+    {petsError && <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{petsError} Local records remain available as backup.</p>}
     {pets.length ? <div className="grid items-stretch gap-4 sm:grid-cols-2">
       {pets.map((pet) => {
         const status = pet.healthStatus || "Healthy";
@@ -134,6 +136,7 @@ export function AddPet() {
   const [f, setF] = useState({ name: "", type: "Dog", breed: "", age: "", gender: "Male", weight: "", healthStatus: "Healthy", notes: "", photo: "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const petTypes = [
     { value: "Dog", label: isRussian ? "Собака" : "Dog" },
@@ -143,7 +146,8 @@ export function AddPet() {
   ];
 
   if (!user) return <div className={`${card} mx-auto max-w-lg py-14 text-center`}><PawPrint size={30} className="mx-auto text-primary-600" /><h1 className="mt-4 text-2xl font-extrabold">{t("pets.login_required")}</h1><Link to="/login" state={{ from: "/pets/new" }} className={`${btn} mt-5`}>{t("nav.log_in")}</Link></div>;
-  return <div className="mx-auto max-w-2xl"><Link to="/pets" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-ink-500 hover:text-primary-700"><ArrowLeft size={16} /> {t("pets.title")}</Link><form className={`${card} space-y-5 p-6 sm:p-8`} onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { if (createPet) await createPet(f); else addPet(f); nav("/pets"); } finally { setSaving(false); } }}><div><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{isRussian ? "Новый член семьи" : "New family member"}</p><h1 className="mt-2 text-2xl font-extrabold">{t("pets.add_pet")}</h1><p className="mt-2 text-sm text-ink-500">{isRussian ? "Заполните основную информацию. Вы также сможете вести медкарту питомца." : "Start with the basics. You can keep their health records here too."}</p></div>
+  return <div className="mx-auto max-w-2xl"><Link to="/pets" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-ink-500 hover:text-primary-700"><ArrowLeft size={16} /> {t("pets.title")}</Link><form className={`${card} space-y-5 p-6 sm:p-8`} onSubmit={async (e) => { e.preventDefault(); setSubmitError(""); setSaving(true); try { if (createPet) await createPet(f); else await addPet(f); nav("/pets"); } catch (error) { setSubmitError(error.message || "Unable to save pet."); } finally { setSaving(false); } }}><div><p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{isRussian ? "Новый член семьи" : "New family member"}</p><h1 className="mt-2 text-2xl font-extrabold">{t("pets.add_pet")}</h1><p className="mt-2 text-sm text-ink-500">{isRussian ? "Заполните основную информацию. Вы также сможете вести медкарту питомца." : "Start with the basics. You can keep their health records here too."}</p></div>
+    {submitError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">{submitError}</p>}
     <div><span className="mb-2 block text-xs font-bold text-ink-700">{t("pets.pet_photo")} <span className="font-normal text-ink-500">{isRussian ? "(необязательно)" : "(optional)"}</span></span><PhotoUpload value={f.photo} onChange={(photo) => setF((current) => ({ ...current, photo }))} label={t("pets.pet_photo")} /></div>
     <div className="grid gap-4 sm:grid-cols-2">
       <label className="block text-xs font-bold">{t("pets.pet_name")}<input required aria-label={t("pets.pet_name")} className={`${input} mt-2`} placeholder={isRussian ? "например, Луна" : "e.g. Luna"} value={f.name} onChange={set("name")} /></label>

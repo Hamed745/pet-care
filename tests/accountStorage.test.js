@@ -40,8 +40,8 @@ test("each Firebase UID sees only their own legacy pets, with no demo or anonymo
 
 test("account-scoped records are kept in separate browser storage namespaces", () => {
   setup({
-    "petcare-account-v2:uid-a": { user: { uid: "uid-a" }, pets: [{ id: 10, name: "A" }] },
-    "petcare-account-v2:uid-b": { user: { uid: "uid-b" }, pets: [{ id: 10, name: "B" }] },
+    "petcare-account-v2:uid-a": { user: { uid: "uid-a" }, pets: [{ id: 10, name: "A", ownerUid: "uid-a" }] },
+    "petcare-account-v2:uid-b": { user: { uid: "uid-b" }, pets: [{ id: 10, name: "B", ownerUid: "uid-b" }] },
   });
   assert.equal(readAccountData("uid-a", empty).pets[0].name, "A");
   assert.equal(readAccountData("uid-b", empty).pets[0].name, "B");
