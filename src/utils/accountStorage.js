@@ -34,7 +34,18 @@ export function defaultAccountData(initial, uid) {
 export function readAccountData(uid, initial) {
   const stored = readJson(accountKey(uid));
   if (stored && typeof stored === "object" && !Array.isArray(stored)) {
-    return { ...defaultAccountData(initial, uid), ...stored };
+    // A per-account key alone is insufficient if a previous release copied
+    // another account's pets into it. Require a matching owner for every pet.
+    // Unowned or wrongly-owned records stay in localStorage but must not be
+    // surfaced as belonging to this Firebase user.
+    return {
+      ...defaultAccountData(initial, uid),
+      ...stored,
+      user: uid && stored.user?.uid === uid ? stored.user : null,
+      pets: uid && Array.isArray(stored.pets)
+        ? stored.pets.filter((pet) => pet && pet.ownerUid === uid)
+        : [],
+    };
   }
 
   const base = defaultAccountData(initial, uid);
