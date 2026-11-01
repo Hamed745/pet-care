@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { auth } from "../firebase.js";
-import { defaultAccountData, readAccountData } from "../utils/accountStorage.js";
+import { accountKey, defaultAccountData, readAccountData } from "../utils/accountStorage.js";
 export { getStoredAccountProfile, transferGuestCart } from "../utils/accountStorage.js";
 
 export default function useAccountPersistentState(uid, initialValue) {
