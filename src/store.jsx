@@ -7,6 +7,8 @@ import * as storeService from "./services/storeService.js";
 import { shopApi } from "./services/shopApi.js";
 import * as communityService from "./services/communityService.js";
 import { adminApi } from "./admin/adminApi.js";
+import { ownerPetsApi } from "./services/ownerPetsApi.js";
+import { readAccountData } from "./utils/accountStorage.js";
 // Optional centralized profile/pet metadata sync: legacy local-first features remain usable.
 const syncAdminData = (method, payload) => {
   if (!authService.getCurrentAuthUser()) return;
@@ -90,6 +92,47 @@ export function AppProvider({ children }) {
     (Array.isArray(saved.pets) ? saved.pets : [])
       .filter((pet) => pet.ownerUid === authUid && pet.id != null)
       .forEach((pet) => syncAdminData("syncPet", pet));
+  }, [authUid]);
+  // Load the server's owner-only pet records after Firebase restores a session.
+  // Import older, explicitly owned local records ONCE without overwriting server
+  // records. Do not delete browser data: it remains a migration backup.
+  const [petsLoading, setPetsLoading] = useState(false);
+  const [petsError, setPetsError] = useState("");
+  useEffect(() => {
+    if (!authUid) { setPetsLoading(false); setPetsError(""); return; }
+    let active = true;
+    const uid = authUid;
+    const run = async () => {
+      setPetsLoading(true);
+      setPetsError("");
+      try {
+        let remote = await ownerPetsApi.list();
+        const marker = `petcare-owner-pets-imported-v1:${uid}`;
+        if (localStorage.getItem(marker) !== "yes") {
+          const prior = (readAccountData(uid, initialData).pets || [])
+            .filter((pet) => pet && pet.ownerUid === uid);
+          const known = new Set(remote.map((pet) => String(pet.id)));
+          for (const pet of prior) {
+            if (!known.has(String(pet.id))) {
+              const created = await ownerPetsApi.create(pet);
+              remote.push(created);
+              known.add(String(created.id));
+            }
+          }
+          localStorage.setItem(marker, "yes");
+        }
+        if (active && authService.getCurrentAuthUser()?.uid === uid) {
+          setData((current) => ({ ...current, pets: remote }));
+        }
+      } catch (error) {
+        // Keep the user's local backup visible if their server is unavailable.
+        if (active) setPetsError(error.message || "Unable to load pet records.");
+      } finally {
+        if (active) setPetsLoading(false);
+      }
+    };
+    run();
+    return () => { active = false; };
   }, [authUid]);
   const [notice, setNotice] = useState([]);
   const { user, cart, bookings, pets, reports, favorites, recentlyViewed, storeSort, calendarEvents, notifications, adoptionListings } = {
@@ -231,43 +274,84 @@ export function AppProvider({ children }) {
     setOrders((current) => current.map((item) => item.id === id ? order : item));
     refreshProducts();
   };
-  const addPet = (pet) => { const nextPet = {...pet,id:Date.now(),ownerUid:authService.getCurrentAuthUser()?.uid||null,vaccines:[],meds:[]};setPets((current)=>[...current,nextPet]);if(nextPet.ownerUid)syncAdminData("syncPet",nextPet); };
-  const createPet = async (pet) => {const ownerUid=authService.getCurrentAuthUser()?.uid||null;const next = await petsService.createPet(pets,{...pet,ownerUid});setPets(next);const nextPet=next[next.length-1];if(ownerUid&&nextPet)syncAdminData("syncPet",nextPet);};
-  const updatePetInfo = async (id, petData) => {const next=await petsService.updatePet(pets,id,petData);setPets(next);const changed=next.find((pet)=>String(pet.id)===String(id));if(changed?.ownerUid&&changed.ownerUid===authService.getCurrentAuthUser()?.uid)syncAdminData("syncPet",changed);};
-  const updatePet = (id, fn) => setPets((x) => x.map((p) => p.id === id ? fn(p) : p));
-  const deletePet = async (id, { cancelBookings = true } = {}) => {
-    const nextPets = await petsService.deletePet(pets, id);
-    if(pets.find((pet)=>String(pet.id)===String(id))?.ownerUid===authService.getCurrentAuthUser()?.uid)syncAdminData("deletePet",id);
-    const nextBookings = await bookingsService.deleteBookingsForPet(bookings, id, cancelBookings);
-    setData((current) => ({ ...current, pets: nextPets, bookings: nextBookings, calendarEvents: (current.calendarEvents || []).filter((event) => String(event.petId) !== String(id)) }));
+  const requireOwner = () => {
+    const uid = authService.getCurrentAuthUser()?.uid;
+    if (!uid || uid !== authUid) throw new Error("Please sign in to manage your pet records.");
+    return uid;
   };
-  const addVaccine = async (petId, vaccine) => setPets(await petsService.addVaccination(pets, petId, vaccine));
+  const persistPetList = async (nextPets, id) => {
+    const uid = requireOwner();
+    const changed = nextPets.find((pet) => String(pet.id) === String(id) && pet.ownerUid === uid);
+    if (!changed) throw new Error("This pet does not belong to your account.");
+    await ownerPetsApi.save(changed);
+    setPets(nextPets);
+    return changed;
+  };
+  const addPet = async (pet) => createPet(pet);
+  const createPet = async (pet) => {
+    const uid = requireOwner();
+    const next = await petsService.createPet(pets, { ...pet, ownerUid: uid });
+    const created = next[next.length - 1];
+    const saved = await ownerPetsApi.create(created);
+    setPets((current) => [...current.filter((p) => String(p.id) !== String(saved.id)), saved]);
+    syncAdminData("syncPet", saved);
+    return saved;
+  };
+  const updatePetInfo = async (id, petData) => {
+    const next = await petsService.updatePet(pets, id, petData);
+    const changed = await persistPetList(next, id);
+    syncAdminData("syncPet", changed);
+  };
+  const updatePet = async (id, fn) => {
+    const next = pets.map((p) => String(p.id) === String(id) ? fn(p) : p);
+    await persistPetList(next, id);
+  };
+  const deletePet = async (id, { cancelBookings = true } = {}) => {
+    requireOwner();
+    await ownerPetsApi.remove(id);
+    const nextPets = await petsService.deletePet(pets, id);
+    syncAdminData("deletePet", id);
+    const nextBookings = await bookingsService.deleteBookingsForPet(bookings, id, cancelBookings);
+    setData((current) => ({ ...current, pets: nextPets, bookings: nextBookings,
+      calendarEvents: (current.calendarEvents || []).filter((event) => String(event.petId) !== String(id)) }));
+  };
+  const addVaccine = async (petId, vaccine) =>
+    persistPetList(await petsService.addVaccination(pets, petId, vaccine), petId);
   const updateVaccine = async (petId, vaccineId, changes) => {
     const nextPets = await petsService.updateVaccination(pets, petId, vaccineId, changes);
-    const calendarEventsForPet = (current) => (current.calendarEvents || [])
-      .filter((event) => !(String(event.petId) === String(petId) && event.vaccinationId === vaccineId && !changes.next))
-      .map((event) => String(event.petId) === String(petId) && event.vaccinationId === vaccineId
-        ? { ...event, title: changes.name, date: changes.next, type: "Vaccination" }
-        : event);
+    const updated = nextPets.find((p) => String(p.id) === String(petId));
+    requireOwner();
+    if (!updated || updated.ownerUid !== authUid) throw new Error("Pet not found.");
+    await ownerPetsApi.save(updated);
     setData((current) => ({
-      ...current,
-      pets: nextPets,
-      calendarEvents: calendarEventsForPet(current),
+      ...current, pets: nextPets,
+      calendarEvents: (current.calendarEvents || [])
+        .filter((event) => !(String(event.petId) === String(petId) && event.vaccinationId === vaccineId && !changes.next))
+        .map((event) => String(event.petId) === String(petId) && event.vaccinationId === vaccineId
+          ? { ...event, title: changes.name, date: changes.next, type: "Vaccination" }
+          : event),
     }));
   };
-  const addMedication = async (petId, medication) => setPets(await petsService.addMedication(pets, petId, medication));
+  const addMedication = async (petId, medication) =>
+    persistPetList(await petsService.addMedication(pets, petId, medication), petId);
   const deleteVaccine = async (petId, vaccineId) => {
     const nextPets = await petsService.deleteVaccination(pets, petId, vaccineId);
+    const updated = nextPets.find((p) => String(p.id) === String(petId));
+    requireOwner();
+    if (!updated || updated.ownerUid !== authUid) throw new Error("Pet not found.");
+    await ownerPetsApi.save(updated);
     setData((current) => ({
-      ...current,
-      pets: nextPets,
+      ...current, pets: nextPets,
       calendarEvents: (current.calendarEvents || []).filter((event) =>
         !(String(event.petId) === String(petId) && event.vaccinationId === vaccineId)),
     }));
   };
-  const deleteMedication = async (petId, index) => setPets(await petsService.deleteMedication(pets, petId, index));
-  const addMedicalVisit = async (petId, visit) => setPets(await petsService.addMedicalVisit(pets, petId, visit));
-  const deleteMedicalVisit = async (petId, visitId) => setPets(await petsService.deleteMedicalVisit(pets, petId, visitId));
+  const deleteMedication = async (petId, index) =>
+    persistPetList(await petsService.deleteMedication(pets, petId, index), petId);
+  const addMedicalVisit = async (petId, visit) =>
+    persistPetList(await petsService.addMedicalVisit(pets, petId, visit), petId);
+  const deleteMedicalVisit = async (petId, visitId) =>
+    persistPetList(await petsService.deleteMedicalVisit(pets, petId, visitId), petId);
   const addBooking = (booking) => setBookings((current) => [{ ...booking, id: Date.now(), status: "Upcoming" }, ...current]);
   const createBooking = async (booking) => { setBookings(await bookingsService.createBooking(bookings, booking)); };
   const setBookingStatus = (id, status) => setBookings((current) => current.map((booking) => booking.id === id ? { ...booking, status } : booking));
@@ -295,5 +379,5 @@ export function AppProvider({ children }) {
   const showToast = (message, variant = "success", action) => setNotice((current) => [{ id: `${Date.now()}-${Math.random()}`, message, variant, action }, ...current].slice(0, 3));
   const dismissToast = (id) => setNotice((current) => current.filter((item) => item.id !== id));
   if (authUid === undefined || authUid !== (authService.getCurrentAuthUser()?.uid || null)) return <div role="status" className="p-8 text-center">Checking your session…</div>;
-  return <Ctx.Provider value={{ products, productsLoading, productsError, refreshProducts, ordersLoading, ordersError, refreshOrders, user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, updateVaccine, deleteVaccine, addMedication, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ products, productsLoading, productsError, refreshProducts, ordersLoading, ordersError, refreshOrders, user, setUser, saveUser, savePreferences, cart, setCart, addToCart, addCartProduct, removeCartProduct, changeQty, updateCartQuantity, clearCart, favorites, toggleFavorite, recentlyViewed, markProductViewed, storeSort, setStoreSort, orders, createStoreOrder, cancelStoreOrder, pets, petsLoading, petsError, setPets, addPet, createPet, updatePet, updatePetInfo, deletePet, addVaccine, updateVaccine, deleteVaccine, addMedication, deleteMedication, addMedicalVisit, deleteMedicalVisit, bookings, setBookings, addBooking, createBooking, setBookingStatus, updateBookingStatus, updateBookingDetails, submitBookingReview, reports, createLostFoundReport, updateLostFoundReport, deleteLostFoundReport, calendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, adoptionListings, createAdoptionListing, updateAdoptionListing, deleteAdoptionListing, clearDemoData, storageError, dismissStorageError, notice, showToast, dismissToast }}>{children}</Ctx.Provider>;
 }
