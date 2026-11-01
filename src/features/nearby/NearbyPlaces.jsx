@@ -195,7 +195,7 @@ export default function NearbyPlaces({ mode = "public" }) {
       {!isOur && <p className="mt-2 text-xs text-ink-500">{tr("Results come from 2GIS; distances are straight-line. Call to confirm opening and emergency admission.", "Данные организаций — из 2ГИС, расстояния указаны по прямой. Уточняйте время работы и экстренный приём по телефону.")}</p>}
     </header>
     <nav className="flex flex-wrap gap-2" aria-label="Nearby place categories">
-      {Object.entries(NEARBY_CATEGORIES).filter(([id]) => id !== "hotels").map(([id, info]) => <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
+      {Object.entries(NEARBY_CATEGORIES).map(([id, info]) => <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
         className={`rounded-lg px-3 py-2 text-sm font-semibold ${kind === id ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700"}`}>
         {tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label)}
       </Link>)}
@@ -251,7 +251,7 @@ export default function NearbyPlaces({ mode = "public" }) {
     {previewNotice && isOur && <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span><AlertCircle size={16} className="mr-2 inline" />{tr("Our Services are coming soon. Searching, GPS and bookings will be available after launch.", "Наши услуги скоро появятся. Поиск, геолокация и запись будут доступны после запуска.")}</span><button type="button" className="shrink-0 font-bold underline" onClick={() => setPreviewNotice(false)}>{tr("Close", "Закрыть")}</button></div>}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,1fr)]">
       <div className="relative">
-        <TwoGisMap center={center} places={isOur ? [] : places} />
+        <TwoGisMap center={center} places={isOur ? [] : places} onSelectPlace={setSelectedPlace} />
         {isOur && <button type="button" onClick={showComingSoon} className="absolute inset-0 z-10 flex cursor-not-allowed items-end justify-center rounded-xl bg-slate-900/5 p-3" aria-label={tr("Map preview — Coming soon", "Предпросмотр карты — Скоро")}><span className="rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-primary-800 shadow-md">{tr("Map preview • Live search coming soon", "Предпросмотр карты • Поиск скоро")}</span></button>}
       </div>
       <section className="max-h-[480px] space-y-3 overflow-y-auto" aria-label="Nearby results" aria-live="polite">
