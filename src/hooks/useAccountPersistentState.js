@@ -66,9 +66,12 @@ export function readAccountData(uid, initial) {
   };
 }
 
-export function getStoredAccountProfile(uid, initial) {
+export function getStoredAccountProfile(uid) {
   if (!uid) return null;
-  return readAccountData(uid, initial).user;
+  const scoped = readJson(accountKey(uid));
+  if (scoped?.user?.uid === uid) return scoped.user;
+  const legacy = readJson(LEGACY_KEY);
+  return legacy?.user?.uid === uid ? legacy.user : null;
 }
 
 // A guest may place products in the cart before being asked to log in.
