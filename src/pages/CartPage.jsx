@@ -263,7 +263,7 @@ export default function CartPage() {
                 {language === "ru" ? "Демонстрация завершена. Оплата не выполнялась, заказ не оформлен. Для реального заказа выберите оплату при получении." : "Demo preview completed. No payment was processed and no order was placed. Select cash on delivery to place a real order."}
               </p>}
             </section>
-          )
+          )}
           <div className="border-t border-stone-100 pt-4">
             <h3 className="text-sm font-extrabold">{t("cart.order_review", "Order review")}</h3>
             <div className="mt-3 space-y-2 text-sm">
