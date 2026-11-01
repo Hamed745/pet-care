@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from "lucide-react";
+import { ArrowRight, CreditCard, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { btn, btn2, card, input } from "../ui.js";
 import { EmptyState } from "../components/ui.jsx";
 import { PriceTag, ProductImage } from "../components/store/StoreComponents.jsx";
+import { getCurrentAuthUser } from "../services/authService.js";
 
 const fieldNames = ["name", "phone", "city", "address"];
 const cartItemStock = (item, products) => products.find((product) => product.id === String(item.id))?.stock ?? 0;
@@ -17,6 +18,7 @@ export default function CartPage() {
   const navigate = useNavigate();
   const [address, setAddress] = useState({ name: user?.name || "", phone: user?.phone || "", city: user?.city || "", address: "" });
   const [paymentMethod, setPaymentMethod] = useState("Cash on delivery");
+  const [visaPreview, setVisaPreview] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [requestId] = useState(() => globalThis.crypto.randomUUID());
@@ -25,6 +27,16 @@ export default function CartPage() {
   const deliveryFee = subtotal >= 1200 ? 0 : cart.length ? 35 : 0;
   const total = subtotal - discount + deliveryFee;
 
+  useEffect(() => {
+    if (!user) return;
+    setAddress((current) => ({
+      ...current,
+      name: current.name || user.name || "",
+      phone: current.phone || user.phone || "",
+      city: current.city || user.city || "",
+    }));
+  }, [user?.uid]);
+
   const updateField = (key) => (event) => {
     setAddress((current) => ({ ...current, [key]: event.target.value }));
     setErrors((current) => ({ ...current, [key]: "" }));
@@ -32,6 +44,16 @@ export default function CartPage() {
 
   const submitOrder = async (event) => {
     event.preventDefault();
+    // A local profile flag alone is not sufficient proof of a signed-in user.
+    if (!user?.uid || getCurrentAuthUser()?.uid !== user.uid) {
+      navigate("/login", { state: { from: "/cart" } });
+      return;
+    }
+    if (paymentMethod === "Visa demo") {
+      // This is a visual demonstration, not an actual payment or order.
+      setVisaPreview(true);
+      return;
+    }
     const nextErrors = {};
     fieldNames.forEach((key) => {
       if (!address[key].trim()) nextErrors[key] = t("cart.field_required", "This field is required.");
@@ -214,10 +236,34 @@ export default function CartPage() {
           </div>
           <label className="block text-xs font-bold">
             {t("cart.payment_method", "Payment method")}
-            <select className={`${input} mt-2`} value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+            <select className={`${input} mt-2`} value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setVisaPreview(false); }}>
               <option value="Cash on delivery">{t("cart.cash_on_delivery", "Cash on delivery")}</option>
+              <option value="Visa demo">{language === "ru" ? "Visa (только демонстрация)" : "Visa card (demo only)"}</option>
             </select>
           </label>
+          {paymentMethod === "Visa demo" && (
+            <section aria-label="Visa demo preview" className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              <div className="rounded-2xl bg-gradient-to-br from-blue-950 via-blue-800 to-blue-600 p-5 text-white shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-[0.2em]">PetCare</span>
+                  <span className="text-2xl font-black italic tracking-tight">VISA</span>
+                </div>
+                <div className="mt-7 text-lg font-semibold tracking-[0.12em]">•••• •••• •••• 4242</div>
+                <div className="mt-6 flex justify-between text-[10px] font-bold uppercase tracking-wider">
+                  <span>Demo card · Not valid for payment</span><span>12/29</span>
+                </div>
+              </div>
+              <p className="flex items-start gap-2 text-xs leading-5 text-blue-950">
+                <CreditCard size={17} className="mt-0.5 shrink-0" />
+                {language === "ru"
+                  ? "Это только демонстрация интерфейса Visa. Не вводите настоящие данные карты. Платежи не обрабатываются, заказ не создаётся."
+                  : "Visa interface preview only. Do not enter real card details. No money is charged and no order is created."}
+              </p>
+              {visaPreview && <p role="status" className="rounded-lg border border-blue-200 bg-white p-3 text-xs font-semibold text-blue-900">
+                {language === "ru" ? "Демонстрация завершена. Оплата не выполнялась, заказ не оформлен. Для реального заказа выберите оплату при получении." : "Demo preview completed. No payment was processed and no order was placed. Select cash on delivery to place a real order."}
+              </p>}
+            </section>
+          )}
           <div className="border-t border-stone-100 pt-4">
             <h3 className="text-sm font-extrabold">{t("cart.order_review", "Order review")}</h3>
             <div className="mt-3 space-y-2 text-sm">
@@ -252,8 +298,11 @@ export default function CartPage() {
           </div>
           {!user && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Please <Link to="/login" state={{ from: "/cart" }} className="font-bold underline">sign in</Link> before placing your order.</p>}
           {errors.checkout && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errors.checkout}</p>}
-          <button disabled={submitting || !user} className={`${btn} w-full`}>
-            {submitting ? t("cart.placing_order", "Placing order...") : <><ShoppingBag size={17} /> {t("cart.place_order", "Place order")}</>}
+          <button type="submit" disabled={submitting} className={`${btn} w-full`}>
+            {submitting ? t("cart.placing_order", "Placing order...")
+              : !user ? <><ShoppingBag size={17} /> {language === "ru" ? "Войти и продолжить заказ" : "Sign in to continue checkout"}</>
+              : paymentMethod === "Visa demo" ? <><CreditCard size={17} /> {language === "ru" ? "Посмотреть демо Visa" : "Preview Visa demo (no payment)"}</>
+              : <><ShoppingBag size={17} /> {t("cart.place_order", "Place order")}</>}
           </button>
           <Link to="/store" className="block text-center text-xs font-bold text-primary-700">
             {t("cart.continue_shopping", "Continue shopping")}

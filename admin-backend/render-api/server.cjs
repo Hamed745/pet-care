@@ -6,6 +6,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const { createHash, createHmac, randomUUID } = require("node:crypto");
 const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
+const { registerOwnerPetRoutes } = require("./ownerPets.cjs");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -79,7 +80,7 @@ const corsOptions = {
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error("Origin not allowed by CORS"));
   },
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type"],
   optionsSuccessStatus: 204,
 };
@@ -1073,6 +1074,10 @@ app.delete(
     res.json({ ok: true });
   })
 );
+
+// Full pet profiles belong to the authenticated user, not to a shared browser
+// store. These routes do not change the admin-only summary endpoints.
+registerOwnerPetRoutes({ app, db, signedInRoute, HttpError, FieldValue });
 
 app.use((req, res) => {
   res.status(404).json({ error: "Endpoint not found." });
