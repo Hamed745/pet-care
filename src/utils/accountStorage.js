@@ -47,7 +47,7 @@ export function readAccountData(uid, initial) {
     .filter((pet) => pet && pet.ownerUid === uid);
   const petIds = new Set(ownedPets.map((pet) => String(pet.id)));
   const ownedBookings = (Array.isArray(legacy.bookings) ? legacy.bookings : [])
-    .filter((booking) => booking && petIds.has(String(booking.pet?.id)));
+    .filter((booking) => booking && booking.ownerUid === uid && petIds.has(String(booking.pet?.id)));
 
   const ownerMatches = legacy.user?.uid === uid;
   return {
@@ -56,7 +56,7 @@ export function readAccountData(uid, initial) {
     pets: ownedPets,
     bookings: ownedBookings,
     calendarEvents: (Array.isArray(legacy.calendarEvents) ? legacy.calendarEvents : [])
-      .filter((event) => event && petIds.has(String(event.petId))),
+      .filter((event) => event && event.ownerUid === uid && petIds.has(String(event.petId))),
     cart: ownerMatches && Array.isArray(legacy.cart) ? legacy.cart : [],
     favorites: ownerMatches && Array.isArray(legacy.favorites) ? legacy.favorites : [],
     recentlyViewed: ownerMatches && Array.isArray(legacy.recentlyViewed) ? legacy.recentlyViewed : [],
