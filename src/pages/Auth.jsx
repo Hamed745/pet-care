@@ -8,7 +8,7 @@ import Media from "../components/Media.jsx";
 import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
 import { getCurrentAuthUser, loginWithEmail, logoutUser, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
-import { getStoredAccountProfile } from "../hooks/useAccountPersistentState.js";
+import { getStoredAccountProfile, transferGuestCart } from "../hooks/useAccountPersistentState.js";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -115,6 +115,8 @@ export function Login() {
     try {
       const credential = await loginWithEmail(f.email, f.password, f.remember);
       const firebaseUser = credential.user;
+      // Preserve items added before checkout prompted this login.
+      transferGuestCart(firebaseUser.uid, {});
 
       const savedProfile = user?.uid === firebaseUser.uid ? user : (getStoredAccountProfile(firebaseUser.uid) || {});
       await saveUser({
@@ -218,6 +220,7 @@ export function Register() {
     setSaving(true);
     try {
       const credential = await registerWithEmail(f.email, f.password);
+      transferGuestCart(credential.user.uid, {});
       let displayNameSaved = true;
       try {
         await updateAuthDisplayName(credential.user, f.name.trim());
