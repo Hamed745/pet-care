@@ -1,5 +1,6 @@
 import http from "node:http";
 import { verifiedOpening } from "./maps-hours.mjs";
+import { normalizePlaceDetails } from "./maps-place-details.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = 8787;
@@ -75,7 +76,7 @@ async function handle(req, res) {
   if (req.method !== "GET") return json(res, 405, { error: "GET only." });
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
   if (url.pathname === "/api/health") return json(res, 200, { status: "ok", placesKeyConfigured: Boolean(API_KEY) });
-  if (!["/api/places", "/api/cities", "/api/reverse-city"].includes(url.pathname)) return json(res, 404, { error: "Not found." });
+  if (!["/api/places", "/api/cities", "/api/reverse-city", "/api/place-details"].includes(url.pathname)) return json(res, 404, { error: "Not found." });
   const ip = req.socket.remoteAddress || "local";
   const now = Date.now();
   const previous = callsByIp.get(ip);
@@ -85,6 +86,38 @@ async function handle(req, res) {
   if (counter.count > 45) return json(res, 429, { error: "Too many map requests; retry shortly." });
   if (!API_KEY) return json(res, 503, { error: "2GIS Places API key is not configured." });
   try {
+    if (url.pathname === "/api/place-details") {
+      const id = url.searchParams.get("id") || "";
+      if (!/^\\d{3,24}$/.test(id)) return json(res, 400, { error: "Invalid place ID." });
+      const base = {
+        id, locale: "ru_RU",
+        fields: "items.point,items.full_address_name,items.schedule",
+      };
+      let contactPermissionUnavailable = false;
+      let items;
+      try {
+        items = await upstream("/3.0/items/byid", new URLSearchParams({
+          ...base,
+          fields: `${base.fields},items.contact_groups`,
+        }));
+      } catch (error) {
+        // Contact data requires a separate paid permission on many 2GIS keys.
+        // Fall back to public basic information if only that field is denied.
+        const failure = classifyUpstreamError(error);
+        if (failure.code !== "DGIS_AUTH" && failure.code !== "DGIS_INVALID_REQUEST") throw error;
+        contactPermissionUnavailable = true;
+        items = await upstream("/3.0/items/byid", new URLSearchParams(base));
+      }
+      const record = items.find((item) => String(item?.id) === id && item?.type === "branch");
+      if (!record) return json(res, 404, { error: "Place not found." });
+      const place = normalizePlaceDetails(record, { contactsRequested: !contactPermissionUnavailable });
+      return json(res, 200, {
+        place, source: "2GIS Places API",
+        contactsNote: contactPermissionUnavailable
+          ? "Contact details require additional 2GIS API permission."
+          : place.contactsAvailable ? null : "No contact details were returned by the licensed API.",
+      });
+    }
     if (url.pathname === "/api/cities") {
       const q = (url.searchParams.get("q") || "").trim();
       if (q.length < 2 || q.length > 80) return json(res, 400, { error: "City name must contain 2–80 characters." });
