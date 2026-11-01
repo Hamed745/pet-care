@@ -48,7 +48,7 @@ function records(value, label) {
     // Preserve medical record fields while excluding arbitrary nested objects,
     // identity claims, and oversized records.
     const keys = ["id", "petId", "name", "date", "next", "dose", "dosage", "frequency",
-      "duration", "startDate", "endDate", "doctor", "clinic", "reason", "diagnosis",
+      "duration", "startDate", "endDate", "start", "end", "time", "doctor", "provider", "veterinarian", "clinic", "reason", "diagnosis",
       "treatment", "notes", "status", "type", "description", "title", "medicine"];
     for (const key of keys) {
       if (item[key] === undefined || item[key] === null) continue;
