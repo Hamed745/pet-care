@@ -1,4 +1,5 @@
 import http from "node:http";
+import { isIP } from "node:net";
 import { verifiedOpening } from "./maps-hours.mjs";
 import { normalizePlaceDetails } from "./maps-place-details.mjs";
 
@@ -77,7 +78,12 @@ async function handle(req, res) {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
   if (url.pathname === "/api/health") return json(res, 200, { status: "ok", placesKeyConfigured: Boolean(API_KEY) });
   if (!["/api/places", "/api/cities", "/api/reverse-city", "/api/place-details"].includes(url.pathname)) return json(res, 404, { error: "Not found." });
-  const ip = req.socket.remoteAddress || "local";
+  // On a private container network all requests have the same Caddy socket IP.
+  // Trust the forwarded client address ONLY when deployed behind our gateway.
+  const forwarded = process.env.MAPS_TRUST_PROXY === "1"
+    ? String(req.headers["x-forwarded-for"] || "").split(",")[0].trim()
+    : "";
+  const ip = isIP(forwarded) ? forwarded : req.socket?.remoteAddress || "local";
   const now = Date.now();
   const previous = callsByIp.get(ip);
   const counter = !previous || now - previous.since >= 60_000 ? { since: now, count: 0 } : previous;
