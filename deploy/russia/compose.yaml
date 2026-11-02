@@ -54,6 +54,7 @@ services:
       dockerfile: deploy/russia/Dockerfile.maps
     environment:
       MAPS_HOST: 0.0.0.0
+      MAPS_TRUST_PROXY: "1"
       DGIS_PLACES_KEY: ${DGIS_PLACES_KEY:?Set private 2GIS Catalog key}
     restart: unless-stopped
 
