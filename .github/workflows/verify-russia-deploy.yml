@@ -1,0 +1,26 @@
+name: Validate self-hosted Russia deployment
+on:
+  pull_request:
+    paths:
+      - 'deploy/russia/**'
+      - '.dockerignore'
+      - 'server/maps-api.mjs'
+      - 'server/maps-api-vercel.mjs'
+
+jobs:
+  validate-compose:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose wiring without real credentials
+        run: |
+          cp deploy/russia/.env.example deploy/russia/.env
+          mkdir -p deploy/russia/secrets
+          echo '{}' > deploy/russia/secrets/firebase-service-account.json
+          docker compose --env-file deploy/russia/.env -f deploy/russia/compose.yaml config --quiet
+      - name: Validate standalone maps syntax
+        run: |
+          node --check server/maps-api.mjs
+          node --check server/maps-api-vercel.mjs
