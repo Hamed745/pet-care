@@ -1,0 +1,66 @@
+name: petcare-russia
+
+services:
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/russia/Dockerfile.web
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:?Set Firebase web config}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:?Set Firebase auth domain}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:?Set Firebase project ID}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:?Set Firebase storage bucket}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:?Set messaging sender ID}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:?Set Firebase app ID}
+        VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID:-}
+        VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${VITE_RECAPTCHA_ENTERPRISE_SITE_KEY:?Set App Check site key}
+        VITE_2GIS_MAP_KEY: ${VITE_2GIS_MAP_KEY:-}
+        VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY:-}
+        VITE_ADMIN_API_BASE_URL: https://${SITE_DOMAIN:?Set deployment domain}
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set deployment domain}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - maps
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/russia/Dockerfile.api
+    environment:
+      PORT: "10000"
+      NODE_ENV: production
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?Set backend Firebase project ID}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_service_account
+      ALLOWED_ORIGINS: https://${SITE_DOMAIN:?Set deployment domain}
+      IMAGEKIT_PUBLIC_KEY: ${IMAGEKIT_PUBLIC_KEY:-}
+      IMAGEKIT_PRIVATE_KEY: ${IMAGEKIT_PRIVATE_KEY:-}
+      IMAGEKIT_URL_ENDPOINT: ${IMAGEKIT_URL_ENDPOINT:-}
+    secrets:
+      - firebase_service_account
+    restart: unless-stopped
+
+  maps:
+    build:
+      context: ../..
+      dockerfile: deploy/russia/Dockerfile.maps
+    environment:
+      MAPS_HOST: 0.0.0.0
+      DGIS_PLACES_KEY: ${DGIS_PLACES_KEY:?Set private 2GIS Catalog key}
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+secrets:
+  firebase_service_account:
+    file: ./secrets/firebase-service-account.json
