@@ -1,0 +1,23 @@
+# Use a domain with an A/AAAA record pointing to this server.
+# Caddy manages HTTPS certificates automatically after DNS and ports are ready.
+{$SITE_DOMAIN} {
+  encode zstd gzip
+
+  @maps path /api/places /api/cities /api/reverse-city /api/place-details /api/health
+  route {
+    handle @maps {
+      reverse_proxy maps:8787
+    }
+    handle /api/* {
+      reverse_proxy api:10000
+    }
+    handle /health {
+      reverse_proxy api:10000
+    }
+    handle {
+      root * /srv
+      try_files {path} /index.html
+      file_server
+    }
+  }
+}
