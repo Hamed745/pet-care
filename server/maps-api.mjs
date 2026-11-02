@@ -1,7 +1,8 @@
 import http from "node:http";
 import { verifiedOpening } from "./maps-hours.mjs";
 
-const HOST = "127.0.0.1";
+// Bind to localhost by default; containers can opt into a private bridge address.
+const HOST = process.env.MAPS_HOST || "127.0.0.1";
 const PORT = 8787;
 const API_KEY = process.env.DGIS_PLACES_KEY;
 const UPSTREAM_ERRORS = Object.freeze({
