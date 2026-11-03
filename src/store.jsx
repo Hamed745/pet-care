@@ -257,6 +257,7 @@ export function AppProvider({ children }) {
       address: orderData.address,
       paymentMethod: orderData.paymentMethod,
       expectedSubtotal: orderData.subtotal - orderData.discount,
+      expectedDeliveryFee: orderData.deliveryFee,
     });
     ordersRequest.current++;
     setOrdersLoading(false);

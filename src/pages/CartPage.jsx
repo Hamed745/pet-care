@@ -7,6 +7,7 @@ import { btn, btn2, card, input } from "../ui.js";
 import { EmptyState } from "../components/ui.jsx";
 import { PriceTag, ProductImage } from "../components/store/StoreComponents.jsx";
 import { getCurrentAuthUser } from "../services/authService.js";
+import { shopApi } from "../services/shopApi.js";
 
 const fieldNames = ["name", "phone", "city", "address"];
 const cartItemStock = (item, products) => products.find((product) => product.id === String(item.id))?.stock ?? 0;
@@ -20,11 +21,29 @@ export default function CartPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash on delivery");
   const [visaPreview, setVisaPreview] = useState(false);
   const [errors, setErrors] = useState({});
+  const [storePolicy, setStorePolicy] = useState(null);
+  const [policyError, setPolicyError] = useState("");
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const result = await shopApi.policy();
+        if (active) { setStorePolicy(result); setPolicyError(""); }
+      } catch (error) {
+        if (active) { setStorePolicy(null); setPolicyError(error.message || "Could not load delivery policy."); }
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [requestId] = useState(() => globalThis.crypto.randomUUID());
   const subtotal = cart.reduce((sum, item) => sum + (item.oldPrice || item.price) * item.qty, 0);
   const discount = cart.reduce((sum, item) => sum + Math.max(0, (item.oldPrice || item.price) - item.price) * item.qty, 0);
-  const deliveryFee = subtotal >= 1200 ? 0 : cart.length ? 35 : 0;
+  const netSubtotal = subtotal - discount;
+  const deliveryFee = cart.length && storePolicy
+    ? netSubtotal >= storePolicy.freeDeliveryThreshold ? 0 : storePolicy.deliveryFee
+    : 0;
   const total = subtotal - discount + deliveryFee;
 
   useEffect(() => {
@@ -52,6 +71,11 @@ export default function CartPage() {
     if (paymentMethod === "Visa demo") {
       // This is a visual demonstration, not an actual payment or order.
       setVisaPreview(true);
+      return;
+    }
+    if (!storePolicy) {
+      setErrors((current) => ({ ...current, checkout: policyError ||
+        (language === "ru" ? "Настройки доставки загружаются. Попробуйте снова." : "Delivery settings are loading. Please try again.") }));
       return;
     }
     const nextErrors = {};
@@ -298,7 +322,8 @@ export default function CartPage() {
           </div>
           {!user && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Please <Link to="/login" state={{ from: "/cart" }} className="font-bold underline">sign in</Link> before placing your order.</p>}
           {errors.checkout && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errors.checkout}</p>}
-          <button type="submit" disabled={submitting} className={`${btn} w-full`}>
+          {policyError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{language === "ru" ? "Не удалось загрузить настройки доставки: " : "Could not load delivery settings: "}{policyError}</p>}
+          <button type="submit" disabled={submitting || (paymentMethod !== "Visa demo" && !storePolicy)} className={`${btn} w-full`}>
             {submitting ? t("cart.placing_order", "Placing order...")
               : !user ? <><ShoppingBag size={17} /> {language === "ru" ? "Войти и продолжить заказ" : "Sign in to continue checkout"}</>
               : paymentMethod === "Visa demo" ? <><CreditCard size={17} /> {language === "ru" ? "Посмотреть демо Visa" : "Preview Visa demo (no payment)"}</>
