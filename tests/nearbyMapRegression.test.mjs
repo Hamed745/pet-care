@@ -17,4 +17,7 @@ test("Russian category names distinguish public veterinary services from Our Ser
   assert.equal(NEARBY_CATEGORIES.emergency.ruLabel, "Экстренная ветпомощь");
   assert.equal(NEARBY_CATEGORIES.veterinary.ruLabel, "Ветеринарные клиники");
   assert.ok(Object.hasOwn(NEARBY_CATEGORIES, "hotels"));
+  assert.match(NEARBY_CATEGORIES.veterinary.description, /2GIS/);
+  assert.match(NEARBY_CATEGORIES.veterinary.ruDescription, /2ГИС/);
+  assert.doesNotMatch(NEARBY_CATEGORIES.veterinary.description, /available here soon/i);
 });
