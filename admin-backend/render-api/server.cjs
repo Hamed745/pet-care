@@ -7,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 const { createHash, createHmac, randomUUID } = require("node:crypto");
 const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
 const { registerOwnerPetRoutes } = require("./ownerPets.cjs");
+const { readAdminSettings, registerAdminSettingsRoutes } = require("./adminSettings.cjs");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -274,6 +275,10 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "petcare-admin-api" });
 });
 
+// Settings are persisted in Firestore and require Firebase Admin authorization.
+// Public checkout policy exposes no private configuration.
+registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpError, FieldValue });
+
 // The public shop is intentionally empty until an administrator publishes products.
 app.get(
   "/api/store/products",
@@ -336,6 +341,7 @@ app.post(
       return { id, qty };
     });
 
+    const operationalSettings = (await readAdminSettings(db)).settings;
     const orderId = `PC-${createHash("sha256").update(`${uid}:${requestId}`).digest("hex").slice(0, 24)}`;
     const orderRef = db.collection("adminOrders").doc(orderId);
     const created = await db.runTransaction(async (transaction) => {
@@ -372,7 +378,7 @@ app.post(
         };
       });
 
-      const deliveryFee = subtotal >= 1200 ? 0 : 35;
+      const deliveryFee = subtotal >= operationalSettings.checkout.freeDeliveryThreshold ? 0 : operationalSettings.checkout.deliveryFee;
       if (subtotal !== req.body.expectedSubtotal) {
         throw new HttpError(409, "Prices have changed. Refresh the cart before checkout.");
       }
@@ -395,7 +401,7 @@ app.post(
       await audit(uid, "order.placed", orderId).catch((err) => console.error("[order audit]", err?.message));
     }
     const savedOrder = await orderRef.get();
-    if (created) {
+    if (created && operationalSettings.notifications.newOrderPush) {
       await sendNewOrderPush({ id: orderId, total: Number(savedOrder.data()?.total) || 0 }).catch((err) =>
         console.warn("[order push] Delivery attempt failed:", err?.code || err?.message || "unknown")
       );
