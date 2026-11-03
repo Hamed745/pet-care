@@ -166,8 +166,6 @@ export default function AdminSettings({ data, language, onReload }) {
   useEffect(() => {
     if (!settings) return;
     setForm(formFromSettings(settings));
-    setMessage("");
-    setError("");
   }, [data?.version, settings === undefined]);
 
   const dirty = useMemo(() => form && settings &&
