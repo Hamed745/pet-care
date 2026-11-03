@@ -137,11 +137,6 @@ function registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpErro
     let settings;
     try { settings = validateSettings(supplied.settings); }
     catch (error) { throw new HttpError(400, error.message); }
-    if (JSON.stringify(supplied.settings) !== JSON.stringify(settings)) {
-      // Reject malformed, missing and extra fields, not just silently trim.
-      throw new HttpError(400, "Settings contain unsupported or incomplete fields.");
-    }
-
     const ref = settingsRef(db);
     const nextVersion = await db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
