@@ -1,6 +1,6 @@
 export const NEARBY_CATEGORIES = {
   emergency: { label: "Emergency Vets", ruLabel: "Экстренная ветпомощь", description: "Find real veterinary clinics and emergency services near your location. Confirm emergency availability by contacting the clinic.", isEmergency: true },
-  veterinary: { label: "Veterinary Clinics", ruLabel: "Ветеринарные клиники", description: "Veterinary clinics and service providers will be available here soon." },
+  veterinary: { label: "Veterinary Clinics", ruLabel: "Ветеринарные клиники", description: "Find veterinary clinics listed in 2GIS near your selected city or location. Contact each clinic to confirm services and appointment availability.", ruDescription: "Найдите ветеринарные клиники из 2ГИС рядом с выбранным городом или местоположением. Уточняйте услуги и запись напрямую в клинике." },
   hotels: { label: "Pet Hotels", description: "Find boarding and pet hotels for stays away from home." },
   daycare: { label: "Pet Day Care", description: "Find temporary pet care and boarding services; availability must be confirmed directly." },
   grooming: { label: "Grooming", ruLabel: "Груминг", description: "Find real dog and cat grooming salons listed on 2GIS. Contact the salon to confirm services and availability.", ruDescription: "Груминг-салоны для собак и кошек по данным 2ГИС. Уточняйте услуги и доступность напрямую." },
