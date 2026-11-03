@@ -379,6 +379,10 @@ app.post(
       });
 
       const deliveryFee = subtotal >= operationalSettings.checkout.freeDeliveryThreshold ? 0 : operationalSettings.checkout.deliveryFee;
+      if (Number.isInteger(req.body.expectedDeliveryFee) &&
+          req.body.expectedDeliveryFee !== deliveryFee) {
+        throw new HttpError(409, "Delivery rules changed. Refresh the cart before checkout.");
+      }
       if (subtotal !== req.body.expectedSubtotal) {
         throw new HttpError(409, "Prices have changed. Refresh the cart before checkout.");
       }
