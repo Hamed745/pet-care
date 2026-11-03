@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertCircle, CalendarCheck2, Clock3, LocateFixed, MapPin, Navigation, Search, ShieldCheck, Star, Sparkles } from "lucide-react";
+import { AlertCircle, CalendarCheck2, Clock3, HeartPulse, Hotel, House, LocateFixed, MapPin, Navigation, Scissors, Search, ShieldCheck, Stethoscope, Star, Sparkles, Sun } from "lucide-react";
 import TwoGisMap from "./TwoGisMap.jsx";
 import PlaceDetailsModal from "./PlaceDetailsModal.jsx";
 import { NEARBY_CATEGORIES, RUSSIAN_CITY_CENTERS } from "./nearbyCategories.js";
@@ -19,6 +19,15 @@ const CITY_RU = {
   moscow: "Москва", krasnoyarsk: "Красноярск", saint_petersburg: "Санкт-Петербург",
   kazan: "Казань", novosibirsk: "Новосибирск", yekaterinburg: "Екатеринбург",
 };
+const CATEGORY_ICONS = {
+  emergency: HeartPulse,
+  veterinary: Stethoscope,
+  hotels: Hotel,
+  daycare: Sun,
+  grooming: Scissors,
+  "pet-sitting": House,
+};
+
 const HOURS = [
   ["any", "All hours", "Любое время"],
   ["now", "Open now", "Открыто сейчас"],
@@ -195,10 +204,14 @@ export default function NearbyPlaces({ mode = "public" }) {
       {!isOur && <p className="mt-2 text-xs text-ink-500">{tr("Results come from 2GIS; distances are straight-line. Call to confirm opening and emergency admission.", "Данные организаций — из 2ГИС, расстояния указаны по прямой. Уточняйте время работы и экстренный приём по телефону.")}</p>}
     </header>
     <nav className="flex flex-wrap gap-2" aria-label="Nearby place categories">
-      {Object.entries(NEARBY_CATEGORIES).map(([id, info]) => <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
-        className={`rounded-lg px-3 py-2 text-sm font-semibold ${kind === id ? "bg-primary-700 text-white" : "border border-stone-200 bg-white text-ink-700"}`}>
-        {tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label)}
-      </Link>)}
+      {Object.entries(NEARBY_CATEGORIES).map(([id, info]) => {
+        const Icon = CATEGORY_ICONS[id];
+        return <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
+          className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 ${kind === id ? "border-primary-700 bg-primary-700 text-white" : "border-stone-200 bg-white text-ink-700 hover:border-primary-300 hover:bg-primary-50"}`}>
+          {Icon && <Icon size={17} aria-hidden="true" className="shrink-0" />}
+          {tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label)}
+        </Link>;
+      })}
     </nav>
     {!isOur && <div className="flex flex-wrap justify-end">
       <Link to="/services/catalog" className="text-xs font-semibold text-primary-700 underline underline-offset-4">{tr("Grooming & pet sitting bookings (demo catalog)", "Запись на груминг и передержку (демо-каталог)")}</Link>
