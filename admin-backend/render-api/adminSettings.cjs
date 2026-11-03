@@ -76,6 +76,9 @@ function validateSettings(value) {
   if (permitted.some(([section, keys]) => Object.keys(section).some((key) => !keys.includes(key)))) {
     throw new Error("Unknown or non-editable settings field.");
   }
+  if (typeof general.displayName !== "string" || general.displayName.trim().length < 2) {
+    throw new Error("Platform name must have at least two characters.");
+  }
   const email = cleanString(general.supportEmail, "support email", 160,
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
   const phone = cleanString(general.supportPhone, "support phone", 40,
