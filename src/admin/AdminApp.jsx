@@ -5,6 +5,7 @@ import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { adminApi } from "./adminApi.js";
 import { deleteProductImage, uploadProductImage, validateProductImage } from "./productImages.js";
 import AdminPushSettings from "./AdminPushSettings.jsx";
+import AdminSettings from "./AdminSettings.jsx";
 import AdminPushListener from "./AdminPushListener.jsx";
 import { adminText } from "./i18n.js";
 import { insightsText } from "./insightsText.js";
@@ -74,7 +75,7 @@ export default function AdminApp() {
   const fetchPage = useCallback(async (target, token="") => {
     setLoading(true); setError("");
     try {
-      const result = await ({ overview:adminApi.overview,users:()=>adminApi.users(token),pets:adminApi.pets,orders:adminApi.orders,products:adminApi.products,cities:adminApi.geography,notifications:adminApi.notifications,reports:()=>adminApi.reports(reportDays),settings:async()=>({}),audit:()=>adminApi.activity(token) })[target]();
+      const result = await ({ overview:adminApi.overview,users:()=>adminApi.users(token),pets:adminApi.pets,orders:adminApi.orders,products:adminApi.products,cities:adminApi.geography,notifications:adminApi.notifications,reports:()=>adminApi.reports(reportDays),settings:adminApi.settings,audit:()=>adminApi.activity(token) })[target]();
       setPayload((prev)=>({...prev,[target]:result}));
       if (target === "notifications") setUnreadCount(result.unreadCount || 0);
     } catch (err) { setError(humanError(err,adminText(language))); }
@@ -136,7 +137,7 @@ export default function AdminApp() {
         {page==="cities" && <GeographyView data={rows} language={language}/>}
         {page==="notifications" && <><AdminPushSettings/><NotificationsView data={rows} language={language} busy={busy} onMarkRead={()=>run(adminApi.markNotificationsRead,()=>setUnreadCount(0))} onOpenOrder={openNotifiedOrder}/></>}
         {page==="reports" && <ReportsView data={rows} language={language} days={reportDays} onDaysChange={setReportDays}/>}
-        {page==="settings" && <Box><div className="pa-card-heading"><h2><ShieldCheck size={20}/>{tx.settings}</h2></div><div className="pa-info-banner"><ShieldCheck size={20}/>{tx.settingsHint}</div><p className="pa-muted">{tx.legacyNotice}</p></Box>}
+        {page==="settings" && <AdminSettings data={rows} language={language} onReload={()=>fetchPage("settings")}/>}
         {page==="audit" && <ActivityView data={rows} language={language} onNext={chooseAuditPage} onPrevious={previousAuditPage} canPrevious={auditHistory.length>0} page={auditHistory.length+1}/>}
       </main>
       {editingUser && <div className="pa-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget) setEditingUser(null)}}><UserModal tx={tx} user={editingUser} busy={busy} close={()=>setEditingUser(null)} submit={(reason)=>run(()=>adminApi.setSuspended(editingUser.uid,!editingUser.disabled,reason),()=>setEditingUser(null))}/></div>}
