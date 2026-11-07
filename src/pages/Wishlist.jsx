@@ -46,7 +46,7 @@ export default function Wishlist() {
         <p className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{t("wishlist.eyebrow")}</p>
         <h1 className="mt-2 text-3xl font-extrabold">{t("wishlist.title")}</h1>
       </header>
-      <div className="grid grid-cols-2 items-stretch gap-4 md:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-4 md:grid-cols-3 2xl:grid-cols-4">
         {savedProducts.map((product) => (
           <div key={product.id} className="flex min-w-0 flex-col">
             <ProductCard product={product} onRemove={() => toggleFavorite(product.id)} />
