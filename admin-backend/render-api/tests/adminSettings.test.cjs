@@ -193,3 +193,17 @@ test("ImageKit hero validation rejects other domains, folders and incomplete met
     else process.env.IMAGEKIT_URL_ENDPOINT = envBefore;
   }
 });
+
+test("cached legacy admin forms cannot accidentally erase hero image settings", async () => {
+  const f = setup();
+  const stale = sample();
+  delete stale.general.heroImageUrl;
+  delete stale.general.heroImageKitFileId;
+  delete stale.general.heroImageKitFilePath;
+  await assert.rejects(
+    () => f.run("PUT", "/api/admin/settings", { uid: "admin-1", petcareAdmin: true },
+      { settings: stale, version: 0 }),
+    { status: 409 }
+  );
+  assert.equal(f.countAudits(), 0);
+});
