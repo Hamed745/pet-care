@@ -7,6 +7,9 @@ const DEFAULT_SETTINGS = Object.freeze({
     displayName: "PetCare",
     supportEmail: "",
     supportPhone: "",
+    heroImageUrl: "",
+    heroImageKitFileId: "",
+    heroImageKitFilePath: "",
   }),
   checkout: Object.freeze({
     deliveryFee: 35,
@@ -54,7 +57,43 @@ function cleanInteger(value, name, max) {
   return value;
 }
 
-function validateSettings(value) {
+function validateHeroImage(general, { verifyEndpoint = true } = {}) {
+  const imageUrl = general.heroImageUrl ?? "";
+  const fileId = general.heroImageKitFileId ?? "";
+  const filePath = general.heroImageKitFilePath ?? "";
+  for (const value of [imageUrl, fileId, filePath]) {
+    if (typeof value !== "string" || value.length > 1000 || value !== value.trim()) {
+      throw new Error("Invalid homepage image data.");
+    }
+  }
+  if (!imageUrl && !fileId && !filePath) {
+    return { heroImageUrl: "", heroImageKitFileId: "", heroImageKitFilePath: "" };
+  }
+  if (!imageUrl || !fileId || !filePath ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(fileId) ||
+      !/^\/petcare\/branding\/[A-Za-z0-9_./-]+\.(jpg|jpeg|png|webp)$/i.test(filePath) ||
+      filePath.includes("..") || filePath.includes("//")) {
+    throw new Error("Homepage image must be an ImageKit upload from the branding folder.");
+  }
+  let url;
+  try { url = new URL(imageUrl); } catch { throw new Error("Invalid homepage image URL."); }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+    throw new Error("Homepage image must use a clean HTTPS URL.");
+  }
+  if (verifyEndpoint) {
+    const endpoint = String(process.env.IMAGEKIT_URL_ENDPOINT || "").replace(/\/+$/, "");
+    if (!endpoint) throw new Error("ImageKit is not configured for homepage images.");
+    let base;
+    try { base = new URL(endpoint); } catch { throw new Error("ImageKit endpoint is invalid."); }
+    if (base.protocol !== "https:" || url.origin !== base.origin ||
+        url.pathname !== `${base.pathname.replace(/\/+$/, "")}${filePath}`) {
+      throw new Error("Homepage image must belong to this project's ImageKit branding folder.");
+    }
+  }
+  return { heroImageUrl: imageUrl, heroImageKitFileId: fileId, heroImageKitFilePath: filePath };
+}
+
+function validateSettings(value, options) {
   if (!value || typeof value !== "object" || Array.isArray(value) ||
     Object.keys(value).some((key) => !["general", "checkout", "notifications"].includes(key))) {
     throw new Error("Invalid settings payload.");
@@ -69,7 +108,7 @@ function validateSettings(value) {
     throw new Error("All settings sections are required.");
   }
   const permitted = [
-    [general, ["displayName", "supportEmail", "supportPhone"]],
+    [general, ["displayName", "supportEmail", "supportPhone", "heroImageUrl", "heroImageKitFileId", "heroImageKitFilePath"]],
     [checkout, ["deliveryFee", "freeDeliveryThreshold"]],
     [notifications, ["newOrderPush"]],
   ];
@@ -91,6 +130,7 @@ function validateSettings(value) {
       displayName: cleanString(general.displayName, "display name", 80, /^.{2,80}$/),
       supportEmail: email,
       supportPhone: phone,
+      ...validateHeroImage(general, options),
     },
     checkout: {
       deliveryFee: cleanInteger(checkout.deliveryFee, "delivery fee", 100000),
@@ -109,7 +149,7 @@ async function readAdminSettings(db) {
   // Keep defaults for legacy/incomplete records and sanitize saved config
   // before applying settings in checkout and notification delivery.
   let settings;
-  try { settings = validateSettings(raw); }
+  try { settings = validateSettings(raw, { verifyEndpoint: false }); }
   catch { settings = fallbackSettings(DEFAULT_SETTINGS); }
   return {
     settings,
@@ -126,6 +166,13 @@ function registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpErro
     res.json({ policy: publicSettings(settings) });
   }));
 
+  // Public homepage branding: image URL only, no admin details or ImageKit IDs.
+  app.get("/api/public/homepage", asyncRoute(async (_req, res) => {
+    const { settings } = await readAdminSettings(db);
+    res.set("Cache-Control", "no-store");
+    res.json({ heroImageUrl: settings.general.heroImageUrl || "" });
+  }));
+
   app.get("/api/admin/settings", ...adminRoute(async (_req, res) => {
     res.set("Cache-Control", "no-store");
     res.json(await readAdminSettings(db));
@@ -134,6 +181,12 @@ function registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpErro
   app.put("/api/admin/settings", ...adminRoute(async (req, res) => {
     const supplied = req.body || {};
     const version = supplied.version;
+    // Old cached Admin Settings pages do not know the image fields.
+    // Reject their writes rather than silently wiping the currently published hero.
+    const requiredHeroFields = ["heroImageUrl", "heroImageKitFileId", "heroImageKitFilePath"];
+    if (!requiredHeroFields.every((key) => Object.prototype.hasOwnProperty.call(supplied.settings?.general || {}, key))) {
+      throw new HttpError(409, "Admin settings page is outdated. Refresh the page before saving.");
+    }
     if (!Number.isSafeInteger(version) || version < 0) {
       throw new HttpError(400, "A valid settings version is required.");
     }

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, CheckCircle2, CircleAlert, CreditCard, Database, Globe2, HelpCircle, LoaderCircle, LockKeyhole, Mail, PackageCheck, Percent, RefreshCw, RotateCcw, Save, Server, ShieldCheck, SlidersHorizontal, Truck } from "lucide-react";
+import { BellRing, CheckCircle2, CircleAlert, CreditCard, Database, Globe2, HelpCircle, ImagePlus, LoaderCircle, LockKeyhole, Mail, PackageCheck, Percent, RefreshCw, RotateCcw, Save, Server, ShieldCheck, SlidersHorizontal, Truck, UploadCloud } from "lucide-react";
 import { adminApi } from "./adminApi.js";
+import { deleteProductImage, uploadHomepageImage, validateProductImage } from "./productImages.js";
+import { adoptions } from "../data.js";
 
 const translations = {
   en: {
@@ -9,8 +11,16 @@ const translations = {
     active: "Live setting",
     future: "Not active yet",
     general: "General & Support",
-    generalDesc: "Admin contact reference. Public profile display is not connected yet.",
-    name: "Platform name",
+    generalDesc: "Refresh the homepage picture and manage admin support contacts.",
+    heroLabel: "Homepage hero image",
+    heroHint: "This replaces the dog photo on the public homepage. JPG, PNG or WebP, up to 5 MB; recommended aspect ratio 5:4.",
+    heroChoose: "Choose image",
+    heroCurrent: "Current homepage photo",
+    heroNew: "Selected new image",
+    heroReset: "Restore original photo",
+    heroProgress: "Uploading photo…",
+    heroUploadFailed: "Could not upload the homepage image.",
+    heroSaved: "Homepage photo updated for all visitors.",
     supportEmail: "Support email",
     supportPhone: "Support phone",
     shipping: "Orders & Delivery",
@@ -61,8 +71,16 @@ const translations = {
     active: "Работает",
     future: "Пока не активно",
     general: "Общие настройки и поддержка",
-    generalDesc: "Контакты для администраторов. Публикация в профиле пока не подключена.",
-    name: "Название платформы",
+    generalDesc: "Обновляйте изображение на главной странице и контакты поддержки.",
+    heroLabel: "Главное изображение сайта",
+    heroHint: "Заменяет фотографию собаки на главной странице. JPG, PNG или WebP до 5 МБ; рекомендуемое соотношение сторон 5:4.",
+    heroChoose: "Выбрать изображение",
+    heroCurrent: "Текущая фотография",
+    heroNew: "Новое изображение",
+    heroReset: "Вернуть исходную фотографию",
+    heroProgress: "Загрузка фотографии…",
+    heroUploadFailed: "Не удалось загрузить главное изображение.",
+    heroSaved: "Изображение на главной странице обновлено.",
     supportEmail: "Электронная почта поддержки",
     supportPhone: "Телефон поддержки",
     shipping: "Заказы и доставка",
@@ -111,6 +129,9 @@ const translations = {
 
 const formFromSettings = (settings) => ({
   displayName: settings.general.displayName,
+  heroImageUrl: settings.general.heroImageUrl || "",
+  heroImageKitFileId: settings.general.heroImageKitFileId || "",
+  heroImageKitFilePath: settings.general.heroImageKitFilePath || "",
   supportEmail: settings.general.supportEmail,
   supportPhone: settings.general.supportPhone,
   deliveryFee: String(settings.checkout.deliveryFee),
@@ -121,6 +142,9 @@ const formFromSettings = (settings) => ({
 const effectiveForm = (form) => ({
   general: {
     displayName: form.displayName.trim(),
+    heroImageUrl: form.heroImageUrl,
+    heroImageKitFileId: form.heroImageKitFileId,
+    heroImageKitFilePath: form.heroImageKitFilePath,
     supportEmail: form.supportEmail.trim(),
     supportPhone: form.supportPhone.trim(),
   },
@@ -155,6 +179,10 @@ function Indicator({ label, value, state, Icon }) {
 export default function AdminSettings({ data, language, onReload }) {
   const tx = translations[language === "ru" ? "ru" : "en"];
   const [form, setForm] = useState(null);
+  const [selectedHero, setSelectedHero] = useState(null);
+  const [selectedPreview, setSelectedPreview] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -163,13 +191,20 @@ export default function AdminSettings({ data, language, onReload }) {
   const [statusError, setStatusError] = useState("");
 
   const settings = data?.settings;
+  const originalHero = adoptions[0]?.image || "";
+  useEffect(() => {
+    if (!selectedHero) { setSelectedPreview(""); return undefined; }
+    const url = URL.createObjectURL(selectedHero);
+    setSelectedPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedHero]);
   useEffect(() => {
     if (!settings) return;
     setForm(formFromSettings(settings));
   }, [data?.version, settings === undefined]);
 
-  const dirty = useMemo(() => form && settings &&
-    JSON.stringify(effectiveForm(form)) !== JSON.stringify(settings), [form, settings]);
+  const dirty = useMemo(() => Boolean(selectedHero) || Boolean(form && settings &&
+    JSON.stringify(effectiveForm(form)) !== JSON.stringify(settings)), [form, settings, selectedHero]);
 
   const checkStatus = async () => {
     setStatusLoading(true);
@@ -187,6 +222,25 @@ export default function AdminSettings({ data, language, onReload }) {
     setError("");
   };
 
+  const chooseHero = (file) => {
+    if (!file) return;
+    const validation = validateProductImage(file);
+    if (validation) { setError(validation); setSelectedHero(null); return; }
+    setError(""); setMessage("");
+    setSelectedHero(file);
+  };
+
+  const restoreOriginalHero = () => {
+    setSelectedHero(null);
+    set("heroImageUrl", "");
+    setForm((current) => ({
+      ...current,
+      heroImageUrl: "",
+      heroImageKitFileId: "",
+      heroImageKitFilePath: "",
+    }));
+  };
+
   const onSave = async (event) => {
     event.preventDefault();
     if (!settings || !form || !dirty || saving) return;
@@ -198,13 +252,34 @@ export default function AdminSettings({ data, language, onReload }) {
       return;
     }
     setSaving(true); setError(""); setMessage("");
+    let uploaded = null;
+    let committed = false;
     try {
+      if (selectedHero) {
+        setUploading(true);
+        setUploadProgress(0);
+        uploaded = await uploadHomepageImage(selectedHero, setUploadProgress);
+        next.general.heroImageUrl = uploaded.imageUrl;
+        next.general.heroImageKitFileId = uploaded.imageKitFileId;
+        next.general.heroImageKitFilePath = uploaded.imageKitFilePath;
+      }
       await adminApi.updateSettings(next, data.version);
+      committed = true;
+      setSelectedHero(null);
       await onReload();
-      setMessage(tx.saved);
+      setMessage(uploaded || next.general.heroImageUrl !== settings.general.heroImageUrl ? tx.heroSaved : tx.saved);
+      const oldFileId = settings.general.heroImageKitFileId;
+      if (oldFileId && oldFileId !== next.general.heroImageKitFileId) {
+        await deleteProductImage(oldFileId).catch(() => {});
+      }
     } catch (reason) {
-      setError(/changed in another admin session|409/.test(reason.message || "") ? tx.conflict : reason.message || tx.err);
-    } finally { setSaving(false); }
+      if (uploaded && !committed) await deleteProductImage(uploaded.imageKitFileId).catch(() => {});
+      setError(/changed in another admin session|409/.test(reason.message || "") ? tx.conflict : reason.message || tx.heroUploadFailed);
+    } finally {
+      setSaving(false);
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   if (!settings || !form) return <section className="pa-card"><p role="status" className="pa-settings-loading"><LoaderCircle size={18} className="animate-spin" />{tx.load}</p></section>;
@@ -222,7 +297,35 @@ export default function AdminSettings({ data, language, onReload }) {
       <div className="pa-settings-grid">
         <section className="pa-card">
           <Heading Icon={SlidersHorizontal} title={tx.general} description={tx.generalDesc} badge={tx.active}/>
-          <label className="pa-form-field">{tx.name}<input required minLength={2} maxLength={80} value={form.displayName} onChange={(e)=>set("displayName",e.target.value)}/></label>
+          <div className="pa-form-field">
+            <span>{tx.heroLabel}</span>
+            <div className="pa-hero-preview-box">
+              <img
+                key={selectedPreview || form.heroImageUrl || originalHero}
+                src={selectedPreview || form.heroImageUrl || originalHero}
+                alt={selectedHero ? tx.heroNew : tx.heroCurrent}
+                className="pa-hero-preview-img"
+                onError={(event) => {
+                  if (event.currentTarget.src !== originalHero && originalHero) {
+                    event.currentTarget.src = originalHero;
+                  }
+                }}
+              />
+              <span className="pa-muted">{selectedHero ? tx.heroNew : tx.heroCurrent}</span>
+            </div>
+            <p className="pa-muted">{tx.heroHint}</p>
+            <div className="pa-settings-image-actions">
+              <label className="pa-outline-button pa-hero-pick">
+                <UploadCloud size={16} /> {tx.heroChoose}
+                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={saving}
+                  onChange={(event) => { chooseHero(event.target.files?.[0]); event.target.value = ""; }} />
+              </label>
+              <button type="button" className="pa-outline-button" onClick={restoreOriginalHero} disabled={saving || (!form.heroImageUrl && !selectedHero)}>
+                <RotateCcw size={16} /> {tx.heroReset}
+              </button>
+            </div>
+            {uploading && <p role="status" className="pa-muted">{tx.heroProgress} {uploadProgress}%</p>}
+          </div>
           <div className="pa-fields-two">
             <label className="pa-form-field">{tx.supportEmail}<input type="email" maxLength={160} placeholder="support@example.org" value={form.supportEmail} onChange={(e)=>set("supportEmail",e.target.value)}/></label>
             <label className="pa-form-field">{tx.supportPhone}<input type="tel" maxLength={40} placeholder="+7 ..." value={form.supportPhone} onChange={(e)=>set("supportPhone",e.target.value)}/></label>
@@ -265,7 +368,7 @@ export default function AdminSettings({ data, language, onReload }) {
         <div>{dirty && <p className="pa-settings-unsaved"><CircleAlert size={15}/>{tx.unsaved}</p>}
           <small>{tx.audit}: {data.updatedAt ? new Date(data.updatedAt).toLocaleString(language === "ru" ? "ru-RU" : "en-GB") : "—"} {data.updatedBy ? `${tx.by} ${data.updatedBy.slice(0, 10)}…` : ""}</small></div>
         <div className="pa-settings-actions-buttons">
-          <button type="button" className="pa-outline-button" disabled={!dirty || saving} onClick={()=>{setForm(formFromSettings(settings));setError("");setMessage("");}}><RotateCcw size={15}/>{tx.reset}</button>
+          <button type="button" className="pa-outline-button" disabled={!dirty || saving} onClick={()=>{setSelectedHero(null);setForm(formFromSettings(settings));setError("");setMessage("");}}><RotateCcw size={15}/>{tx.reset}</button>
           <button type="submit" className="pa-primary-button" disabled={!dirty || saving}>{saving ? <LoaderCircle size={15} className="animate-spin"/> : <Save size={15}/>} {saving ? tx.saving : tx.save}</button>
         </div>
       </div>

@@ -37,7 +37,7 @@ function safeFileName(file) {
   return `${base}-${suffix}.${extension}`;
 }
 
-export async function uploadProductImage(file, onProgress = () => {}) {
+export async function uploadProductImage(file, onProgress = () => {}, folder = "/petcare/products") {
   const validationError = validateProductImage(file);
   if (validationError) throw new Error(validationError);
 
@@ -51,7 +51,7 @@ export async function uploadProductImage(file, onProgress = () => {}) {
   form.append("token", auth.token);
   form.append("expire", String(auth.expire));
   form.append("signature", auth.signature);
-  form.append("folder", "/petcare/products");
+  form.append("folder", folder);
   form.append("useUniqueFileName", "true");
 
   const result = await new Promise((resolve, reject) => {
@@ -93,4 +93,10 @@ export async function uploadProductImage(file, onProgress = () => {}) {
 export async function deleteProductImage(fileId) {
   if (!fileId) return;
   await adminApi.deleteImageKitFile(fileId);
+}
+
+// Branding images use the same admin-only signed ImageKit upload flow,
+// but live in a separate folder from product images.
+export function uploadHomepageImage(file, onProgress = () => {}) {
+  return uploadProductImage(file, onProgress, "/petcare/branding");
 }
