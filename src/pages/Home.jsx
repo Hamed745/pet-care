@@ -92,12 +92,13 @@ function HeroSelect({ id, label, options, value, onChange, Icon, open, setOpen }
 }
 
 function HeroPhoto({ src, fallbackSrc }) {
-  const [failedSrc, setFailedSrc] = useState("");
-  const displayed = src && src !== failedSrc ? src : fallbackSrc;
+  const [failedUrls, setFailedUrls] = useState([]);
+  const displayed = src && !failedUrls.includes(src) ? src
+    : fallbackSrc && !failedUrls.includes(fallbackSrc) ? fallbackSrc : "";
   return <div className="home-hero-photo-wrap">
-    {displayed && displayed !== failedSrc
+    {displayed
       ? <img key={displayed} src={displayed} alt="PetCare featured pet" loading="eager"
-          onError={() => setFailedSrc(displayed)} className="home-hero-photo" />
+          onError={() => setFailedUrls((previous) => previous.includes(displayed) ? previous : [...previous, displayed])} className="home-hero-photo" />
       : <div role="img" aria-label="Pet photo unavailable" className="home-hero-photo-fallback"><PawPrint size={44} aria-hidden="true" /></div>}
   </div>;
 }
