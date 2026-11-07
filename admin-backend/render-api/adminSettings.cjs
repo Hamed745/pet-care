@@ -181,6 +181,12 @@ function registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpErro
   app.put("/api/admin/settings", ...adminRoute(async (req, res) => {
     const supplied = req.body || {};
     const version = supplied.version;
+    // Old cached Admin Settings pages do not know the image fields.
+    // Reject their writes rather than silently wiping the currently published hero.
+    const requiredHeroFields = ["heroImageUrl", "heroImageKitFileId", "heroImageKitFilePath"];
+    if (!requiredHeroFields.every((key) => Object.prototype.hasOwnProperty.call(supplied.settings?.general || {}, key))) {
+      throw new HttpError(409, "Admin settings page is outdated. Refresh the page before saving.");
+    }
     if (!Number.isSafeInteger(version) || version < 0) {
       throw new HttpError(400, "A valid settings version is required.");
     }
