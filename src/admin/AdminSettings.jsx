@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BellRing, CheckCircle2, CircleAlert, CreditCard, Database, Globe2, HelpCircle, ImagePlus, LoaderCircle, LockKeyhole, Mail, PackageCheck, Percent, RefreshCw, RotateCcw, Save, Server, ShieldCheck, SlidersHorizontal, Truck, UploadCloud } from "lucide-react";
 import { adminApi } from "./adminApi.js";
+import { formFromSettings, effectiveForm, hasUnsavedSettings } from "./settingsForm.js";
 import { deleteProductImage, uploadHomepageImage, validateProductImage } from "./productImages.js";
 import { adoptions } from "../data.js";
 
@@ -127,35 +128,6 @@ const translations = {
   },
 };
 
-const formFromSettings = (settings) => ({
-  displayName: settings.general.displayName,
-  heroImageUrl: settings.general.heroImageUrl || "",
-  heroImageKitFileId: settings.general.heroImageKitFileId || "",
-  heroImageKitFilePath: settings.general.heroImageKitFilePath || "",
-  supportEmail: settings.general.supportEmail,
-  supportPhone: settings.general.supportPhone,
-  deliveryFee: String(settings.checkout.deliveryFee),
-  freeDeliveryThreshold: String(settings.checkout.freeDeliveryThreshold),
-  newOrderPush: settings.notifications.newOrderPush,
-});
-
-const effectiveForm = (form) => ({
-  general: {
-    displayName: form.displayName.trim(),
-    heroImageUrl: form.heroImageUrl,
-    heroImageKitFileId: form.heroImageKitFileId,
-    heroImageKitFilePath: form.heroImageKitFilePath,
-    supportEmail: form.supportEmail.trim(),
-    supportPhone: form.supportPhone.trim(),
-  },
-  checkout: {
-    deliveryFee: Number(form.deliveryFee),
-    freeDeliveryThreshold: Number(form.freeDeliveryThreshold),
-  },
-  notifications: {
-    newOrderPush: form.newOrderPush,
-  },
-});
 
 const Heading = ({ Icon, title, description, badge }) => (
   <header className="pa-settings-heading">
@@ -203,8 +175,7 @@ export default function AdminSettings({ data, language, onReload }) {
     setForm(formFromSettings(settings));
   }, [data?.version, settings === undefined]);
 
-  const dirty = useMemo(() => Boolean(selectedHero) || Boolean(form && settings &&
-    JSON.stringify(effectiveForm(form)) !== JSON.stringify(settings)), [form, settings, selectedHero]);
+  const dirty = useMemo(() => hasUnsavedSettings(form, settings, selectedHero), [form, settings, selectedHero]);
 
   const checkStatus = async () => {
     setStatusLoading(true);
