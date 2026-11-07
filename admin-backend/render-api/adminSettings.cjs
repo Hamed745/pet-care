@@ -71,7 +71,7 @@ function validateHeroImage(general, { verifyEndpoint = true } = {}) {
   }
   if (!imageUrl || !fileId || !filePath ||
       !/^[A-Za-z0-9_-]{1,128}$/.test(fileId) ||
-      !/^\\/petcare\\/branding\\/[A-Za-z0-9_./-]+\\.(jpg|jpeg|png|webp)$/i.test(filePath) ||
+      !/^\/petcare\/branding\/[A-Za-z0-9_./-]+\.(jpg|jpeg|png|webp)$/i.test(filePath) ||
       filePath.includes("..") || filePath.includes("//")) {
     throw new Error("Homepage image must be an ImageKit upload from the branding folder.");
   }
@@ -81,12 +81,12 @@ function validateHeroImage(general, { verifyEndpoint = true } = {}) {
     throw new Error("Homepage image must use a clean HTTPS URL.");
   }
   if (verifyEndpoint) {
-    const endpoint = String(process.env.IMAGEKIT_URL_ENDPOINT || "").replace(/\\/+$/, "");
+    const endpoint = String(process.env.IMAGEKIT_URL_ENDPOINT || "").replace(/\/+$/, "");
     if (!endpoint) throw new Error("ImageKit is not configured for homepage images.");
     let base;
     try { base = new URL(endpoint); } catch { throw new Error("ImageKit endpoint is invalid."); }
     if (base.protocol !== "https:" || url.origin !== base.origin ||
-        url.pathname !== `${base.pathname.replace(/\\/+$/, "")}${filePath}`) {
+        url.pathname !== `${base.pathname.replace(/\/+$/, "")}${filePath}`) {
       throw new Error("Homepage image must belong to this project's ImageKit branding folder.");
     }
   }
