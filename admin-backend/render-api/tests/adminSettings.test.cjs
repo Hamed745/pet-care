@@ -7,7 +7,7 @@ const {
 } = require("../adminSettings.cjs");
 
 const sample = () => ({
-  general: { displayName: "PetCare", supportEmail: "help@petcare.example", supportPhone: "+7 999 123 45 67" },
+  general: { displayName: "PetCare", supportEmail: "help@petcare.example", supportPhone: "+7 999 123 45 67", heroImageUrl: "", heroImageKitFileId: "", heroImageKitFilePath: "" },
   checkout: { deliveryFee: 55, freeDeliveryThreshold: 2000 },
   notifications: { newOrderPush: false },
 });
@@ -121,12 +121,89 @@ test("invalid and secret-looking settings are never accepted", async () => {
     { ...sample(), checkout: { deliveryFee: 0.5, freeDeliveryThreshold: 100 } },
     { ...sample(), checkout: { deliveryFee: 20, freeDeliveryThreshold: Infinity } },
     { ...sample(), notifications: { newOrderPush: "false" } },
-    { ...sample(), general: { displayName: "", supportEmail: "", supportPhone: "" } },
-    { ...sample(), general: { displayName: "PetCare", supportEmail: "bad email", supportPhone: "" } },
+    { ...sample(), general: { ...sample().general, displayName: "", supportEmail: "", supportPhone: "" } },
+    { ...sample(), general: { ...sample().general, displayName: "PetCare", supportEmail: "bad email", supportPhone: "" } },
   ]) {
     assert.throws(() => validateSettings(invalid));
     await assert.rejects(() => f.run("PUT", "/api/admin/settings", admin,
       { settings: invalid, version: 0 }), { status: 400 });
   }
+  assert.equal(f.countAudits(), 0);
+});
+
+test("public homepage endpoint only exposes image URL, with default fallback", async () => {
+  const f = setup();
+  const before = await f.run("GET", "/api/public/homepage");
+  assert.deepEqual(before.body, { heroImageUrl: "" });
+  assert.ok(!("heroImageKitFileId" in before.body));
+
+  const image = "https://ik.imagekit.io/petcare/petcare/branding/holiday-dog.webp";
+  const envBefore = process.env.IMAGEKIT_URL_ENDPOINT;
+  process.env.IMAGEKIT_URL_ENDPOINT = "https://ik.imagekit.io/petcare";
+  try {
+    const draft = sample();
+    draft.general.heroImageUrl = image;
+    draft.general.heroImageKitFileId = "abc-123-file";
+    draft.general.heroImageKitFilePath = "/petcare/branding/holiday-dog.webp";
+    const saved = await f.run("PUT", "/api/admin/settings",
+      { uid: "admin-1", petcareAdmin: true }, { settings: draft, version: 0 });
+    assert.equal(saved.body.version, 1);
+    assert.equal((await f.run("GET", "/api/public/homepage")).body.heroImageUrl, image);
+    assert.equal(f.countAudits(), 1);
+
+    const restored = { ...draft, general: { ...draft.general,
+      heroImageUrl: "", heroImageKitFileId: "", heroImageKitFilePath: "" } };
+    await f.run("PUT", "/api/admin/settings",
+      { uid: "admin-1", petcareAdmin: true }, { settings: restored, version: 1 });
+    assert.equal((await f.run("GET", "/api/public/homepage")).body.heroImageUrl, "");
+    assert.equal(f.countAudits(), 2);
+  } finally {
+    if (envBefore === undefined) delete process.env.IMAGEKIT_URL_ENDPOINT;
+    else process.env.IMAGEKIT_URL_ENDPOINT = envBefore;
+  }
+});
+
+test("ImageKit hero validation rejects other domains, folders and incomplete metadata", () => {
+  const imageUrl = "https://ik.imagekit.io/petcare/petcare/branding/pet-photo.webp";
+  const filePath = "/petcare/branding/pet-photo.webp";
+  const envBefore = process.env.IMAGEKIT_URL_ENDPOINT;
+  process.env.IMAGEKIT_URL_ENDPOINT = "https://ik.imagekit.io/petcare";
+  try {
+    const valid = sample();
+    Object.assign(valid.general, {
+      heroImageUrl: imageUrl, heroImageKitFileId: "f-123", heroImageKitFilePath: filePath,
+    });
+    assert.equal(validateSettings(valid).general.heroImageUrl, imageUrl);
+    for (const mutation of [
+      { heroImageUrl: "https://evil.example/hero.webp" },
+      { heroImageUrl: "javascript:alert(1)" },
+      { heroImageUrl: imageUrl + "?download=1" },
+      { heroImageKitFileId: "" },
+      { heroImageKitFilePath: "/petcare/products/pet-photo.webp" },
+      { heroImageKitFilePath: "/petcare/branding/../../secrets.webp" },
+      { heroImageKitFilePath: "" },
+      { heroImageUrl: "" },
+    ]) {
+      const invalid = sample();
+      Object.assign(invalid.general, valid.general, mutation);
+      assert.throws(() => validateSettings(invalid));
+    }
+  } finally {
+    if (envBefore === undefined) delete process.env.IMAGEKIT_URL_ENDPOINT;
+    else process.env.IMAGEKIT_URL_ENDPOINT = envBefore;
+  }
+});
+
+test("cached legacy admin forms cannot accidentally erase hero image settings", async () => {
+  const f = setup();
+  const stale = sample();
+  delete stale.general.heroImageUrl;
+  delete stale.general.heroImageKitFileId;
+  delete stale.general.heroImageKitFilePath;
+  await assert.rejects(
+    () => f.run("PUT", "/api/admin/settings", { uid: "admin-1", petcareAdmin: true },
+      { settings: stale, version: 0 }),
+    { status: 409 }
+  );
   assert.equal(f.countAudits(), 0);
 });
