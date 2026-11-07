@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Heart, MapPin, PawPrint, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Heart, MapPin, PawPrint, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { adoptions } from "../data.js";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
@@ -18,6 +18,7 @@ export function AdoptionHub() {
   const { t, language } = useLanguage();
   const [filters, setFilters] = useState({ q: "", city: "", type: "", breed: "", age: "", gender: "" });
   const [sort, setSort] = useState("newest");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const animals = useMemo(() => [...adoptionListings, ...adoptions.map((animal) => ({ ...animal, status: "Available", description: animal.description || `${animal.name} is looking for a caring home.`, ownerId: null }))].filter((animal) => animal.status !== "Adopted"), [adoptionListings]);
   const cities = [...new Set(animals.map((animal) => animal.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const types = [...new Set(animals.map((animal) => animal.type).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -47,8 +48,11 @@ export function AdoptionHub() {
   });
   const clearFilters = () => setFilters({ q: "", city: "", type: "", breed: "", age: "", gender: "" });
 
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
   return <div className="grid min-w-0 gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-6">
-    <aside aria-label="Adoption filters" className="min-w-0 rounded-2xl border border-stone-200 bg-white p-4">
+    <button type="button" aria-controls="adoption-filters" aria-expanded={mobileFiltersOpen} onClick={() => setMobileFiltersOpen((open) => !open)} className={`${btn2} min-h-11 w-full justify-between lg:hidden`}><span className="flex items-center gap-2"><SlidersHorizontal size={17} />{t("store.filter_by", "Filters")}{activeFilterCount > 0 && <span className="grid size-5 place-items-center rounded-full bg-primary-600 text-[10px] text-white">{activeFilterCount}</span>}</span><span className="text-xs text-ink-500">{mobileFiltersOpen ? "−" : "+"}</span></button>
+    <aside id="adoption-filters" aria-label="Adoption filters" className={`${mobileFiltersOpen ? "block" : "hidden"} min-w-0 rounded-2xl border border-stone-200 bg-white p-4 lg:block`}>
       <div className="mb-4 flex items-center justify-between gap-2">
         <div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary-700">{t("adoption.tagline", "Find a companion")}</p><h2 className="mt-1 text-lg font-extrabold text-ink-900">{t("store.filter_by", "Filters")}</h2></div>
         <button type="button" onClick={clearFilters} className="text-xs font-semibold text-primary-700 hover:text-primary-800">{t("common.clear", "Clear")}</button>

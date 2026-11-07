@@ -151,7 +151,7 @@ export default function CartPage() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section aria-label="Cart items" className="space-y-3">
           {cart.map((item) => (
-            <article key={`${item.id}-${item.variant?.id || "default"}`} className={`${card} flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap`}>
+            <article key={`${item.id}-${item.variant?.id || "default"}`} className={`${card} flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap sm:gap-4 sm:p-4`}>
               <Link to={`/store/${item.id}`} className="shrink-0">
                 <ProductImage src={item.images?.[0] || item.image} alt={item.name} category={item.category || item.cat} className="size-20 rounded-xl object-cover" />
               </Link>
@@ -165,38 +165,40 @@ export default function CartPage() {
                 </p>
                 <PriceTag product={item} className="mt-2 text-sm" />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full items-center justify-between gap-2 border-t border-stone-100 pt-3 sm:contents">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label={`Decrease quantity of ${item.name}`}
+                    disabled={item.qty <= 1}
+                    className={`${btn2} size-9 min-h-9 p-0`}
+                    onClick={() => updateCartQuantity(item.id, -1, item.variant?.id)}
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span aria-live="polite" className="w-6 text-center text-sm font-bold">
+                    {item.qty}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Increase quantity of ${item.name}`}
+                    disabled={cart.filter((entry) => entry.id === item.id).reduce((sum, entry) => sum + entry.qty, 0) >= cartItemStock(item, products)}
+                    className={`${btn2} size-9 min-h-9 p-0`}
+                    onClick={() => updateCartQuantity(item.id, 1, item.variant?.id)}
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+                <span className="text-right text-sm font-extrabold sm:w-24">{item.price * item.qty} {t("common.rub", "₽")}</span>
                 <button
                   type="button"
-                  aria-label={`Decrease quantity of ${item.name}`}
-                  disabled={item.qty <= 1}
-                  className={`${btn2} size-9 min-h-9 p-0`}
-                  onClick={() => updateCartQuantity(item.id, -1, item.variant?.id)}
+                  aria-label={`Remove ${item.name} from cart`}
+                  className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-500 hover:bg-red-50 hover:text-danger-600"
+                  onClick={() => removeCartProduct(item.id, item.variant?.id)}
                 >
-                  <Minus size={14} />
-                </button>
-                <span aria-live="polite" className="w-6 text-center text-sm font-bold">
-                  {item.qty}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`Increase quantity of ${item.name}`}
-                  disabled={cart.filter((entry) => entry.id === item.id).reduce((sum, entry) => sum + entry.qty, 0) >= cartItemStock(item, products)}
-                  className={`${btn2} size-9 min-h-9 p-0`}
-                  onClick={() => updateCartQuantity(item.id, 1, item.variant?.id)}
-                >
-                  <Plus size={14} />
+                  <Trash2 size={16} />
                 </button>
               </div>
-              <span className="w-24 text-right text-sm font-extrabold">{item.price * item.qty} {t("common.rub", "₽")}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${item.name} from cart`}
-                className="grid size-9 place-items-center rounded-lg text-ink-500 hover:bg-red-50 hover:text-danger-600"
-                onClick={() => removeCartProduct(item.id, item.variant?.id)}
-              >
-                <Trash2 size={16} />
-              </button>
             </article>
           ))}
         </section>
