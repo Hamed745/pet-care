@@ -441,7 +441,7 @@ export default function Home() {
             {t("home.view_listings", "View listings")} <ArrowRight size={15} className="inline" />
           </Link>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {featuredAdoptions.map((animal) => (
             <Card key={animal.id} className="overflow-hidden !p-0">
               <Link to={`/adoption/${animal.id}`}>

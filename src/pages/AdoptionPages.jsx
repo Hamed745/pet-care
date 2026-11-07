@@ -97,15 +97,15 @@ export function AdoptionHub() {
         </div>
       </header>
 
-      {list.length ? <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {list.length ? <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {list.map((animal) => <article key={`${animal.ownerId || "demo"}-${animal.id}`} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-          <Link to={`/adoption/${animal.id}`} aria-label={`View details for ${animal.name}`} className="relative block h-44 shrink-0 overflow-hidden bg-primary-50 sm:h-48"><Media src={getPhoto(animal)} alt={`${animal.name}, ${animal.breed || animal.type}`} className="size-full object-cover" /><Badge className="absolute left-3 top-3" variant={animal.status === "Available" ? "success" : "neutral"}>{animal.status === "Available" ? (language === "ru" ? "Ищет дом" : "Available") : animal.status}</Badge></Link>
-          <div className="flex flex-1 flex-col p-3.5">
-            <h2 className="truncate text-base font-extrabold text-ink-900"><Link to={`/adoption/${animal.id}`}>{animal.name}</Link></h2>
+          <Link to={`/adoption/${animal.id}`} aria-label={`View details for ${animal.name}`} className="relative block h-32 shrink-0 overflow-hidden bg-primary-50 sm:h-48"><Media src={getPhoto(animal)} alt={`${animal.name}, ${animal.breed || animal.type}`} className="size-full object-cover" /><Badge className="absolute left-1.5 top-1.5 max-w-[90%] truncate sm:left-3 sm:top-3" variant={animal.status === "Available" ? "success" : "neutral"}>{animal.status === "Available" ? (language === "ru" ? "Ищет дом" : "Available") : animal.status}</Badge></Link>
+          <div className="flex min-w-0 flex-1 flex-col p-2.5 sm:p-3.5">
+            <h2 className="truncate text-sm font-extrabold text-ink-900 sm:text-base"><Link to={`/adoption/${animal.id}`}>{animal.name}</Link></h2>
             <p className="mt-1 truncate text-xs text-ink-500">{t(`common.${animal.type.toLowerCase()}`, animal.type)}{animal.breed ? ` · ${animal.breed}` : ""}{animal.age !== undefined && animal.age !== "" ? ` · ${animal.age} ${Number(animal.age) === 1 ? t("common.year", "year") : t("common.years", "years")}` : ""}{animal.gender ? ` · ${t(`common.${animal.gender.toLowerCase()}`, animal.gender)}` : ""}</p>
             {animal.city && <p className="mt-2 flex items-center gap-1 text-xs text-ink-500"><MapPin size={13} />{getCityName(animal.city)}</p>}
             <div className="mt-2 flex flex-wrap gap-1.5">{animal.health && <Badge variant="neutral">{animal.health === "Vaccinated" ? (language === "ru" ? "Привит" : "Vaccinated") : animal.health}</Badge>}</div>
-            <Link to={`/adoption/${animal.id}`} className={`${btn2} mt-3 min-h-9 w-full px-3 text-xs`}><Heart size={14} />{t("common.details", "View Details")}</Link>
+            <Link to={`/adoption/${animal.id}`} className={`${btn2} mt-3 min-h-9 w-full gap-1 px-1.5 text-xs sm:gap-2 sm:px-3`}><Heart size={14} className="shrink-0" /><span className="min-w-0 truncate">{t("common.details", "View Details")}</span></Link>
           </div>
         </article>)}
       </div> : <EmptyState title={t("adoption.no_matches", "No animals found")} description={t("adoption.no_matches_sub", "Try adjusting your filters.")} icon={PawPrint} action={<button type="button" className={btn2} onClick={clearFilters}>{t("adoption.clear_filters", "Clear filters")}</button>} />}
