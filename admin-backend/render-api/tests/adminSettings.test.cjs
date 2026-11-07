@@ -121,8 +121,8 @@ test("invalid and secret-looking settings are never accepted", async () => {
     { ...sample(), checkout: { deliveryFee: 0.5, freeDeliveryThreshold: 100 } },
     { ...sample(), checkout: { deliveryFee: 20, freeDeliveryThreshold: Infinity } },
     { ...sample(), notifications: { newOrderPush: "false" } },
-    { ...sample(), general: { displayName: "", supportEmail: "", supportPhone: "" } },
-    { ...sample(), general: { displayName: "PetCare", supportEmail: "bad email", supportPhone: "" } },
+    { ...sample(), general: { ...sample().general, displayName: "", supportEmail: "", supportPhone: "" } },
+    { ...sample(), general: { ...sample().general, displayName: "PetCare", supportEmail: "bad email", supportPhone: "" } },
   ]) {
     assert.throws(() => validateSettings(invalid));
     await assert.rejects(() => f.run("PUT", "/api/admin/settings", admin,
