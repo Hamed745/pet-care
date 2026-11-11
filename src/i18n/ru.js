@@ -1,4 +1,11 @@
 export default {
+  clinics: {
+    our_clinics: "Проверенные клиники",
+    our_clinics_desc: "Запишитесь на приём в клинику, проверенную PetCare.",
+    register: "Зарегистрировать клинику",
+    register_desc: "Подайте заявку на регистрацию клиники в PetCare.",
+    portal: "Кабинет руководителя клиники",
+  },
   // Navigation & Header
   nav: {
     home: "Главная",

@@ -40,6 +40,8 @@ function Navbar() {
 
   const serviceLinks = [
     ["/nearby/emergency", t("services.public_services", "Public Services"), t("services.public_services_nav_desc", "Find nearby veterinary clinics and pet services using 2GIS."), Stethoscope],
+    ["/nearby/our/veterinary", t("clinics.our_clinics", "Our Verified Clinics"), t("clinics.our_clinics_desc", "Book with PetCare-approved veterinary clinics."), Stethoscope],
+    ["/clinic", t("clinics.register", "Register Your Clinic"), t("clinics.register_desc", "Apply to join PetCare as a clinic manager."), UserRound],
     ["/services/catalog", t("services.our_services", "Our Services"), t("services.our_services_nav_desc", "Explore services offered through PetCare."), Stethoscope],
     ["/services/grooming", t("nav.grooming", "Grooming"), t("services.grooming_desc", "Thoughtful care from nose to tail."), Scissors],
     ["/services/pet-sitting", t("nav.pet_sitting", "Pet Sitting"), t("services.sitting_desc", "Reliable help at home or outdoors."), Home],
@@ -275,6 +277,9 @@ function Navbar() {
                       >
                         <CalendarDays size={18} /> {t("nav.bookings", "Bookings")}
                       </Link>
+                      <Link role="menuitem" to="/clinic" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50">
+                        <Stethoscope size={18} /> {t("clinics.portal", "Clinic Manager Portal")}
+                      </Link>
                       <Link
                         role="menuitem"
                         to="/calendar"
@@ -426,6 +431,9 @@ function Navbar() {
                     </Link>
                     <Link onClick={() => setMobileOpen(false)} to="/bookings" className={btn2}>
                       {t("nav.bookings", "Bookings")}
+                    </Link>
+                    <Link onClick={() => setMobileOpen(false)} to="/clinic" className={btn2}>
+                      {t("clinics.portal", "Clinic Portal")}
                     </Link>
                     <Link onClick={() => setMobileOpen(false)} to="/calendar" className={btn2}>
                       {t("nav.calendar", "Calendar")}

@@ -7,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 const { createHash, createHmac, randomUUID } = require("node:crypto");
 const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
 const { registerOwnerPetRoutes } = require("./ownerPets.cjs");
+const { registerClinicRoutes } = require("./clinics.cjs");
 const { readAdminSettings, registerAdminSettingsRoutes } = require("./adminSettings.cjs");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
@@ -278,6 +279,7 @@ app.get("/health", (_req, res) => {
 // Settings are persisted in Firestore and require Firebase Admin authorization.
 // Public checkout policy exposes no private configuration.
 registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpError, FieldValue });
+registerClinicRoutes({ app, db, signedInRoute, adminRoute, HttpError, FieldValue, audit });
 
 // The public shop is intentionally empty until an administrator publishes products.
 app.get(

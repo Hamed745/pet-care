@@ -1,4 +1,11 @@
 export default {
+  clinics: {
+    our_clinics: "Our Verified Clinics",
+    our_clinics_desc: "Book with PetCare-approved veterinary clinics.",
+    register: "Register Your Clinic",
+    register_desc: "Apply to join PetCare as a clinic manager.",
+    portal: "Clinic Manager Portal",
+  },
   // Navigation & Header
   nav: {
     home: "Home",
