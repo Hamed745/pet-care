@@ -39,6 +39,8 @@ const Settings = lazy(() => import("./pages/Auth.jsx").then((module) => ({ defau
 const NearbyPlaces = lazy(() => import("./features/nearby/NearbyPlaces.jsx"));
 const AdminApp = lazy(() => import("./admin/AdminApp.jsx"));
 const AdminGate = lazy(() => import("./admin/AdminGate.jsx"));
+const ClinicPortal = lazy(() => import("./pages/ClinicPortal.jsx"));
+const ClinicDirectory = lazy(() => import("./pages/ClinicDirectory.jsx"));
 
 function LoadingPage() {
   const { t } = useLanguage();
@@ -92,6 +94,8 @@ export default function App() {
           <Route path="/adoption/my-listings" element={<MyAdoptionListings />} />
           <Route path="/adoption/:id" element={<AdoptionDetails />} />
           <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
+          <Route path="/clinic" element={<ClinicPortal />} />
+          <Route path="/nearby/our/veterinary" element={<ClinicDirectory />} />
           <Route path="/nearby/our/:kind" element={<NearbyPlaces mode="our" />} />
           <Route path="/nearby/:kind" element={<NearbyPlaces mode="public" />} />
           <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />

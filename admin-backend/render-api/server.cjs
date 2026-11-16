@@ -4,6 +4,11 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const multer = require("multer");
+const { createClient } = require("@supabase/supabase-js");
+const { registerClinicRoutes } = require("./clinics.cjs");
+const { createClinicDocumentStorage, MAX_DOCUMENT_BYTES } = require("./clinicDocumentStorage.cjs");
+const { registerClinicWorkspace } = require("./clinicWorkspace.cjs");
 const { createHash, createHmac, randomUUID } = require("node:crypto");
 const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
 const { registerOwnerPetRoutes } = require("./ownerPets.cjs");
@@ -59,6 +64,17 @@ initializeFirebaseAdmin();
 
 const auth = getAuth();
 const db = getFirestore();
+// Clinic identity files are private and remain disabled until a malware scanner,
+// approved privacy wording and safe quarantine/promotion are configured.
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || "";
+const supabaseBucket = process.env.SUPABASE_BUCKET || "";
+const supabaseClient = supabaseUrl && supabaseSecretKey && supabaseBucket
+  ? createClient(supabaseUrl,supabaseSecretKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
+  : null;
+const clinicDocumentStorage = createClinicDocumentStorage({
+  db,supabaseClient,bucketName:supabaseBucket,productionUploadsEnabled:false,FieldValue
+});
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -270,6 +286,24 @@ const requireAdmin = (req, res, next) => {
 
 const adminRoute = (handler) => [authenticate, requireAdmin, asyncRoute(handler)];
 const signedInRoute = (handler) => [authenticate, asyncRoute(handler)];
+const clinicUploadLimit = rateLimit({
+  windowMs:60*60*1000,max:12,standardHeaders:true,legacyHeaders:false,
+  message:{error:"Too many clinic document uploads. Try again later."}
+});
+const parseClinicDocument = multer({
+  storage:multer.memoryStorage(),limits:{fileSize:MAX_DOCUMENT_BYTES,files:1,fields:0,parts:1}
+}).single("document");
+const clinicDocumentParser=(req,res,next)=>parseClinicDocument(req,res,(error)=>{
+  if(!error)return next();
+  return next(new HttpError(error.code==="LIMIT_FILE_SIZE"?413:400,
+    error.code==="LIMIT_FILE_SIZE"?"Clinic documents cannot exceed 5 MB.":"Upload exactly one supported document."));
+});
+const signedInDocumentRoute=(handler)=>[authenticate,clinicUploadLimit,clinicDocumentParser,asyncRoute(handler)];
+registerClinicRoutes({
+  app,db,signedInRoute,signedInDocumentRoute,adminRoute,HttpError,FieldValue,audit,
+  documentStorage:clinicDocumentStorage
+});
+registerClinicWorkspace({app,db,signedInRoute,HttpError,FieldValue,audit});
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "petcare-admin-api" });
