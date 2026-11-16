@@ -53,28 +53,68 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify clinic onboarding, admin review and bookings in browser
         run: npm run test:browser
-      - name: Verify full Firebase Auth and Firestore emulator E2E
+
+  firebase-emulator-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Set up Java 21 for Firestore Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install frontend and backend dependencies
+        run: |
+          npm ci
+          npm ci --prefix admin-backend/render-api
+      - name: Prepare isolated demo-petcare configuration
+        run: |
+          printf '%s\n' \
+            'PETCARE_USE_FIREBASE_EMULATORS=true' \
+            'FIREBASE_PROJECT_ID=demo-petcare' \
+            'FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099' \
+            'FIRESTORE_EMULATOR_HOST=127.0.0.1:8080' > .env.emulator.local
+          : > admin-backend/render-api/.env.supabase.local
+      - name: Run full Firebase Auth and Firestore emulator E2E
         shell: bash
         run: |
           set -euo pipefail
+          api_pid=""
           npm run dev:emulators -- --only auth,firestore > /tmp/petcare-emulators.log 2>&1 &
           emulator_pid=$!
-          trap 'kill "$api_pid" "$emulator_pid" 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 90); do
+          trap 'if [[ -n "$api_pid" ]]; then kill "$api_pid" 2>/dev/null || true; fi; kill "$emulator_pid" 2>/dev/null || true' EXIT
+          emulator_ready=false
+          for attempt in $(seq 1 120); do
             if (echo >/dev/tcp/127.0.0.1/9099) 2>/dev/null && (echo >/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              emulator_ready=true
               break
             fi
             sleep 1
           done
-          (echo >/dev/tcp/127.0.0.1/9099) 2>/dev/null
-          (echo >/dev/tcp/127.0.0.1/8080) 2>/dev/null
+          if [[ "$emulator_ready" != "true" ]]; then
+            cat /tmp/petcare-emulators.log
+            exit 1
+          fi
           npm run dev:api:emulator > /tmp/petcare-api.log 2>&1 &
           api_pid=$!
+          api_ready=false
           for attempt in $(seq 1 90); do
             if curl -fsS --max-time 2 http://127.0.0.1:10000/health | grep -q '"mode":"emulator"'; then
+              api_ready=true
               break
             fi
             sleep 1
           done
-          curl -fsS --max-time 3 http://127.0.0.1:10000/health | grep -q '"mode":"emulator"'
-          npm run test:emulators
+          if [[ "$api_ready" != "true" ]]; then
+            cat /tmp/petcare-api.log
+            exit 1
+          fi
+          npm run test:emulators || { cat /tmp/petcare-api.log; exit 1; }
