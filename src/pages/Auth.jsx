@@ -9,6 +9,7 @@ import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
 import { getCurrentAuthUser, loginWithEmail, logoutUser, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
 import { getStoredAccountProfile, transferGuestCart } from "../hooks/useAccountPersistentState.js";
+import { rememberClinicIntent } from "../clinic/ClinicAudienceContext.jsx";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -240,6 +241,7 @@ export function Register() {
         phone: f.phone,
         city: f.city.trim(),
       });
+      if (accountType === "clinic") rememberClinicIntent(credential.user.uid);
       nav(accountType === "clinic" ? "/clinic" : "/");
       if (!displayNameSaved) {
         showToast("Your account was created, but your display name could not be saved to Firebase.", "warning");

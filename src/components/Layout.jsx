@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Bell, CalendarDays, ChevronDown, Heart, Home, LogOut, MapPin, Menu, PawPrint, Phone, ShoppingBag, Stethoscope, Scissors, UserRound, X, Bot, ShieldCheck} from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
@@ -12,6 +12,8 @@ import { ToastStack } from "./ui.jsx";
 import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import AdminEntryLink from "../admin/AdminEntryLink.jsx";
 import { logoutUser } from "../services/authService.js";
+import { useClinicAudience } from "../clinic/ClinicAudienceContext.jsx";
+import ClinicShell from "./ClinicShell.jsx";
 
 function Brand() {
   return (
@@ -594,6 +596,7 @@ function Footer() {
 
 export default function Layout({ children }) {
   const { storageError, dismissStorageError, notice, dismissToast } = useApp();
+  const audience = useClinicAudience();
   const location = useLocation();
   const isForgotPassword = location.pathname === "/forgot-password";
 
@@ -606,6 +609,31 @@ export default function Layout({ children }) {
     ...(storageError ? [{ id: "storage-error", message: storageError, variant: "danger" }] : []),
   ].slice(0, 3);
   const dismissNotice = (id) => (id === "storage-error" ? dismissStorageError() : dismissToast(id));
+
+  // Await server-backed clinic role discovery before rendering the owner site.
+  if (audience.checking) {
+    return <main className="grid min-h-screen place-items-center bg-stone-50 p-6" role="status">
+      <p className="text-sm font-semibold text-ink-600">Checking account workspace…</p>
+    </main>;
+  }
+  if (audience.error && !audience.isClinic) {
+    return <main className="grid min-h-screen place-items-center bg-stone-50 p-6">
+      <section className="max-w-md rounded-2xl border border-stone-200 bg-white p-6 text-center">
+        <h1 className="text-lg font-bold">Unable to verify account type</h1>
+        <p className="my-3 text-sm text-ink-600">{audience.error}</p>
+        <button type="button" onClick={audience.refresh}
+          className="rounded-xl bg-primary-700 px-4 py-2 text-sm font-semibold text-white">Retry</button>
+      </section>
+    </main>;
+  }
+  if (audience.isClinic) {
+    // Other role's routes never render for a clinic manager. The admin route
+    // remains protected by its independent server-verified Firebase claim.
+    if (location.pathname !== "/clinic" && !location.pathname.startsWith("/admin")) {
+      return <Navigate to="/clinic" replace />;
+    }
+    return <ClinicShell toastItems={toastItems} onDismiss={dismissNotice}>{children}</ClinicShell>;
+  }
 
   return (
     <ChatProvider>
