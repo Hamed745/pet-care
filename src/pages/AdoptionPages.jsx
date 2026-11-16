@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Heart, MapPin, PawPrint, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Heart, MapPin, PawPrint, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { adoptions } from "../data.js";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
@@ -18,6 +18,7 @@ export function AdoptionHub() {
   const { t, language } = useLanguage();
   const [filters, setFilters] = useState({ q: "", city: "", type: "", breed: "", age: "", gender: "" });
   const [sort, setSort] = useState("newest");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const animals = useMemo(() => [...adoptionListings, ...adoptions.map((animal) => ({ ...animal, status: "Available", description: animal.description || `${animal.name} is looking for a caring home.`, ownerId: null }))].filter((animal) => animal.status !== "Adopted"), [adoptionListings]);
   const cities = [...new Set(animals.map((animal) => animal.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const types = [...new Set(animals.map((animal) => animal.type).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -47,8 +48,11 @@ export function AdoptionHub() {
   });
   const clearFilters = () => setFilters({ q: "", city: "", type: "", breed: "", age: "", gender: "" });
 
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
   return <div className="grid min-w-0 gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-6">
-    <aside aria-label="Adoption filters" className="min-w-0 rounded-2xl border border-stone-200 bg-white p-4">
+    <button type="button" aria-controls="adoption-filters" aria-expanded={mobileFiltersOpen} onClick={() => setMobileFiltersOpen((open) => !open)} className={`${btn2} min-h-11 w-full justify-between lg:hidden`}><span className="flex items-center gap-2"><SlidersHorizontal size={17} />{t("store.filter_by", "Filters")}{activeFilterCount > 0 && <span className="grid size-5 place-items-center rounded-full bg-primary-600 text-[10px] text-white">{activeFilterCount}</span>}</span><span className="text-xs text-ink-500">{mobileFiltersOpen ? "−" : "+"}</span></button>
+    <aside id="adoption-filters" aria-label="Adoption filters" className={`${mobileFiltersOpen ? "block" : "hidden"} min-w-0 rounded-2xl border border-stone-200 bg-white p-4 lg:block`}>
       <div className="mb-4 flex items-center justify-between gap-2">
         <div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary-700">{t("adoption.tagline", "Find a companion")}</p><h2 className="mt-1 text-lg font-extrabold text-ink-900">{t("store.filter_by", "Filters")}</h2></div>
         <button type="button" onClick={clearFilters} className="text-xs font-semibold text-primary-700 hover:text-primary-800">{t("common.clear", "Clear")}</button>
@@ -93,15 +97,15 @@ export function AdoptionHub() {
         </div>
       </header>
 
-      {list.length ? <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {list.length ? <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {list.map((animal) => <article key={`${animal.ownerId || "demo"}-${animal.id}`} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-          <Link to={`/adoption/${animal.id}`} aria-label={`View details for ${animal.name}`} className="relative block h-44 shrink-0 overflow-hidden bg-primary-50 sm:h-48"><Media src={getPhoto(animal)} alt={`${animal.name}, ${animal.breed || animal.type}`} className="size-full object-cover" /><Badge className="absolute left-3 top-3" variant={animal.status === "Available" ? "success" : "neutral"}>{animal.status === "Available" ? (language === "ru" ? "Ищет дом" : "Available") : animal.status}</Badge></Link>
-          <div className="flex flex-1 flex-col p-3.5">
-            <h2 className="truncate text-base font-extrabold text-ink-900"><Link to={`/adoption/${animal.id}`}>{animal.name}</Link></h2>
+          <Link to={`/adoption/${animal.id}`} aria-label={`View details for ${animal.name}`} className="relative block h-32 shrink-0 overflow-hidden bg-primary-50 sm:h-48"><Media src={getPhoto(animal)} alt={`${animal.name}, ${animal.breed || animal.type}`} className="size-full object-cover" /><Badge className="absolute left-1.5 top-1.5 max-w-[90%] truncate sm:left-3 sm:top-3" variant={animal.status === "Available" ? "success" : "neutral"}>{animal.status === "Available" ? (language === "ru" ? "Ищет дом" : "Available") : animal.status}</Badge></Link>
+          <div className="flex min-w-0 flex-1 flex-col p-2.5 sm:p-3.5">
+            <h2 className="truncate text-sm font-extrabold text-ink-900 sm:text-base"><Link to={`/adoption/${animal.id}`}>{animal.name}</Link></h2>
             <p className="mt-1 truncate text-xs text-ink-500">{t(`common.${animal.type.toLowerCase()}`, animal.type)}{animal.breed ? ` · ${animal.breed}` : ""}{animal.age !== undefined && animal.age !== "" ? ` · ${animal.age} ${Number(animal.age) === 1 ? t("common.year", "year") : t("common.years", "years")}` : ""}{animal.gender ? ` · ${t(`common.${animal.gender.toLowerCase()}`, animal.gender)}` : ""}</p>
             {animal.city && <p className="mt-2 flex items-center gap-1 text-xs text-ink-500"><MapPin size={13} />{getCityName(animal.city)}</p>}
             <div className="mt-2 flex flex-wrap gap-1.5">{animal.health && <Badge variant="neutral">{animal.health === "Vaccinated" ? (language === "ru" ? "Привит" : "Vaccinated") : animal.health}</Badge>}</div>
-            <Link to={`/adoption/${animal.id}`} className={`${btn2} mt-3 min-h-9 w-full px-3 text-xs`}><Heart size={14} />{t("common.details", "View Details")}</Link>
+            <Link to={`/adoption/${animal.id}`} className={`${btn2} mt-3 min-h-9 w-full gap-1 px-1.5 text-xs sm:gap-2 sm:px-3`}><Heart size={14} className="shrink-0" /><span className="min-w-0 truncate">{t("common.details", "View Details")}</span></Link>
           </div>
         </article>)}
       </div> : <EmptyState title={t("adoption.no_matches", "No animals found")} description={t("adoption.no_matches_sub", "Try adjusting your filters.")} icon={PawPrint} action={<button type="button" className={btn2} onClick={clearFilters}>{t("adoption.clear_filters", "Clear filters")}</button>} />}

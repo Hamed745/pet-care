@@ -5,12 +5,13 @@ import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { adminApi } from "./adminApi.js";
 import { deleteProductImage, uploadProductImage, validateProductImage } from "./productImages.js";
 import AdminPushSettings from "./AdminPushSettings.jsx";
+import AdminSettings from "./AdminSettings.jsx";
+import AdminClinicApprovals from "./AdminClinicApprovals.jsx";
+import { clinicApi } from "../services/clinicApi.js";
 import AdminPushListener from "./AdminPushListener.jsx";
 import { adminText } from "./i18n.js";
 import { insightsText } from "./insightsText.js";
 import { OverviewInsights, NotificationsView, ReportsView, GeographyView, ActivityView } from "./AdminInsights.jsx";
-import AdminClinicApprovals from "./AdminClinicApprovals.jsx";
-import { clinicApi } from "../services/clinicApi.js";
 import "./admin.css";
 
 const navItems = [
@@ -76,7 +77,7 @@ export default function AdminApp() {
   const fetchPage = useCallback(async (target, token="") => {
     setLoading(true); setError("");
     try {
-      const result = await ({ overview:adminApi.overview,users:()=>adminApi.users(token),pets:adminApi.pets,clinics:clinicApi.adminClinics,orders:adminApi.orders,products:adminApi.products,cities:adminApi.geography,notifications:adminApi.notifications,reports:()=>adminApi.reports(reportDays),settings:async()=>({}),audit:()=>adminApi.activity(token) })[target]();
+      const result = await ({ overview:adminApi.overview,users:()=>adminApi.users(token),pets:adminApi.pets,clinics:clinicApi.adminClinics,orders:adminApi.orders,products:adminApi.products,cities:adminApi.geography,notifications:adminApi.notifications,reports:()=>adminApi.reports(reportDays),settings:adminApi.settings,audit:()=>adminApi.activity(token) })[target]();
       setPayload((prev)=>({...prev,[target]:result}));
       if (target === "notifications") setUnreadCount(result.unreadCount || 0);
     } catch (err) { setError(humanError(err,adminText(language))); }
@@ -139,7 +140,7 @@ export default function AdminApp() {
         {page==="cities" && <GeographyView data={rows} language={language}/>}
         {page==="notifications" && <><AdminPushSettings/><NotificationsView data={rows} language={language} busy={busy} onMarkRead={()=>run(adminApi.markNotificationsRead,()=>setUnreadCount(0))} onOpenOrder={openNotifiedOrder}/></>}
         {page==="reports" && <ReportsView data={rows} language={language} days={reportDays} onDaysChange={setReportDays}/>}
-        {page==="settings" && <Box><div className="pa-card-heading"><h2><ShieldCheck size={20}/>{tx.settings}</h2></div><div className="pa-info-banner"><ShieldCheck size={20}/>{tx.settingsHint}</div><p className="pa-muted">{tx.legacyNotice}</p></Box>}
+        {page==="settings" && <AdminSettings data={rows} language={language} onReload={()=>fetchPage("settings")}/>}
         {page==="audit" && <ActivityView data={rows} language={language} onNext={chooseAuditPage} onPrevious={previousAuditPage} canPrevious={auditHistory.length>0} page={auditHistory.length+1}/>}
       </main>
       {editingUser && <div className="pa-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget) setEditingUser(null)}}><UserModal tx={tx} user={editingUser} busy={busy} close={()=>setEditingUser(null)} submit={(reason)=>run(()=>adminApi.setSuspended(editingUser.uid,!editingUser.disabled,reason),()=>setEditingUser(null))}/></div>}
@@ -237,7 +238,7 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
     e.preventDefault();
     setFormError("");
     let uploaded=null;
-    const oldStoragePath=p.imageStoragePath||"";
+    const oldImageKitFileId=p.imageKitFileId||"";
     try{
       let productToSave={
         ...p,
@@ -253,15 +254,15 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
       }
       const saved=await submit(productToSave);
       if(uploaded&&!saved){
-        await deleteProductImage(uploaded.imageStoragePath).catch(()=>{});
+        await deleteProductImage(uploaded.imageKitFileId).catch(()=>{});
         setFormError(tx.productSaveFailed);
       }else if(!saved){
         setFormError(tx.productSaveFailed);
-      }else if(saved&&oldStoragePath&&oldStoragePath!==productToSave.imageStoragePath){
-        await deleteProductImage(oldStoragePath).catch(()=>{});
+      }else if(saved&&oldImageKitFileId&&oldImageKitFileId!==productToSave.imageKitFileId){
+        await deleteProductImage(oldImageKitFileId).catch(()=>{});
       }
     }catch(error){
-      if(uploaded)await deleteProductImage(uploaded.imageStoragePath).catch(()=>{});
+      if(uploaded)await deleteProductImage(uploaded.imageKitFileId).catch(()=>{});
       setFormError(error?.message||tx.imageUploadFailed);
     }finally{
       setUploading(false);
@@ -298,7 +299,7 @@ function ProductModal({tx,ix,product,close,submit,busy}) {
         {imageError&&<small className="pa-form-error" role="alert">{imageError}</small>}
       </div>
 
-      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>{setSelectedImage(null);update("imageUrl",e.target.value);if(p.imageStoragePath)update("imageStoragePath","");}}/><small>{tx.imageHelp}</small></label>
+      <label className="pa-form-field">{tx.imageUrl}<input type="url" placeholder="https://…" value={p.imageUrl||""} onChange={e=>{setSelectedImage(null);update("imageUrl",e.target.value);if(p.imageKitFileId)update("imageKitFileId","");if(p.imageKitFilePath)update("imageKitFilePath","");}}/><small>{tx.imageHelp}</small></label>
       {formError&&<div className="pa-alert pa-error" role="alert">{formError}</div>}
       <label className="pa-checkbox"><input type="checkbox" checked={Boolean(p.published)} onChange={e=>update("published",e.target.checked)}/>{tx.publishedLabel}</label>
       <div className="pa-modal-actions"><button type="button" className="pa-outline-button" onClick={close}>{tx.cancel}</button><button type="submit" disabled={busy||uploading} className="pa-primary-button">{uploading?tx.imageUploadProgress:tx.save}</button></div>
