@@ -56,6 +56,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
   const [selectedPatient,setSelectedPatient]=useState("");
   const [recordForm,setRecordForm]=useState(blankVisit);
   const [bookingForm,setBookingForm]=useState(blankBooking);
+  const [slotEdits,setSlotEdits]=useState({});
   const [calendarDate,setCalendarDate]=useState(new Date().toISOString().slice(0,10));
   const [settings,setSettings]=useState({notifyNewBookings:true,notifyMedicalRecords:true,privacyContactEmail:""});
   const reload=useCallback(async()=>{
@@ -148,7 +149,17 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
           <div className="flex flex-wrap items-center justify-between gap-2"><strong>{x.petName} · {x.serviceName}</strong><Pill value={x.status}/></div>
           <p className="mt-2 text-xs text-ink-500">{fmtDate(x.date)} · {x.time} · {currency} {x.price||0}</p>
           <p className="my-2 text-sm">{x.notes||""}</p>
-          <div className="flex flex-wrap gap-2"><Button disabled={busy} size="sm" onClick={()=>run(()=>clinicApi.updateBooking(x.id,"confirmed"),"Appointment confirmed.")}>Accept</Button>
+          <p className="mb-3 text-xs text-ink-600">Choose the appointment day and time before accepting. The pet owner will see the confirmed slot.</p>
+          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <Field type="date" label="Confirm date" required value={slotEdits[x.id]?.date ?? x.date}
+              onChange={date=>setSlotEdits(current=>({...current,[x.id]:{date,time:current[x.id]?.time ?? x.time}}))}/>
+            <Field type="time" label="Confirm time" required value={slotEdits[x.id]?.time ?? x.time}
+              onChange={time=>setSlotEdits(current=>({...current,[x.id]:{date:current[x.id]?.date ?? x.date,time}}))}/>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={busy} size="sm" onClick={()=>run(()=>clinicApi.updateBooking(x.id,"confirmed","",{
+              date:slotEdits[x.id]?.date ?? x.date, time:slotEdits[x.id]?.time ?? x.time
+            }),"Appointment confirmed with selected date and time.")}>Accept & confirm time</Button>
             <Button disabled={busy} size="sm" variant="danger" onClick={()=>{const reason=window.prompt("Reason for rejection (at least 5 characters):");
               if(reason&&reason.trim().length>=5)run(()=>clinicApi.updateBooking(x.id,"rejected",reason.trim()),"Request rejected.");}}>Reject</Button></div>
         </div>)}
@@ -159,23 +170,6 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
             <div><strong>{x.petName||"Patient"} · {x.serviceName}</strong><p className="text-xs text-ink-500">{fmtDate(x.date)} · {x.time}</p></div>
             <div className="flex gap-2"><Pill value={x.status}/>{x.status==="confirmed"&&<Button size="sm" disabled={busy} onClick={()=>run(()=>clinicApi.updateBooking(x.id,"completed"),"Visit completed.")}>Complete</Button>}</div>
           </div>)}
-        </Section>
-        <Section title="Create appointment" description="For a patient already registered at this branch.">
-          <form className="grid gap-3 sm:grid-cols-2" onSubmit={submitBooking}>
-            <Select required label="Patient" value={bookingForm.patientId} onChange={e=>setBookingForm({...bookingForm,patientId:e.target.value})}>
-              <option value="">Choose patient</option>{patients.map(p=><option key={p.id} value={p.id}>{p.name} — {p.ownerName}</option>)}
-            </Select>
-            <Select required label="Service" value={bookingForm.serviceId} onChange={e=>setBookingForm({...bookingForm,serviceId:e.target.value})}>
-              <option value="">Choose service</option>{serviceOptions.filter(s=>s.available!==false).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-            <Select label="Doctor (optional)" value={bookingForm.doctorId} onChange={e=>setBookingForm({...bookingForm,doctorId:e.target.value})}>
-              <option value="">Unassigned</option>{staff.filter(s=>s.role==="veterinarian"&&s.status==="active").map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-            <Field required type="date" label="Date" value={bookingForm.date} onChange={v=>setBookingForm({...bookingForm,date:v})}/>
-            <Field required type="time" label="Time" value={bookingForm.time} onChange={v=>setBookingForm({...bookingForm,time:v})}/>
-            <Field label="Notes" value={bookingForm.notes} onChange={v=>setBookingForm({...bookingForm,notes:v})}/>
-            <Button type="submit" disabled={busy}>Create booking request</Button>
-          </form>
         </Section>
       </>}
       {data&&tab==="calendar"&&<Section title="Clinic calendar" description="Times are shown in the clinic's configured local time zone.">

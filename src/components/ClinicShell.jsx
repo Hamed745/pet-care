@@ -13,6 +13,7 @@ const links = [
   ["dashboard", Home, "Home", "Главная"],
   ["requests", ClipboardCheck, "Booking requests", "Заявки"],
   ["appointments", CalendarDays, "Appointments", "Записи"],
+  ["calendar", CalendarDays, "Calendar", "Календарь"],
   ["services", Stethoscope, "Services", "Услуги"],
   ["settings", Settings, "Settings", "Настройки"],
 ];

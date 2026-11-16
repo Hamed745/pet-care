@@ -282,7 +282,7 @@ export default function ClinicPortal() {
     return () => { active = false; };
   }, [user?.uid]);
   return <div className="space-y-6 py-5">
-    <PageHeader eyebrow="PetCare for clinics" title={isRussian ? "Кабинет клиники" : "Clinic Manager Portal"} description="Register your clinic, track admin approval, and manage bookings after verification."/>
+    {clinic?.status !== "approved" && <PageHeader eyebrow="PetCare for clinics" title={isRussian ? "Кабинет клиники" : "Clinic Manager Portal"} description="Register your clinic, track admin approval, and manage bookings after verification."/>}
     {!user && <Card className="flex flex-col items-start gap-4"><h2 className="text-lg font-extrabold">Sign in to register a clinic</h2><p className="text-sm text-ink-500">Sign in with your Clinic Branch Manager account to manage clinic applications.</p><Link to="/login" state={{ from: "/clinic" }} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white">Sign in</Link><Link to="/register?next=%2Fclinic" className="text-sm font-bold text-primary-700 underline">Create clinic manager account</Link></Card>}
     {user && loading && <p role="status" className="text-sm text-ink-500">Checking your clinic registration…</p>}
     {user && error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
