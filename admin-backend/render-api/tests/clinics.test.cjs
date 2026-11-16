@@ -611,3 +611,65 @@ test("Russian clinic draft, approval and public map-share link work without coor
   assert.equal(changed.data.clinic.region, "Москва");
   assert.equal(changed.data.clinic.mapUrl, "https://yandex.ru/maps/213/moscow/");
 });
+
+
+test("approved clinic manager can confirm a pet owner's request with a chosen clinic-local slot", async()=>{
+  const f=fixture();
+  const manager={uid:"manager-a"};
+  const owner={uid:"pet-owner"};
+  const day=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+  f.docs.set("clinicBranches/manager-a",{
+    status:"approved",region:"Москва",timeZone:"Europe/Moscow",
+    workingHours:{days:[0,1,2,3,4,5,6],open:"08:00",close:"20:00"}
+  });
+  f.docs.set("clinicAppointments/request-one",{
+    clinicId:"manager-a",ownerUid:owner.uid,status:"pending",
+    date:day,time:"09:00",durationMinutes:30,petName:"Luna",serviceName:"Exam",price:1200
+  });
+  const confirmed=await f.run("POST","/api/clinics/mine/appointments/:id/status",manager,
+    {status:"confirmed",date:day,time:"11:30"},{id:"request-one"});
+  assert.equal(confirmed.data.appointment.status,"confirmed");
+  assert.equal(confirmed.data.appointment.date,day);
+  assert.equal(confirmed.data.appointment.time,"11:30");
+  const ownerView=await f.run("GET","/api/clinics/my-appointments",owner);
+  assert.equal(ownerView.data.appointments[0].time,"11:30");
+  assert.equal(f.docs.get("clinicBranches/manager-a/reservedSlots/"+day+"_11:30").appointmentId,"request-one");
+});
+test("booking time changes reject past dates, invalid hours and half-complete requests",async()=>{
+  const f=fixture(),manager={uid:"manager-a"},day=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+  f.docs.set("clinicBranches/manager-a",{
+    status:"approved",region:"Москва",timeZone:"Europe/Moscow",
+    workingHours:{days:[0,1,2,3,4,5,6],open:"08:00",close:"20:00"}
+  });
+  f.docs.set("clinicAppointments/request-a",{clinicId:"manager-a",status:"pending",date:day,time:"09:00",durationMinutes:30});
+  const path="/api/clinics/mine/appointments/:id/status",params={id:"request-a"};
+  await assert.rejects(()=>f.run("POST",path,manager,{status:"confirmed",date:day},params),{status:400});
+  await assert.rejects(()=>f.run("POST",path,manager,{status:"confirmed",date:day,time:"06:00"},params),{status:400});
+  await assert.rejects(()=>f.run("POST",path,manager,{status:"confirmed",date:"2000-01-01",time:"11:30"},params),{status:400});
+  await assert.rejects(()=>f.run("POST",path,manager,{status:"confirmed",date:day,time:"19:45"},params),{status:400});
+  assert.equal(f.docs.get("clinicAppointments/request-a").status,"pending");
+});
+test("overlapping slots and foreign clinic accounts cannot confirm a request",async()=>{
+  const f=fixture(),manager={uid:"manager-a"},other={uid:"manager-b"};
+  const day=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+  const base={status:"approved",region:"Москва",timeZone:"Europe/Moscow",workingHours:{days:[0,1,2,3,4,5,6],open:"08:00",close:"20:00"}};
+  f.docs.set("clinicBranches/manager-a",base);
+  f.docs.set("clinicBranches/manager-b",base);
+  f.docs.set("clinicAppointments/request-a",{clinicId:"manager-a",status:"pending",date:day,time:"09:00",durationMinutes:30});
+  f.docs.set("clinicBranches/manager-a/reservedSlots/"+day+"_11:00",{
+    appointmentId:"other-booking",date:day,time:"11:00",durationMinutes:45
+  });
+  const path="/api/clinics/mine/appointments/:id/status",params={id:"request-a"},body={status:"confirmed",date:day,time:"11:30"};
+  await assert.rejects(()=>f.run("POST",path,manager,body,params),{status:409});
+  await assert.rejects(()=>f.run("POST",path,other,body,params),{status:404});
+  assert.equal(f.docs.get("clinicAppointments/request-a").status,"pending");
+});
+test("legacy status-only confirmation still reserves the owner's requested slot",async()=>{
+  const f=fixture(),manager={uid:"manager-a"},day=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+  f.docs.set("clinicBranches/manager-a",{status:"approved"});
+  f.docs.set("clinicAppointments/request-a",{clinicId:"manager-a",status:"pending",date:day,time:"11:00",durationMinutes:30});
+  const result=await f.run("POST","/api/clinics/mine/appointments/:id/status",manager,{status:"confirmed"},{id:"request-a"});
+  assert.equal(result.data.appointment.status,"confirmed");
+  assert.equal(result.data.appointment.time,"11:00");
+  assert.equal(f.docs.get("clinicBranches/manager-a/reservedSlots/"+day+"_11:00").appointmentId,"request-a");
+});
