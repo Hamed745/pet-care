@@ -2,6 +2,7 @@
 
 const { createHash, randomUUID } = require("node:crypto");
 const { FieldPath } = require("firebase-admin/firestore");
+const { validateMapUrl, validateClinicTimeZone, clinicTimeZone, clinicCurrency, clinicRegion, safeMapUrl } = require("./clinicLocation.cjs");
 const {
   createClinicDocumentStorage,
   MAX_DOCUMENT_BYTES,
@@ -37,6 +38,7 @@ function validateApplication(input) {
   const allowedFields = new Set([
     "name", "managerName", "governorate", "city", "address", "latitude", "longitude",
     "phone", "email", "description", "clinicLicenseNumber", "responsibleVetName",
+    "region", "mapUrl", "timeZone",
     "responsibleVetLicenseNumber",
   ]);
   if (Object.keys(input).some((key) => !allowedFields.has(key))) throw new Error("Invalid clinic registration.");
@@ -44,23 +46,41 @@ function validateApplication(input) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email address.");
   const phone = field(input.phone, "telephone", 32);
   if (!/^[+\d\s()-]{7,32}$/.test(phone)) throw new Error("Invalid phone number.");
-  const governorate = field(input.governorate, "governorate", 100);
-  if (!EGYPT_GOVERNORATES.has(governorate)) throw new Error("Please select an Egyptian governorate.");
-  const latitude = Number(input.latitude);
-  const longitude = Number(input.longitude);
-  if (input.latitude === "" || input.latitude == null || !Number.isFinite(latitude) ||
-      latitude < -90 || latitude > 90 || input.longitude === "" || input.longitude == null ||
-      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    throw new Error("Enter valid clinic location coordinates.");
+  // New Russian clinic registrations use a map share URL instead of manual coordinates.
+  // Keep the legacy Egyptian payload valid for old records/tests; it is no longer
+  // offered by the web registration form.
+  const isRussian = input.region !== undefined || input.mapUrl !== undefined || input.timeZone !== undefined;
+  let location;
+  if (isRussian) {
+    location = {
+      country: "RU",
+      region: field(input.region, "region", 120),
+      mapUrl: validateMapUrl(input.mapUrl),
+      timeZone: validateClinicTimeZone(input.timeZone),
+      currency: "RUB",
+    };
+  } else {
+    const governorate = field(input.governorate, "governorate", 100);
+    if (!EGYPT_GOVERNORATES.has(governorate)) throw new Error("Please select an Egyptian governorate.");
+    const latitude = Number(input.latitude);
+    const longitude = Number(input.longitude);
+    if (input.latitude === "" || input.latitude == null || !Number.isFinite(latitude) ||
+        latitude < -90 || latitude > 90 || input.longitude === "" || input.longitude == null ||
+        !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      throw new Error("Enter valid clinic location coordinates.");
+    }
+    location = {
+      governorate, latitude: Math.round(latitude * 1e6) / 1e6,
+      longitude: Math.round(longitude * 1e6) / 1e6,
+      timeZone: "Africa/Cairo", currency: "EGP",
+    };
   }
   return {
     name: field(input.name, "clinic name", 120),
     managerName: field(input.managerName, "manager name", 120),
-    governorate,
+    ...location,
     city: field(input.city, "city", 100),
     address: field(input.address, "address", 250),
-    latitude: Math.round(latitude * 1e6) / 1e6,
-    longitude: Math.round(longitude * 1e6) / 1e6,
     phone, email,
     description: field(input.description || "", "description", 700, false),
     clinicLicenseNumber: field(input.clinicLicenseNumber, "clinic license number", 100),
@@ -81,10 +101,10 @@ function validateClinicDraft(input) {
   const textFields = {
     name: 120, managerName: 120, city: 100, address: 250, phone: 32, email: 180,
     description: 700, clinicLicenseNumber: 100, responsibleVetName: 120,
-    responsibleVetLicenseNumber: 100, governorate: 100,
+    responsibleVetLicenseNumber: 100, governorate: 100, region: 120,
   };
   const result = {};
-  const allowedFields = new Set([...Object.keys(textFields), "latitude", "longitude"]);
+  const allowedFields = new Set([...Object.keys(textFields), "latitude", "longitude", "mapUrl", "timeZone"]);
   if (Object.keys(input).some((key) => !allowedFields.has(key))) throw new Error("Invalid clinic draft.");
   for (const [key, max] of Object.entries(textFields)) {
     if (input[key] === undefined) continue;
@@ -96,6 +116,12 @@ function validateClinicDraft(input) {
   if (result.phone && !/^[+\d\s()-]{7,32}$/.test(result.phone)) throw new Error("Invalid phone number.");
   if (result.governorate && !EGYPT_GOVERNORATES.has(result.governorate)) {
     throw new Error("Please select an Egyptian governorate.");
+  }
+  if (input.mapUrl !== undefined) result.mapUrl = validateMapUrl(input.mapUrl, false);
+  if (input.timeZone !== undefined) result.timeZone = input.timeZone ? validateClinicTimeZone(input.timeZone) : "";
+  if (result.region) {
+    result.country = "RU";
+    result.currency = "RUB";
   }
   for (const [key, min, max] of [["latitude", -90, 90], ["longitude", -180, 180]]) {
     if (input[key] === undefined || input[key] === "") continue;
@@ -110,19 +136,25 @@ function validateClinicDraft(input) {
 }
 
 function validateClinicProfile(input) {
-  const allowedFields = ["name", "description", "phone", "city", "address", "latitude", "longitude"];
+  const allowedFields = ["name", "description", "phone", "city", "address", "latitude", "longitude", "region", "mapUrl", "timeZone"];
   if (!input || typeof input !== "object" || Array.isArray(input) ||
       Object.keys(input).some((key) => !allowedFields.includes(key))) {
     throw new Error("Invalid clinic profile.");
   }
   if (!Object.keys(input).length) throw new Error("Update at least one clinic profile field.");
   const result = {};
-  for (const [key, max] of Object.entries({ name: 120, description: 700, phone: 32, city: 100, address: 250 })) {
+  for (const [key, max] of Object.entries({ name: 120, description: 700, phone: 32, city: 100, address: 250, region: 120 })) {
     if (input[key] === undefined) continue;
     const required = key !== "description";
     result[key] = field(input[key], key, max, required);
   }
   if (result.phone && !/^[+\d\s()-]{7,32}$/.test(result.phone)) throw new Error("Invalid phone number.");
+  if (input.mapUrl !== undefined) result.mapUrl = validateMapUrl(input.mapUrl);
+  if (input.timeZone !== undefined) result.timeZone = validateClinicTimeZone(input.timeZone);
+  if (result.region) {
+    result.country = "RU";
+    result.currency = "RUB";
+  }
   for (const [key, min, max] of [["latitude", -90, 90], ["longitude", -180, 180]]) {
     if (input[key] === undefined) continue;
     const value = Number(input[key]);
@@ -155,7 +187,10 @@ function publicClinic(snapshot) {
   const data = snapshot.data() || {};
   return {
     id: snapshot.id, name: data.name || "", city: data.city || "",
-    governorate: data.governorate || "", address: data.address || "",
+    governorate: data.governorate || "", region: clinicRegion(data),
+    country: data.country || (data.region ? "RU" : ""),
+    mapUrl: safeMapUrl(data.mapUrl), timeZone: clinicTimeZone(data),
+    currency: clinicCurrency(data), address: data.address || "",
     phone: data.phone || "", description: data.description || "",
     latitude: Number.isFinite(data.latitude) ? data.latitude : null,
     longitude: Number.isFinite(data.longitude) ? data.longitude : null,
@@ -882,18 +917,19 @@ function registerClinicRoutes({
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
       throw new HttpError(400, "A valid booking request ID is required.");
     }
-    // Compare two *Egypt-local wall clock* times; server/browser time zones may differ.
-    const cairoNow = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit",
+    // Compare local wall-clock values using this clinic's configured time zone,
+    // not the Vercel runtime time zone. Legacy Egyptian clinics retain Cairo time.
+    const clinicNow = new Intl.DateTimeFormat("en-GB", {
+      timeZone: clinicTimeZone(clinic), year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit", hourCycle: "h23",
     }).formatToParts(new Date()).reduce((parts, part) => ({ ...parts, [part.type]: part.value }), {});
-    const cairoStamp = `${cairoNow.year}-${cairoNow.month}-${cairoNow.day}T${cairoNow.hour}:${cairoNow.minute}:00Z`;
+    const clinicStamp = `${clinicNow.year}-${clinicNow.month}-${clinicNow.day}T${clinicNow.hour}:${clinicNow.minute}:00Z`;
     const targetStamp = `${date}T${time}:00Z`;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
         Number.isNaN(Date.parse(targetStamp)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date ||
-        Date.parse(targetStamp) < Date.parse(cairoStamp) + 30 * 60000 ||
-        Date.parse(targetStamp) > Date.parse(cairoStamp) + 180 * 86400000) {
-      throw new HttpError(400, "Choose a valid future date and time (within 180 days). All times are entered in Egypt local time.");
+        Date.parse(targetStamp) < Date.parse(clinicStamp) + 30 * 60000 ||
+        Date.parse(targetStamp) > Date.parse(clinicStamp) + 180 * 86400000) {
+      throw new HttpError(400, "Choose a valid future date and time (within 180 days). Times are entered in the clinic's configured local time zone.");
     }
     const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
     const startMinutes = minutesOfDay(time);

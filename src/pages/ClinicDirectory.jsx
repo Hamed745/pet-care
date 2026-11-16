@@ -27,15 +27,15 @@ function BookingForm({ clinic, pets, onBooked }) {
     finally { setBusy(false); }
   };
   const edit = (key) => (event) => setForm((old) => ({ ...old, [key]: event.target.value }));
-  const todayParts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const todayParts = new Intl.DateTimeFormat("en-GB", { timeZone: clinic.timeZone || (clinic.region ? "Europe/Moscow" : "Africa/Cairo"), year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
   const todayValues = Object.fromEntries(todayParts.map(({ type, value }) => [type, value]));
   const today = `${todayValues.year}-${todayValues.month}-${todayValues.day}`;
   return <form onSubmit={submit} className="mt-4 grid gap-3 rounded-xl bg-primary-50/50 p-4 sm:grid-cols-2">
     {!pets.length ? <p className="text-sm text-amber-900 sm:col-span-2">Add a pet to your profile before requesting an appointment. <Link className="font-bold underline" to="/pets/new">Add a pet</Link></p> : <>
       <Select required label="Your pet" value={form.petId} onChange={edit("petId")}><option value="">Choose a pet</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</Select>
-      <Select required label="Clinic service" value={form.serviceId} onChange={edit("serviceId")}><option value="">Choose a service</option>{clinic.services.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.price} EGP</option>)}</Select>
+      <Select required label="Clinic service" value={form.serviceId} onChange={edit("serviceId")}><option value="">Choose a service</option>{clinic.services.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.price} {clinic.currency || "RUB"}</option>)}</Select>
       <Input required type="date" min={today} label="Appointment date" value={form.date} onChange={edit("date")}/>
-      <Input required type="time" label="Preferred time (Egypt time)" value={form.time} onChange={edit("time")}/>
+      <Input required type="time" label={"Preferred time (" + (clinic.timeZone || "Europe/Moscow") + ")"} value={form.time} onChange={edit("time")}/>
       <div className="sm:col-span-2"><Textarea label="Notes (optional)" rows={2} maxLength={500} value={form.notes} onChange={edit("notes")}/></div>
       <p className="text-xs leading-5 text-ink-600 sm:col-span-2">Your appointment is a request. The clinic manager must approve it before it is confirmed. No payment is collected.</p>
       {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>}
@@ -51,7 +51,7 @@ export default function ClinicDirectory() {
   const [clinics, setClinics] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [search, setSearch] = useState("");
-  const [governorate, setGovernorate] = useState("");
+  const [region, setRegion] = useState("");
   const [city, setCity] = useState("");
   const [serviceName, setServiceName] = useState("");
   const [active, setActive] = useState("");
@@ -73,16 +73,16 @@ export default function ClinicDirectory() {
     const timer = window.setInterval(() => refresh(true), 60000);
     return () => window.clearInterval(timer);
   }, [user?.uid]);
-  const governorates = useMemo(() => [...new Set(clinics.map((clinic) => clinic.governorate).filter(Boolean))].sort(), [clinics]);
-  const cities = useMemo(() => [...new Set(clinics.filter((clinic) => !governorate || clinic.governorate === governorate)
-    .map((clinic) => clinic.city).filter(Boolean))].sort(), [clinics, governorate]);
+  const regions = useMemo(() => [...new Set(clinics.map((clinic) => clinic.region || clinic.governorate).filter(Boolean))].sort(), [clinics]);
+  const cities = useMemo(() => [...new Set(clinics.filter((clinic) => !region || (clinic.region || clinic.governorate) === region)
+    .map((clinic) => clinic.city).filter(Boolean))].sort(), [clinics, region]);
   const services = useMemo(() => [...new Set(clinics.flatMap((clinic) => clinic.services.map((service) => service.name)).filter(Boolean))].sort(), [clinics]);
   const filtered = useMemo(() => clinics.filter((clinic) =>
-    `${clinic.name} ${clinic.city} ${clinic.governorate} ${clinic.address} ${clinic.description}`.toLowerCase().includes(search.trim().toLowerCase()) &&
-    (!governorate || clinic.governorate === governorate) &&
+    `${clinic.name} ${clinic.city} ${clinic.region || clinic.governorate || ""} ${clinic.address} ${clinic.description}`.toLowerCase().includes(search.trim().toLowerCase()) &&
+    (!region || (clinic.region || clinic.governorate) === region) &&
     (!city || clinic.city === city) &&
     (!serviceName || clinic.services.some((service) => service.name === serviceName))
-  ), [clinics, search, governorate, city, serviceName]);
+  ), [clinics, search, region, city, serviceName]);
   const ownedPets = useMemo(() => pets.filter((pet) => pet.ownerUid === user?.uid), [pets, user?.uid]);
   const cancel = async (id) => {
     setBusy(id);
@@ -97,7 +97,7 @@ export default function ClinicDirectory() {
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(150px,auto))_auto]">
       <label className="min-w-0"><span className="sr-only">{tr("Search registered clinics", "Поиск клиник")}</span><input className="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tr("Search clinic, city or address…", "Поиск клиники, города или адреса…")}/></label>
-      <Select label={tr("Governorate", "Губернаторство")} value={governorate} onChange={(event) => { setGovernorate(event.target.value); setCity(""); }}><option value="">{tr("All governorates", "Все губернаторства")}</option>{governorates.map((item) => <option key={item}>{item}</option>)}</Select>
+      <Select label={tr("Region", "Регион")} value={region} onChange={(event) => { setRegion(event.target.value); setCity(""); }}><option value="">{tr("All regions", "Все регионы")}</option>{regions.map((item) => <option key={item}>{item}</option>)}</Select>
       <Select label={tr("City", "Город")} value={city} onChange={(event) => setCity(event.target.value)}><option value="">{tr("All cities", "Все города")}</option>{cities.map((item) => <option key={item}>{item}</option>)}</Select>
       <Select label={tr("Service", "Услуга")} value={serviceName} onChange={(event) => setServiceName(event.target.value)}><option value="">{tr("All services", "Все услуги")}</option>{services.map((item) => <option key={item}>{item}</option>)}</Select>
       <Button variant="secondary" type="button" onClick={refresh}><RefreshCw size={16}/> {tr("Refresh", "Обновить")}</Button>
@@ -118,12 +118,12 @@ export default function ClinicDirectory() {
         </div>
         <p className="text-sm text-ink-600">{clinic.description || "Veterinary care from an approved PetCare clinic."}</p>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-ink-600">
-          <span>{clinic.phone} · {clinic.governorate}</span>
-          {Number.isFinite(clinic.latitude) && Number.isFinite(clinic.longitude) && <a className="font-bold text-primary-700 underline" href={`https://maps.google.com/?q=${clinic.latitude},${clinic.longitude}`} target="_blank" rel="noreferrer">{tr("View location on map", "Посмотреть на карте")}</a>}
+          <span>{clinic.phone} · {clinic.region || clinic.governorate}</span>
+          {(clinic.mapUrl || (Number.isFinite(clinic.latitude) && Number.isFinite(clinic.longitude))) && <a className="font-bold text-primary-700 underline" href={clinic.mapUrl || `https://maps.google.com/?q=${clinic.latitude},${clinic.longitude}`} target="_blank" rel="noopener noreferrer">{tr("Open clinic location", "Открыть местоположение клиники")}</a>}
         </div>
         {clinic.workingHours && <p className="text-xs text-ink-600">{tr("Open", "Открыто")}: {clinic.workingHours.open}–{clinic.workingHours.close} · {clinic.workingHours.days.map((day) => ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][day]).join(", ")}</p>}
         <div className="space-y-2">
-          {clinic.services.map((service) => <p key={service.id} className="flex justify-between gap-2 border-b border-stone-100 pb-2 text-sm"><span>{service.name} · {service.durationMinutes} min</span><strong>{service.price} EGP</strong></p>)}
+          {clinic.services.map((service) => <p key={service.id} className="flex justify-between gap-2 border-b border-stone-100 pb-2 text-sm"><span>{service.name} · {service.durationMinutes} min</span><strong>{service.price} {clinic.currency || "RUB"}</strong></p>)}
         </div>
         <div className="mt-auto">
           {!clinic.services.length
@@ -132,7 +132,7 @@ export default function ClinicDirectory() {
               ? <p className="text-xs text-ink-500">{tr("Clinic availability is not configured.", "Расписание клиники не настроено.")}</p>
               : user
                 ? <Button variant="secondary" onClick={() => setActive(active === clinic.id ? "" : clinic.id)}><CalendarDays size={16}/>{active === clinic.id ? tr("Close", "Закрыть") : tr("Book a visit", "Записаться")}</Button>
-                : <Link className="text-sm font-bold text-primary-700 underline" to="/login" state={{ from: "/nearby/our/veterinary" }}>{tr("Sign in to book", "Войдите для записи")}</Link>}
+                : <Link className="text-sm font-bold text-primary-700 underline" to="/login" state={{ from: "/clinics" }}>{tr("Sign in to book", "Войдите для записи")}</Link>}
           {active === clinic.id && user && <BookingForm clinic={clinic} pets={ownedPets} onBooked={() => { setActive(""); setNotice(tr("Request sent. Waiting for clinic approval.", "Запрос отправлен и ожидает подтверждения клиникой.")); refresh(); }}/>}
         </div>
       </Card>)}

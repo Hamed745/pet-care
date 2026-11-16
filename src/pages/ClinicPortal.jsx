@@ -7,17 +7,19 @@ import { useLanguage } from "../i18n/LanguageContext.jsx";
 import ClinicWorkspace from "./ClinicWorkspace.jsx";
 import { Button, Card, Input, PageHeader, Textarea } from "../components/ui.jsx";
 
-const EMPTY = { name: "", managerName: "", governorate: "", city: "", address: "", latitude: "", longitude: "", phone: "", email: "", description: "", clinicLicenseNumber: "", responsibleVetName: "", responsibleVetLicenseNumber: "" };
+const EMPTY = { name: "", managerName: "", region: "", city: "", address: "", mapUrl: "", timeZone: "Europe/Moscow", phone: "", email: "", description: "", clinicLicenseNumber: "", responsibleVetName: "", responsibleVetLicenseNumber: "" };
 const DOCUMENT_CONSENT_VERSION = "clinic-document-consent-v1";
 const DOCUMENTS = [
   ["clinic_license", "Clinic license"], ["manager_id", "Manager identity document"], ["vet_license", "Responsible veterinarian's license"],
 ];
-const GOVERNORATES = ["Alexandria", "Aswan", "Asyut", "Beheira", "Beni Suef", "Cairo", "Dakahlia", "Damietta", "Faiyum", "Gharbia", "Giza", "Ismailia", "Kafr El Sheikh", "Luxor", "Matrouh", "Minya", "Monufia", "New Valley", "North Sinai", "Port Said", "Qalyubia", "Qena", "Red Sea", "Sharqia", "Sohag", "South Sinai", "Suez"];
+const RUSSIAN_TIME_ZONES = ["Europe/Kaliningrad", "Europe/Moscow", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk", "Asia/Krasnoyarsk", "Asia/Irkutsk", "Asia/Yakutsk", "Asia/Vladivostok", "Asia/Magadan", "Asia/Sakhalin", "Asia/Kamchatka"];
 
 function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments, managerName, managerEmail }) {
   const { isRussian } = useLanguage();
   const [form, setForm] = useState(() => ({
-    ...EMPTY, ...current,
+    ...EMPTY,
+    ...Object.fromEntries(Object.keys(EMPTY).map((key) => [key, current?.[key] ?? EMPTY[key]])),
+    region: current?.region || current?.governorate || "",
     managerName: current?.managerName || managerName || "",
     email: current?.email || managerEmail || "",
   }));
@@ -64,13 +66,14 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
       <div className="grid gap-4 sm:grid-cols-2">
         <Input required label={label("Clinic name", "Название клиники")} maxLength={120} value={form.name} onChange={edit("name")} />
         <Input required label={label("Manager full name", "Полное имя менеджера")} maxLength={120} value={form.managerName} onChange={edit("managerName")} />
-        <label className="text-xs font-semibold text-ink-700">{label("Governorate", "Губернаторство")}<select required className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm" value={form.governorate} onChange={edit("governorate")}><option value="">{label("Choose governorate", "Выберите губернаторство")}</option>{GOVERNORATES.map((place) => <option value={place} key={place}>{place}</option>)}</select></label>
+        <Input required label={label("Region / Federal subject", "Регион / субъект РФ")} maxLength={120} value={form.region} placeholder={label("e.g. Moscow Oblast", "Например, Московская область")} onChange={edit("region")} />
         <Input required label={label("City", "Город")} maxLength={100} value={form.city} onChange={edit("city")} />
         <Input required label={label("Street address", "Адрес")} maxLength={250} value={form.address} onChange={edit("address")} />
         <Input required label={label("Phone", "Телефон")} type="tel" maxLength={32} value={form.phone} onChange={edit("phone")} />
         <Input required label="Email" type="email" maxLength={180} value={form.email} onChange={edit("email")} />
-        <Input required label={label("Latitude", "Широта")} type="number" step="any" min="-90" max="90" value={form.latitude} onChange={edit("latitude")} />
-        <Input required label={label("Longitude", "Долгота")} type="number" step="any" min="-180" max="180" value={form.longitude} onChange={edit("longitude")} />
+        <Input required label={label("Clinic map link (2GIS, Yandex Maps, Google Maps…)", "Ссылка на клинику на карте (2ГИС, Яндекс Карты…)")} type="url" maxLength={1800} placeholder="https://2gis.ru/..." value={form.mapUrl} onChange={edit("mapUrl")} />
+        <label className="text-xs font-semibold text-ink-700">{label("Clinic appointment time zone", "Часовой пояс клиники")}<select required className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm" value={form.timeZone} onChange={edit("timeZone")}>{RUSSIAN_TIME_ZONES.map((zone) => <option value={zone} key={zone}>{zone.replaceAll("_", " ")}</option>)}</select></label>
+        <p className="text-xs text-ink-500 sm:col-span-2">{label("Paste a share link to your exact clinic address from 2GIS, Yandex Maps, Google Maps or OpenStreetMap. No map picker is needed.", "Вставьте ссылку на точный адрес клиники из 2ГИС, Яндекс Карт, Google Maps или OpenStreetMap. Выбирать точку на карте не нужно.")}</p>
       </div>
       <Textarea label={label("Clinic description (optional)", "Описание клиники (необязательно)")} rows={3} maxLength={700} value={form.description} onChange={edit("description")} />
       <div className="grid gap-4 sm:grid-cols-2">
@@ -120,7 +123,8 @@ function ClinicProfileEditor({ clinic, onSaved }) {
   const [profile, setProfile] = useState(() => ({
     name: clinic.name || "", description: clinic.description || "",
     phone: clinic.phone || "", city: clinic.city || "", address: clinic.address || "",
-    latitude: clinic.latitude ?? "", longitude: clinic.longitude ?? "",
+    region: clinic.region || clinic.governorate || "",
+    mapUrl: clinic.mapUrl || "", timeZone: clinic.timeZone || "Europe/Moscow",
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -129,11 +133,7 @@ function ClinicProfileEditor({ clinic, onSaved }) {
   const save = async (event) => {
     event.preventDefault(); setSaving(true); setError("");
     try {
-      const result = await clinicApi.updateProfile({
-        ...profile,
-        latitude: Number(profile.latitude),
-        longitude: Number(profile.longitude),
-      });
+      const result = await clinicApi.updateProfile(profile);
       onSaved(result.clinic);
     } catch (err) { setError(err.message || "Unable to update clinic profile."); }
     finally { setSaving(false); }
@@ -145,8 +145,9 @@ function ClinicProfileEditor({ clinic, onSaved }) {
       <Input required label={tr("Phone", "Телефон")} type="tel" maxLength={32} value={profile.phone} onChange={edit("phone")} />
       <Input required label={tr("City", "Город")} maxLength={100} value={profile.city} onChange={edit("city")} />
       <Input required label={tr("Street address", "Адрес")} maxLength={250} value={profile.address} onChange={edit("address")} />
-      <Input required label={tr("Latitude", "Широта")} type="number" step="any" min="-90" max="90" value={profile.latitude} onChange={edit("latitude")} />
-      <Input required label={tr("Longitude", "Долгота")} type="number" step="any" min="-180" max="180" value={profile.longitude} onChange={edit("longitude")} />
+        <Input required label={tr("Region / Federal subject", "Регион / субъект РФ")} maxLength={120} value={profile.region} onChange={edit("region")} />
+        <Input required type="url" label={tr("Clinic map link (HTTPS)", "Ссылка на клинику на карте (HTTPS)")} maxLength={1800} value={profile.mapUrl} onChange={edit("mapUrl")} />
+      <label className="text-xs font-semibold text-ink-700">{tr("Appointment time zone", "Часовой пояс для записи")}<select required className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm" value={profile.timeZone} onChange={edit("timeZone")}>{RUSSIAN_TIME_ZONES.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}</select></label>
       <div className="sm:col-span-2"><Textarea label={tr("Description", "Описание")} rows={3} maxLength={700} value={profile.description} onChange={edit("description")} /></div>
       {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2"><Button type="submit" loading={saving}>{tr("Save profile", "Сохранить профиль")}</Button></div>
@@ -213,9 +214,9 @@ function ServicesEditor({ clinic, onSaved }) {
     catch (err) { setError(err.message); }
     finally { setSaving(false); }
   };
-  return <Card className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-extrabold">Clinic services · EGP</h2><Button size="sm" variant="secondary" type="button" disabled={services.length >= 15} onClick={() => setServices((current) => [...current, { id: crypto.randomUUID(), name: "", price: "", durationMinutes: 30 }])}>+ Add service</Button></div>
+  return <Card className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-extrabold">Clinic services · RUB (₽)</h2><Button size="sm" variant="secondary" type="button" disabled={services.length >= 15} onClick={() => setServices((current) => [...current, { id: crypto.randomUUID(), name: "", price: "", durationMinutes: 30 }])}>+ Add service</Button></div>
     {!services.length && <p className="text-sm text-ink-500">Add at least one service to let pet owners book this clinic.</p>}
-    {services.map((service, index) => <div key={service.id} className="grid items-end gap-3 rounded-xl border border-stone-100 p-3 sm:grid-cols-[1fr_120px_110px_auto]"><Input label="Service name" value={service.name} onChange={(e) => edit(index,"name",e.target.value)}/><Input label="Price (EGP)" type="number" min="0" max="100000" value={service.price} onChange={(e) => edit(index,"price",e.target.value)}/><Input label="Minutes" type="number" min="10" max="480" value={service.durationMinutes} onChange={(e) => edit(index,"durationMinutes",e.target.value)}/><label className="flex min-h-10 items-center gap-2 text-xs"><input type="checkbox" checked={service.available !== false} onChange={(event) => edit(index, "available", event.target.checked)} />Available for booking</label><Button type="button" variant="ghost" onClick={() => setServices((current) => current.filter((_,i) => i !== index))}>Remove</Button></div>)}
+    {services.map((service, index) => <div key={service.id} className="grid items-end gap-3 rounded-xl border border-stone-100 p-3 sm:grid-cols-[1fr_120px_110px_auto]"><Input label="Service name" value={service.name} onChange={(e) => edit(index,"name",e.target.value)}/><Input label="Price (RUB)" type="number" min="0" max="100000" value={service.price} onChange={(e) => edit(index,"price",e.target.value)}/><Input label="Minutes" type="number" min="10" max="480" value={service.durationMinutes} onChange={(e) => edit(index,"durationMinutes",e.target.value)}/><label className="flex min-h-10 items-center gap-2 text-xs"><input type="checkbox" checked={service.available !== false} onChange={(event) => edit(index, "available", event.target.checked)} />Available for booking</label><Button type="button" variant="ghost" onClick={() => setServices((current) => current.filter((_,i) => i !== index))}>Remove</Button></div>)}
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     <Button type="button" loading={saving} onClick={save}>Save services</Button>
   </Card>;
@@ -249,7 +250,7 @@ function ClinicAppointments() {
       <div className="rounded-xl bg-green-50 p-3"><strong>{completedCount}</strong><p className="text-xs text-ink-600">Completed appointments</p></div>
     </div>
     {!loading && !items.length && <p className="text-sm text-ink-500">No appointments yet. Approved clinics with services will appear in Our Clinics.</p>}
-    {items.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 p-4"><div><strong>{item.petName} · {item.serviceName}</strong><p className="mt-1 text-xs text-ink-500">{item.date} {item.time} · {item.price} EGP · {item.status}</p>{item.notes && <p className="mt-1 text-xs text-ink-600">{item.notes}</p>}{item.statusReason && <p className="mt-1 text-xs text-amber-900">Feedback: {item.statusReason}</p>}</div><div className="flex flex-wrap items-end gap-2">{item.status === "pending" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"confirmed")}>Accept</Button><div className="w-full sm:w-56"><Textarea label="Rejection reason" rows={1} maxLength={300} value={rejectionReasons[item.id] || ""} onChange={(event) => setRejectionReasons((current) => ({ ...current, [item.id]: event.target.value }))}/></div><Button size="sm" variant="danger" disabled={busy === item.id || (rejectionReasons[item.id] || "").trim().length < 5} onClick={() => update(item.id,"rejected",rejectionReasons[item.id])}>Reject</Button></>}{item.status === "confirmed" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"completed")}>Complete</Button><Button size="sm" variant="secondary" disabled={busy === item.id} onClick={() => update(item.id,"cancelled")}>Cancel</Button></>}</div></div>)}
+    {items.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 p-4"><div><strong>{item.petName} · {item.serviceName}</strong><p className="mt-1 text-xs text-ink-500">{item.date} {item.time} · {item.price} RUB · {item.status}</p>{item.notes && <p className="mt-1 text-xs text-ink-600">{item.notes}</p>}{item.statusReason && <p className="mt-1 text-xs text-amber-900">Feedback: {item.statusReason}</p>}</div><div className="flex flex-wrap items-end gap-2">{item.status === "pending" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"confirmed")}>Accept</Button><div className="w-full sm:w-56"><Textarea label="Rejection reason" rows={1} maxLength={300} value={rejectionReasons[item.id] || ""} onChange={(event) => setRejectionReasons((current) => ({ ...current, [item.id]: event.target.value }))}/></div><Button size="sm" variant="danger" disabled={busy === item.id || (rejectionReasons[item.id] || "").trim().length < 5} onClick={() => update(item.id,"rejected",rejectionReasons[item.id])}>Reject</Button></>}{item.status === "confirmed" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"completed")}>Complete</Button><Button size="sm" variant="secondary" disabled={busy === item.id} onClick={() => update(item.id,"cancelled")}>Cancel</Button></>}</div></div>)}
   </Card>;
 }
 
