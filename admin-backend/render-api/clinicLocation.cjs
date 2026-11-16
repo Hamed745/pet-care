@@ -28,9 +28,9 @@ function validateMapUrl(input, required = true) {
       (url.port && url.port !== "443")) {
     throw new Error("Use a HTTPS location link from 2GIS, Yandex Maps, Google Maps, Apple Maps or OpenStreetMap.");
   }
-  if ((hostname === "google.com" || hostname.endsWith(".google.com") ||
-       hostname === "yandex.ru" || hostname.endsWith(".yandex.ru")) &&
-      !(/^\/maps(?:\/|$)/.test(url.pathname) || hostname.startsWith("maps."))) {
+  const mapPathRequired = ["google.com", "google.ru", "google.co.uk", "yandex.ru", "yandex.com", "yandex.kz", "yandex.by"]
+    .some((domain) => hostname === domain || hostname.endsWith("." + domain));
+  if (mapPathRequired && !(/^\/maps(?:\/|$)/.test(url.pathname) || hostname.startsWith("maps."))) {
     throw new Error("Link must point to a map location.");
   }
   return url.toString();

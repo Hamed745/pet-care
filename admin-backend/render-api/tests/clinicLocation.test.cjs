@@ -39,8 +39,8 @@ test("unsafe, internal, non-map, executable and spoofed URLs cannot be published
     "javascript:alert(1)", "http://2gis.ru/moscow", "https://2gis.ru.evil.com/firm/42",
     "https://example.com/not-a-map", "https://127.0.0.1/admin", "https://localhost/",
     "https://user:secret@2gis.ru/firm/123", "https://google.com/drive/file",
-    "https://yandex.ru/profile", "https://2gis.ru:8443/firm",
-  ]) assert.throws(()=>validateMapUrl(url),/map link|location link|HTTPS/i, url);
+    "https://yandex.ru/profile", "https://google.ru/drive/file", "https://yandex.com/mail/", "https://2gis.ru:8443/firm",
+  ]) assert.throws(()=>validateMapUrl(url),/map link|location link|map location|HTTPS/i, url);
   assert.equal(safeMapUrl("javascript:alert(1)"),"");
 });
 test("legacy Egyptian geographic data can still be read without conversion",()=>{
