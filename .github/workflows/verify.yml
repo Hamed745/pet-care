@@ -53,3 +53,28 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify clinic onboarding, admin review and bookings in browser
         run: npm run test:browser
+      - name: Verify full Firebase Auth and Firestore emulator E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dev:emulators -- --only auth,firestore > /tmp/petcare-emulators.log 2>&1 &
+          emulator_pid=$!
+          trap 'kill "$api_pid" "$emulator_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 90); do
+            if (echo >/dev/tcp/127.0.0.1/9099) 2>/dev/null && (echo >/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          (echo >/dev/tcp/127.0.0.1/9099) 2>/dev/null
+          (echo >/dev/tcp/127.0.0.1/8080) 2>/dev/null
+          npm run dev:api:emulator > /tmp/petcare-api.log 2>&1 &
+          api_pid=$!
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 http://127.0.0.1:10000/health | grep -q '"mode":"emulator"'; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS --max-time 3 http://127.0.0.1:10000/health | grep -q '"mode":"emulator"'
+          npm run test:emulators
