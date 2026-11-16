@@ -280,3 +280,65 @@ test("failed quarantine cleanup records a private retryable orphan without loggi
   await storage.remove(orphan.clinicUid, orphan.documentType, orphan.metadata);
   assert.equal(supabase.objects.size, 0);
 });
+
+
+test("demo mode stores sample documents in a private Supabase bucket for human review without claiming a security scan", async () => {
+  const db = fakeDb();
+  const fixture = supabaseFixture();
+  const storage = createClinicDocumentStorage({
+    db, supabaseClient: fixture.client, bucketName: "clinic-documents",
+    environment: "production", demoUploadsEnabled: true,
+  });
+  assert.equal(storage.mode,"supabase");
+  assert.equal(storage.demoMode,true);
+  assert.equal(await storage.verify(),true);
+  const uploaded = await storage.store("clinic-demo", "clinic_license", {
+    bytes: jpeg, mimeType: "image/jpeg",
+  });
+  assert.equal(uploaded.provider,"supabase");
+  assert.equal(uploaded.demo,true);
+  assert.equal(uploaded.scanStatus,"demo_unscanned");
+  assert.equal(uploaded.scannedAt,undefined);
+  assert.ok(fixture.objects.has(uploaded.path));
+  assert.ok(!uploaded.path.startsWith("quarantine/"));
+  assert.equal(fixture.calls.some(c => c.action === "move"),false);
+  const ref = db.collection("clinicBranches").doc("clinic-demo")
+    .collection("verificationDocuments").doc("clinic_license");
+  await ref.set(uploaded);
+  const metadata = await storage.getMetadata("clinic-demo","clinic_license");
+  assert.equal(metadata.path,undefined);
+  assert.equal(metadata.sha256,undefined);
+  assert.equal(metadata.scanStatus,"demo_unscanned");
+  assert.equal(metadata.size,jpeg.length);
+  assert.deepEqual((await storage.read("clinic-demo","clinic_license")).bytes,jpeg);
+  await storage.remove("clinic-demo","clinic_license",uploaded);
+  assert.equal(fixture.objects.size,0);
+});
+test("demo uploads reject public buckets and stay opt-in at the adapter layer", async () => {
+  const bucket = supabaseFixture();
+  const disabled = createClinicDocumentStorage({
+    db:fakeDb(),supabaseClient:bucket.client,bucketName:"clinic-documents",
+    environment:"production",demoUploadsEnabled:false,
+  });
+  assert.equal(disabled.demoMode,false);
+  assert.equal(await disabled.verify(),false);
+  const publicBucket = createClinicDocumentStorage({
+    db:fakeDb(),supabaseClient:supabaseFixture({isPublic:true}).client,
+    bucketName:"clinic-documents", environment:"production",demoUploadsEnabled:true,
+  });
+  await assert.rejects(()=>publicBucket.verify(),/not private/);
+  await assert.rejects(()=>publicBucket.store("clinic-demo","manager_id",{bytes:pdf,mimeType:"application/pdf"}),/not private/);
+});
+test("demo documents do not masquerade as scanned production documents", async () => {
+  const db=fakeDb(),cloud=supabaseFixture();
+  const demo=createClinicDocumentStorage({
+    db,supabaseClient:cloud.client,bucketName:"clinic-documents",
+    environment:"production",demoUploadsEnabled:true,
+  });
+  const meta=await demo.store("clinic-demo","vet_license",{bytes:pdf,mimeType:"application/pdf"});
+  const ref=db.collection("clinicBranches").doc("clinic-demo").collection("verificationDocuments").doc("vet_license");
+  await ref.set(meta);
+  assert.equal((await demo.getMetadata("clinic-demo","vet_license")).scanStatus,"demo_unscanned");
+  await ref.set({...meta,scanStatus:"clean",scannedAt:undefined});
+  await assert.rejects(()=>demo.read("clinic-demo","vet_license"),/reference is invalid/);
+});
