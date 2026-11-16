@@ -5,6 +5,7 @@ import { useApp } from "../store.jsx";
 import { clinicApi } from "../services/clinicApi.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import ClinicWorkspace from "./ClinicWorkspace.jsx";
+import { useClinicAudience } from "../clinic/ClinicAudienceContext.jsx";
 import { Button, Card, Input, PageHeader, Textarea } from "../components/ui.jsx";
 
 const EMPTY = { name: "", managerName: "", region: "", city: "", address: "", mapUrl: "", phone: "", email: "", description: "", clinicLicenseNumber: "", responsibleVetName: "", responsibleVetLicenseNumber: "" };
@@ -254,6 +255,7 @@ function ClinicAppointments() {
 export default function ClinicPortal() {
   const { user } = useApp();
   const { isRussian } = useLanguage();
+  const { markClinic } = useClinicAudience();
   const [clinic, setClinic] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -280,13 +282,13 @@ export default function ClinicPortal() {
     return () => { active = false; };
   }, [user?.uid]);
   return <div className="space-y-6 py-5">
-    <PageHeader eyebrow="PetCare for clinics" title={isRussian ? "Кабинет клиники" : "Clinic Manager Portal"} description="Register your clinic, track admin approval, and manage bookings after verification." action={<Link className="text-sm font-bold text-primary-700" to="/clinics">View Our Clinics →</Link>}/>
-    {!user && <Card className="flex flex-col items-start gap-4"><h2 className="text-lg font-extrabold">Sign in to register a clinic</h2><p className="text-sm text-ink-500">Your existing PetCare account can be both a pet owner account and a clinic manager account.</p><Link to="/login" state={{ from: "/clinic" }} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white">Sign in</Link><Link to="/register?next=%2Fclinic" className="text-sm font-bold text-primary-700 underline">Create clinic manager account</Link></Card>}
+    {clinic?.status !== "approved" && <PageHeader eyebrow="PetCare for clinics" title={isRussian ? "Кабинет клиники" : "Clinic Manager Portal"} description="Register your clinic, track admin approval, and manage bookings after verification."/>}
+    {!user && <Card className="flex flex-col items-start gap-4"><h2 className="text-lg font-extrabold">Sign in to register a clinic</h2><p className="text-sm text-ink-500">Sign in with your Clinic Branch Manager account to manage clinic applications.</p><Link to="/login" state={{ from: "/clinic" }} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white">Sign in</Link><Link to="/register?next=%2Fclinic" className="text-sm font-bold text-primary-700 underline">Create clinic manager account</Link></Card>}
     {user && loading && <p role="status" className="text-sm text-ink-500">Checking your clinic registration…</p>}
     {user && error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
-    {user && !loading && !error && (!clinic || ["draft", "rejected", "changes_requested"].includes(clinic.status)) && <ClinicApplication current={clinic} onSaved={setClinic} uploadEnabled={uploadEnabled} emulatorDocuments={emulatorDocuments} demoUploads={demoUploads} managerName={user.name} managerEmail={user.email}/>}
+    {user && !loading && !error && (!clinic || ["draft", "rejected", "changes_requested"].includes(clinic.status)) && <ClinicApplication current={clinic} onSaved={(updated) => { setClinic(updated); markClinic(updated); }} uploadEnabled={uploadEnabled} emulatorDocuments={emulatorDocuments} demoUploads={demoUploads} managerName={user.name} managerEmail={user.email}/>}
     {user && clinic?.status === "pending" && <Card className="max-w-3xl"><Clock3 size={28} className="text-amber-600"/><h2 className="mt-3 text-xl font-extrabold">Your clinic is pending approval</h2><p className="mt-2 text-sm text-ink-600">The PetCare administrator must verify your clinic and documents before it becomes public or receives bookings. Return here to check the decision.</p><p className="mt-3 text-sm font-semibold">{clinic.name} · {clinic.city}</p><Button className="mt-4" variant="secondary" onClick={() => clinicApi.mine().then((r) => setClinic(r.clinic)).catch((err) => setError(err.message))}><RefreshCw size={16}/> Refresh status</Button></Card>}
     {user && clinic?.status === "suspended" && <Card><h2 className="font-extrabold">Clinic access is suspended</h2><p className="text-sm text-ink-600">{clinic.reviewReason || "Contact PetCare support for details."}</p></Card>}
-    {user && clinic?.status === "approved" && <ClinicWorkspace clinic={clinic} onSaved={setClinic} core={{profile:<ClinicProfileEditor clinic={clinic} onSaved={setClinic}/>,availability:<ClinicAvailability clinic={clinic} onSaved={setClinic}/>,services:<ServicesEditor clinic={clinic} onSaved={setClinic}/>,bookings:<ClinicAppointments/>}}/>}
+    {user && clinic?.status === "approved" && <ClinicWorkspace clinic={clinic} onSaved={(updated) => { setClinic(updated); markClinic(updated); }} core={{profile:<ClinicProfileEditor clinic={clinic} onSaved={setClinic}/>,availability:<ClinicAvailability clinic={clinic} onSaved={setClinic}/>,services:<ServicesEditor clinic={clinic} onSaved={setClinic}/>,bookings:<ClinicAppointments/>}}/>}
   </div>;
 }

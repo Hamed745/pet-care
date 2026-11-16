@@ -973,12 +973,52 @@ function registerClinicRoutes({
   }));
 
   app.post("/api/clinics/mine/appointments/:id/status", ...signedInRoute(async (req, res) => {
-    await requireApproved(req);
+    const branchSnapshot = await requireApproved(req);
     const id = docId(req.params.id);
     const status = req.body?.status;
     if (!["confirmed", "rejected", "completed", "cancelled"].includes(status)) throw new HttpError(400, "Invalid appointment status.");
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 300) : "";
     if (status === "rejected" && reason.length < 5) throw new HttpError(400, "Explain the rejection in at least 5 characters.");
+
+    // A branch manager may select a final day and hour while accepting a pending
+    // request. Only Firebase-authenticated, approved managers can call this route.
+    const hasDate = req.body?.date !== undefined;
+    const hasTime = req.body?.time !== undefined;
+    if (hasDate !== hasTime || (hasDate && status !== "confirmed")) {
+      throw new HttpError(400, "Provide both date and time when confirming a booking.");
+    }
+    let confirmedDate = null;
+    let confirmedTime = null;
+    if (hasDate) {
+      confirmedDate = String(req.body.date);
+      confirmedTime = String(req.body.time);
+      const timestamp = confirmedDate + "T" + confirmedTime + ":00Z";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(confirmedDate) ||
+          !/^([01]\d|2[0-3]):[0-5]\d$/.test(confirmedTime) ||
+          Number.isNaN(Date.parse(timestamp)) ||
+          new Date(confirmedDate + "T00:00:00Z").toISOString().slice(0, 10) !== confirmedDate) {
+        throw new HttpError(400, "Choose a valid appointment date and time.");
+      }
+      const branch = branchSnapshot.data() || {};
+      const hours = failInput(validateWorkingHours, branch.workingHours);
+      const nowParts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: clinicTimeZone(branch),
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(new Date()).reduce((parts, part) => ({ ...parts, [part.type]: part.value }), {});
+      const localNow = nowParts.year + "-" + nowParts.month + "-" + nowParts.day +
+        "T" + nowParts.hour + ":" + nowParts.minute + ":00Z";
+      if (Date.parse(timestamp) < Date.parse(localNow) + 30 * 60000 ||
+          Date.parse(timestamp) > Date.parse(localNow) + 180 * 86400000) {
+        throw new HttpError(400, "Choose a future appointment within 180 days.");
+      }
+      const start = minutesOfDay(confirmedTime);
+      const day = new Date(confirmedDate + "T00:00:00Z").getUTCDay();
+      if (!hours.days.includes(day) || start < minutesOfDay(hours.open) ||
+          start >= minutesOfDay(hours.close)) {
+        throw new HttpError(400, "Choose a time during your clinic's working hours.");
+      }
+    }
     const ref = appointments.doc(id);
     await db.runTransaction(async (tx) => {
       const snapshot = await tx.get(ref);
@@ -988,12 +1028,18 @@ function registerClinicRoutes({
         (current.status === "confirmed" && ["completed", "cancelled"].includes(status)))) {
         throw new HttpError(409, "This appointment cannot move to that status.");
       }
-      const slotRef = own(req).collection("reservedSlots").doc(`${current.date}_${current.time}`);
+      const date = status === "confirmed" && confirmedDate ? confirmedDate : current.date;
+      const time = status === "confirmed" && confirmedTime ? confirmedTime : current.time;
+      const slotRef = own(req).collection("reservedSlots").doc(`${date}_${time}`);
       if (status === "confirmed") {
+        if (confirmedDate && minutesOfDay(time) + Number(current.durationMinutes || 30) >
+            minutesOfDay(branchSnapshot.data().workingHours.close)) {
+          throw new HttpError(400, "Appointment must finish before clinic closing time.");
+        }
         const sameDaySlots = await tx.get(
-          own(req).collection("reservedSlots").where("date", "==", current.date)
+          own(req).collection("reservedSlots").where("date", "==", date)
         );
-        const start = minutesOfDay(current.time);
+        const start = minutesOfDay(time);
         for (const slot of sameDaySlots.docs) {
           const reserved = slot.data() || {};
           if (reserved.appointmentId === id || typeof reserved.time !== "string") continue;
@@ -1010,14 +1056,15 @@ function registerClinicRoutes({
         if (reserved.exists) throw new HttpError(409, "Another booking already occupies this time. Please reject or reschedule.");
         tx.create(slotRef, {
           appointmentId: id,
-          date: current.date,
-          time: current.time,
+          date,
+          time,
           durationMinutes: current.durationMinutes || 30,
         });
       }
       if (status === "cancelled") tx.delete(slotRef);
       tx.update(ref, {
         status,
+        ...(status === "confirmed" && confirmedDate ? { date, time } : {}),
         statusReason: status === "rejected" ? reason : "",
         updatedAt: FieldValue.serverTimestamp(),
       });

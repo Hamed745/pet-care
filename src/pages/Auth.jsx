@@ -9,6 +9,7 @@ import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
 import { getCurrentAuthUser, loginWithEmail, logoutUser, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
 import { getStoredAccountProfile, transferGuestCart } from "../hooks/useAccountPersistentState.js";
+import { rememberClinicIntent } from "../clinic/ClinicAudienceContext.jsx";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -226,6 +227,9 @@ export function Register() {
     setSaving(true);
     try {
       const credential = await registerWithEmail(f.email, f.password);
+      // Mark the chosen clinic journey immediately: the role resolver may
+      // start as soon as Firebase publishes the newly authenticated user.
+      if (accountType === "clinic") rememberClinicIntent(credential.user.uid);
       transferGuestCart(credential.user.uid, {});
       let displayNameSaved = true;
       try {

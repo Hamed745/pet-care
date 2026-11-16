@@ -87,7 +87,7 @@ export const clinicApi = {
   clinicBookings: () => request("/api/clinics/mine/appointments", { authenticated: true }),
   clinicHistory: (id) => request(`/api/admin/clinics/${encodeURIComponent(id)}/history`, { authenticated: true }),
   book: (clinicId, details) => request(`/api/clinics/${encodeURIComponent(clinicId)}/appointments`, { method: "POST", authenticated: true, payload: details }),
-  updateBooking: (id, status, reason = "") => request(`/api/clinics/mine/appointments/${encodeURIComponent(id)}/status`, { method: "POST", authenticated: true, payload: { status, reason } }),
+  updateBooking: (id, status, reason = "", slot = {}) => request(`/api/clinics/mine/appointments/${encodeURIComponent(id)}/status`, { method: "POST", authenticated: true, payload: { status, reason, ...(status === "confirmed" ? slot : {}) } }),
   cancelBooking: (id) => request(`/api/clinics/my-appointments/${encodeURIComponent(id)}/cancel`, { method: "POST", authenticated: true }),
   adminClinics: () => request("/api/admin/clinics", { authenticated: true }),
   adminDocuments: (id) => request(`/api/admin/clinics/${encodeURIComponent(id)}/documents`, { authenticated: true }),

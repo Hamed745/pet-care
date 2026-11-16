@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { Button, Card, Input, PageHeader, Select, Textarea } from "../components/ui.jsx";
 import { clinicApi } from "../services/clinicApi.js";
 import { clinicWorkspaceApi } from "../services/clinicWorkspaceApi.js";
 
-const menu=[
-  ["dashboard","Dashboard"],["requests","Booking requests"],["appointments","All appointments"],
-  ["calendar","Calendar"],["team","Doctors & staff"],["shifts","Shift availability"],
-  ["patients","Patient directory"],["records","Medical records"],["newVisit","New visit"],
-  ["services","Services & pricing"],["analytics","Clinic analytics"],["notifications","Notifications"],
-  ["settings","Branch settings"]
+// Keep the default clinic workspace focused on daily work. Other older CRUD
+// features remain in the codebase but are not linked from the clinic interface.
+const menuItems=[
+  ["dashboard","Dashboard","Главная"],
+  ["requests","Booking requests","Заявки"],
+  ["appointments","Appointments","Записи"],
+  ["calendar","Calendar","Календарь"],
+  ["services","Services & pricing","Услуги и цены"],
+  ["settings","Settings","Настройки"],
 ];
 const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const blankStaff={name:"",email:"",role:"veterinarian",status:"active",specialty:"",
@@ -32,7 +37,11 @@ function Section({title,description,children}){
 const fmtDate=(date)=>date?new Date(date+"T00:00:00Z").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"}):"—";
 
 export default function ClinicWorkspace({clinic,onSaved,core}){
-  const [tab,setTab]=useState("dashboard");
+  const { language } = useLanguage();
+  const [searchParams,setSearchParams]=useSearchParams();
+  const menu=useMemo(()=>menuItems.map(([key,en,ru])=>[key,language==="ru"?ru:en]),[language]);
+  const section=searchParams.get("section");
+  const tab=menuItems.some(([key])=>key===section)?section:"dashboard";
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
@@ -47,6 +56,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
   const [selectedPatient,setSelectedPatient]=useState("");
   const [recordForm,setRecordForm]=useState(blankVisit);
   const [bookingForm,setBookingForm]=useState(blankBooking);
+  const [slotEdits,setSlotEdits]=useState({});
   const [calendarDate,setCalendarDate]=useState(new Date().toISOString().slice(0,10));
   const [settings,setSettings]=useState({notifyNewBookings:true,notifyMedicalRecords:true,privacyContactEmail:""});
   const reload=useCallback(async()=>{
@@ -77,7 +87,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
   const pending=bookings.filter(b=>b.status==="pending");
   const totalVisits=records.length;
   const a=data?.analytics||{};
-  const navigate=(to)=>{setTab(to);setError("");setNotice("");setSearch("");};
+  const navigate=(to)=>{setSearchParams(to==="dashboard"?{}:{section:to});setError("");setNotice("");setSearch("");};
   const submitStaff=async(e)=>{e.preventDefault();
     const result=await run(()=>editingStaff?clinicWorkspaceApi.updateStaff(editingStaff,staffForm):clinicWorkspaceApi.addStaff(staffForm),"Team member saved.");
     if(result){setStaffForm(blankStaff);setEditingStaff("");}
@@ -117,17 +127,21 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
       {notice&&<p role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">{notice}</p>}
       {!data&&<Section title="Unable to load workspace">Check the clinic API, Firebase login and permissions.</Section>}
       {data&&tab==="dashboard"&&<>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Bookings" value={a.bookings||0}/><Metric label="Pending" value={a.pending||0}/>
-          <Metric label="Patients" value={a.patients||0}/><Metric label="Completed visits" value={totalVisits}/></div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Metric label={language==="ru"?"Все записи":"Bookings"} value={a.bookings||0}/>
+          <Metric label={language==="ru"?"Ожидают":"Pending requests"} value={a.pending||0}/>
+          <Metric label={language==="ru"?"Подтверждены":"Confirmed"} value={a.confirmed||0}/>
+          <Metric label={language==="ru"?"Завершены":"Completed"} value={a.completed||0}/>
+        </div>
         <Section title="Today at a glance" description="Live appointments and clinic activity">
           {bookings.filter(x=>x.date===new Date().toISOString().slice(0,10)).length===0?<p className="text-sm text-ink-500">No appointments today.</p>:
             bookings.filter(x=>x.date===new Date().toISOString().slice(0,10)).map(x=><div key={x.id} className="flex justify-between gap-3 border-b py-2 text-sm">
               <span>{x.time} · {x.petName} · {x.serviceName}</span><Pill value={x.status}/></div>)}
         </Section>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Button onClick={()=>navigate("requests")}>Review booking requests</Button>
-          <Button variant="secondary" onClick={()=>navigate("patients")}>Manage patients</Button>
-          <Button variant="secondary" onClick={()=>navigate("newVisit")}>Add visit record</Button>
+          <Button onClick={()=>navigate("requests")}>{language==="ru"?"Рассмотреть заявки":"Review booking requests"}</Button>
+          <Button variant="secondary" onClick={()=>navigate("appointments")}>{language==="ru"?"Все записи":"View appointments"}</Button>
+          <Button variant="secondary" onClick={()=>navigate("services")}>{language==="ru"?"Управление услугами":"Manage services"}</Button>
         </div>
       </>}
       {data&&tab==="requests"&&<Section title="New booking requests" description="Approve or decline each request before a slot is confirmed.">
@@ -135,7 +149,17 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
           <div className="flex flex-wrap items-center justify-between gap-2"><strong>{x.petName} · {x.serviceName}</strong><Pill value={x.status}/></div>
           <p className="mt-2 text-xs text-ink-500">{fmtDate(x.date)} · {x.time} · {currency} {x.price||0}</p>
           <p className="my-2 text-sm">{x.notes||""}</p>
-          <div className="flex flex-wrap gap-2"><Button disabled={busy} size="sm" onClick={()=>run(()=>clinicApi.updateBooking(x.id,"confirmed"),"Appointment confirmed.")}>Accept</Button>
+          <p className="mb-3 text-xs text-ink-600">Choose the appointment day and time before accepting. The pet owner will see the confirmed slot.</p>
+          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <Field type="date" label="Confirm date" required value={slotEdits[x.id]?.date ?? x.date}
+              onChange={date=>setSlotEdits(current=>({...current,[x.id]:{date,time:current[x.id]?.time ?? x.time}}))}/>
+            <Field type="time" label="Confirm time" required value={slotEdits[x.id]?.time ?? x.time}
+              onChange={time=>setSlotEdits(current=>({...current,[x.id]:{date:current[x.id]?.date ?? x.date,time}}))}/>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={busy} size="sm" onClick={()=>run(()=>clinicApi.updateBooking(x.id,"confirmed","",{
+              date:slotEdits[x.id]?.date ?? x.date, time:slotEdits[x.id]?.time ?? x.time
+            }),"Appointment confirmed with selected date and time.")}>Accept & confirm time</Button>
             <Button disabled={busy} size="sm" variant="danger" onClick={()=>{const reason=window.prompt("Reason for rejection (at least 5 characters):");
               if(reason&&reason.trim().length>=5)run(()=>clinicApi.updateBooking(x.id,"rejected",reason.trim()),"Request rejected.");}}>Reject</Button></div>
         </div>)}
@@ -146,23 +170,6 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
             <div><strong>{x.petName||"Patient"} · {x.serviceName}</strong><p className="text-xs text-ink-500">{fmtDate(x.date)} · {x.time}</p></div>
             <div className="flex gap-2"><Pill value={x.status}/>{x.status==="confirmed"&&<Button size="sm" disabled={busy} onClick={()=>run(()=>clinicApi.updateBooking(x.id,"completed"),"Visit completed.")}>Complete</Button>}</div>
           </div>)}
-        </Section>
-        <Section title="Create appointment" description="For a patient already registered at this branch.">
-          <form className="grid gap-3 sm:grid-cols-2" onSubmit={submitBooking}>
-            <Select required label="Patient" value={bookingForm.patientId} onChange={e=>setBookingForm({...bookingForm,patientId:e.target.value})}>
-              <option value="">Choose patient</option>{patients.map(p=><option key={p.id} value={p.id}>{p.name} — {p.ownerName}</option>)}
-            </Select>
-            <Select required label="Service" value={bookingForm.serviceId} onChange={e=>setBookingForm({...bookingForm,serviceId:e.target.value})}>
-              <option value="">Choose service</option>{serviceOptions.filter(s=>s.available!==false).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-            <Select label="Doctor (optional)" value={bookingForm.doctorId} onChange={e=>setBookingForm({...bookingForm,doctorId:e.target.value})}>
-              <option value="">Unassigned</option>{staff.filter(s=>s.role==="veterinarian"&&s.status==="active").map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-            <Field required type="date" label="Date" value={bookingForm.date} onChange={v=>setBookingForm({...bookingForm,date:v})}/>
-            <Field required type="time" label="Time" value={bookingForm.time} onChange={v=>setBookingForm({...bookingForm,time:v})}/>
-            <Field label="Notes" value={bookingForm.notes} onChange={v=>setBookingForm({...bookingForm,notes:v})}/>
-            <Button type="submit" disabled={busy}>Create booking request</Button>
-          </form>
         </Section>
       </>}
       {data&&tab==="calendar"&&<Section title="Clinic calendar" description="Times are shown in the clinic's configured local time zone.">
@@ -286,7 +293,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
           <p className="text-xs text-ink-500">These statistics use actual clinic appointments. No sample ratings or revenue have been invented.</p>
         </Section>
       </>}
-      {data&&tab==="notifications"&&<Section title="Notifications" description="Clinic activity and patient record updates.">
+      {data&&tab==="settings"&&<Section title="Notifications" description="Clinic activity and patient record updates.">
         {!data.notifications.length?<p className="text-sm text-ink-500">No notifications yet.</p>:data.notifications.slice().reverse().map(n=><div key={n.id} className="flex flex-wrap justify-between gap-3 border-b py-3 text-sm">
           <div><strong>{n.title}</strong><p>{n.body}</p></div>
           {!n.read&&<Button size="sm" variant="secondary" disabled={busy} onClick={()=>run(()=>clinicWorkspaceApi.markRead(n.id),"Marked as read.")}>Mark read</Button>}

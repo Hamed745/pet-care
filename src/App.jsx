@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Link, Navigate } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
+import { ClinicAudienceProvider } from "./clinic/ClinicAudienceContext.jsx";
 import { Skeleton } from "./components/ui.jsx";
 import { LOST_FOUND_ENABLED } from "./config.js";
 import { useLanguage } from "./i18n/LanguageContext.jsx";
@@ -60,6 +61,7 @@ function NotFoundPage() {
 
 export default function App() {
   return (
+    <ClinicAudienceProvider>
     <Layout>
         <Suspense fallback={<LoadingPage />}><Routes>
           <Route path="/" element={<Home />} />
@@ -110,5 +112,6 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes></Suspense>
     </Layout>
+    </ClinicAudienceProvider>
   );
 }
