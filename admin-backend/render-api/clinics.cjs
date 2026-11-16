@@ -2,7 +2,7 @@
 
 const { createHash, randomUUID } = require("node:crypto");
 const { FieldPath } = require("firebase-admin/firestore");
-const { validateMapUrl, validateClinicTimeZone, clinicTimeZone, clinicCurrency, clinicRegion, safeMapUrl } = require("./clinicLocation.cjs");
+const { validateMapUrl, validateClinicTimeZone, inferRussianTimeZone, clinicTimeZone, clinicCurrency, clinicRegion, safeMapUrl } = require("./clinicLocation.cjs");
 const {
   createClinicDocumentStorage,
   MAX_DOCUMENT_BYTES,
@@ -56,7 +56,7 @@ function validateApplication(input) {
       country: "RU",
       region: field(input.region, "region", 120),
       mapUrl: validateMapUrl(input.mapUrl),
-      timeZone: validateClinicTimeZone(input.timeZone),
+      timeZone: input.timeZone === undefined ? inferRussianTimeZone(input.region, input.city) : validateClinicTimeZone(input.timeZone),
       currency: "RUB",
     };
   } else {
@@ -122,6 +122,7 @@ function validateClinicDraft(input) {
   if (result.region) {
     result.country = "RU";
     result.currency = "RUB";
+    if (input.timeZone === undefined) result.timeZone = inferRussianTimeZone(result.region, result.city);
   }
   for (const [key, min, max] of [["latitude", -90, 90], ["longitude", -180, 180]]) {
     if (input[key] === undefined || input[key] === "") continue;
@@ -154,6 +155,7 @@ function validateClinicProfile(input) {
   if (result.region) {
     result.country = "RU";
     result.currency = "RUB";
+    if (input.timeZone === undefined) result.timeZone = inferRussianTimeZone(result.region, result.city);
   }
   for (const [key, min, max] of [["latitude", -90, 90], ["longitude", -180, 180]]) {
     if (input[key] === undefined) continue;
