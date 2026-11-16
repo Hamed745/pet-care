@@ -50,6 +50,9 @@ function createClinicDocumentStorage({
   emulatorMode = false,
   testOnlySyntheticUploads = false,
   productionUploadsEnabled = false,
+  // Deliberate graduation-project mode: accepts DEMO fixtures into private Storage.
+  // Does not certify documents as malware-free or verify identity/license validity.
+  demoUploadsEnabled = false,
   scanner = null,
   environment = process.env.NODE_ENV,
   FieldValue,
@@ -59,6 +62,7 @@ function createClinicDocumentStorage({
   }
   const mode = emulatorMode ? "emulator" : supabaseClient && bucketName ? "supabase" : "disabled";
   const syntheticTestMode = testOnlySyntheticUploads === true && environment === "test";
+  const demoMode = demoUploadsEnabled === true && mode === "supabase";
   const enabled = mode !== "disabled";
   const emulatorDocuments = new Map();
   let privateBucketCheck;
@@ -96,7 +100,7 @@ function createClinicDocumentStorage({
   function uploadAllowed() {
     if (mode === "emulator") return true;
     if (mode !== "supabase") return false;
-    if (syntheticTestMode) return true;
+    if (syntheticTestMode || demoMode) return true;
     return productionUploadsEnabled && typeof scanner?.scan === "function";
   }
 
@@ -121,6 +125,7 @@ function createClinicDocumentStorage({
     if (metadata.provider !== "supabase" || mode !== "supabase" ||
         !validObjectPath(uid, kind, metadata.path)) return false;
     if (syntheticTestMode) return true;
+    if (demoMode && metadata.demo === true && metadata.scanStatus === "demo_unscanned") return true;
     return metadata.scanStatus === "clean" &&
       typeof metadata.scannedAt === "string" &&
       Number.isFinite(Date.parse(metadata.scannedAt));
@@ -190,8 +195,8 @@ function createClinicDocumentStorage({
     const storage = supabaseClient.storage.from(bucketName);
     const objectPath = `${objectPrefix}/${uid}/${kind}/${fileName}`;
     let uploadPath = objectPath;
-    let scanStatus = "synthetic_test_unscanned";
-    const syntheticLocalUpload = syntheticTestMode;
+    let scanStatus = demoMode ? "demo_unscanned" : "synthetic_test_unscanned";
+    const syntheticLocalUpload = syntheticTestMode || demoMode;
     if (!syntheticLocalUpload) {
       if (!productionUploadsEnabled || typeof scanner?.scan !== "function") {
         throw new Error("Production clinic document uploads are disabled.");
@@ -248,6 +253,7 @@ function createClinicDocumentStorage({
       size: file.size,
       sha256: digest,
       scanStatus,
+      ...(demoMode ? { demo: true } : {}),
       ...(scanStatus === "clean" ? { scannedAt: new Date().toISOString() } : {}),
     };
   }
@@ -293,6 +299,7 @@ function createClinicDocumentStorage({
   return {
     enabled,
     mode,
+    demoMode,
     verify,
     store,
     read,
