@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Bell, CalendarDays, ChevronDown, Heart, Home, LogOut, MapPin, Menu, PawPrint, Phone, ShoppingBag, Stethoscope, Scissors, UserRound, X, Bot } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, Heart, Home, LogOut, MapPin, Menu, PawPrint, Phone, ShoppingBag, Stethoscope, Scissors, UserRound, X, Bot, ShieldCheck} from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { LOST_FOUND_ENABLED } from "../config.js";
@@ -258,6 +258,10 @@ function Navbar() {
                         className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"
                       >
                         <UserRound size={18} /> {t("nav.profile", "Profile")}
+                      </Link>
+                      <Link role="menuitem" to="/clinic" onClick={closeMenus}
+                        className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50">
+                        <ShieldCheck size={18}/> Clinic Manager
                       </Link>
                       <Link
                         role="menuitem"

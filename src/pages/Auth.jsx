@@ -190,6 +190,7 @@ export function Register() {
   const { saveUser, showToast } = useApp();
   const { t } = useLanguage();
   const nav = useNavigate();
+  const location = useLocation();
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [f, setF] = useState({ name: "", email: "", phone: "", city: "", password: "", confirm: "", terms: false });
@@ -234,7 +235,7 @@ export function Register() {
         phone: f.phone,
         city: f.city.trim(),
       });
-      nav("/");
+      nav(new URLSearchParams(location.search).get("next") === "/clinic" ? "/clinic" : "/");
       if (!displayNameSaved) {
         showToast("Your account was created, but your display name could not be saved to Firebase.", "warning");
       }
