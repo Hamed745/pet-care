@@ -376,6 +376,7 @@ function registerClinicRoutes({
       res.json({
         uploadEnabled,
         emulatorDocuments: documentsStorage.mode === "emulator",
+        demoUploads: documentsStorage.demoMode === true,
         storageProvider: documentsStorage.mode,
         maxDocumentBytes: MAX_DOCUMENT_BYTES,
         acceptedMimeTypes: ["application/pdf", "image/jpeg", "image/png"],
