@@ -563,3 +563,51 @@ test("appointment ownership, approval and exclusive time slot are enforced by th
   }, { id: c.id });
   assert.equal(rejectedC.data.appointment.statusReason, "No available slot");
 });
+
+test("Russian clinic draft, approval and public map-share link work without coordinates", async () => {
+  const f = fixture();
+  const manager = { uid: "manager-ru" };
+  const admin = { uid: "admin", petcareAdmin: true };
+  const russian = {
+  "name": "Severnaya Vet Clinic",
+  "managerName": "Anna Ivanova",
+  "region": "Московская область",
+  "city": "Химки",
+  "address": "Ленинский проспект, 10",
+  "mapUrl": "https://2gis.ru/moscow/firm/1234567890",
+  "timeZone": "Europe/Moscow",
+  "phone": "+79991234567",
+  "email": "clinic-example@example.com",
+  "description": "Russian veterinary clinic",
+  "clinicLicenseNumber": "RU-TEST-100",
+  "responsibleVetName": "Dr Ivanov",
+  "responsibleVetLicenseNumber": "RU-TEST-VET-200"
+};
+  const draft = await f.run("PUT", "/api/clinics/mine/draft", manager, {
+    clinic: { name: russian.name, region: russian.region, mapUrl: russian.mapUrl, timeZone: russian.timeZone },
+  });
+  assert.equal(draft.data.clinic.region, russian.region);
+  assert.equal(draft.data.clinic.mapUrl, russian.mapUrl);
+  assert.equal(draft.data.clinic.currency, "RUB");
+  await uploadDocuments(f, manager);
+  const submission = await f.run("POST", "/api/clinics/apply", manager, { clinic: russian });
+  assert.equal(submission.data.clinic.status, "pending");
+  assert.equal((await f.run("GET", "/api/clinics", null)).data.clinics.length, 0);
+  const review = await f.run("GET", "/api/admin/clinics", admin);
+  assert.equal(review.data.clinics[0].mapUrl, russian.mapUrl);
+  await f.run("POST", "/api/admin/clinics/:id/decision", admin, { status: "approved" }, { id: manager.uid });
+  const listed = (await f.run("GET", "/api/clinics", null)).data.clinics[0];
+  assert.equal(listed.mapUrl, russian.mapUrl);
+  assert.equal(listed.region, russian.region);
+  assert.equal(listed.currency, "RUB");
+  assert.equal(listed.timeZone, "Europe/Moscow");
+  assert.equal(listed.latitude, null);
+  assert.equal(listed.longitude, null);
+  assert.equal(Object.hasOwn(listed, "managerName"), false);
+  assert.equal(Object.hasOwn(listed, "clinicLicenseNumber"), false);
+  const changed = await f.run("PUT", "/api/clinics/mine/profile", manager, {
+    profile: { region: "Москва", mapUrl: "https://yandex.ru/maps/213/moscow/", timeZone: "Europe/Moscow" },
+  });
+  assert.equal(changed.data.clinic.region, "Москва");
+  assert.equal(changed.data.clinic.mapUrl, "https://yandex.ru/maps/213/moscow/");
+});
