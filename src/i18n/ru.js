@@ -1,4 +1,17 @@
 export default {
+  business: {
+    switch_clinic: "Перейти в панель клиники",
+    add_clinic_role: "Добавить роль менеджера клиники",
+    clinic_application: "Статус заявки клиники",
+  },
+  clinics: {
+    our_clinics: "Проверенные клиники",
+    our_clinics_desc: "Запишитесь на приём в клинику, проверенную PetCare.",
+    register: "Зарегистрировать клинику",
+    register_desc: "Подайте заявку на регистрацию клиники в PetCare.",
+    portal: "Кабинет руководителя клиники",
+    portal_desc: "Управляйте заявкой, услугами и записями клиники.",
+  },
   // Navigation & Header
   nav: {
     home: "Главная",

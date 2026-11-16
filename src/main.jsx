@@ -16,13 +16,16 @@ async function startApp() {
       { LanguageProvider },
       { default: App },
       { initializeFirebaseAppCheck },
+      { usingFirebaseEmulators },
     ] = await Promise.all([
       import("./store.jsx"),
       import("./i18n/LanguageContext.jsx"),
       import("./App.jsx"),
       import("./firebaseAppCheck.js"),
+      import("./firebase.js"),
     ]);
 
+    if (!usingFirebaseEmulators) {
     try {
       const devAppCheck = import.meta.env.DEV
         ? await import("./firebaseAppCheck.dev.js")
@@ -44,6 +47,7 @@ async function startApp() {
       console.error("Firebase App Check initialization or token acquisition failed.", error);
     }
 
+    }
     root.render(
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <LanguageProvider>

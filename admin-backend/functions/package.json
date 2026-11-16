@@ -1,0 +1,5 @@
+{
+  "name": "petcare-admin-backend", "private": true, "version": "1.0.0", "main": "index.cjs", "engines": {"node": "22"},
+  "scripts": {"serve": "firebase emulators:start --only functions", "grant-admin": "node grant-admin.mjs"},
+  "dependencies": {"firebase-admin": "^13.4.0", "firebase-functions": "^6.4.0"}
+}

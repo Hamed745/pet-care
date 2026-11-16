@@ -9,14 +9,18 @@
   },
   "scripts": {
     "start": "node server.cjs",
-    "dev": "node --watch server.cjs"
+    "dev": "node --env-file=.env.supabase.local --watch server.cjs",
+    "dev:emulator": "node --env-file=../../.env.emulator.local --env-file=.env.supabase.local --watch server.cjs",
+    "test:supabase:integration": "node --env-file=.env.supabase.local tests/supabaseStorageIntegration.cjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "firebase-admin": "14.5.0",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "multer": "^2.5.0"
   },
   "overrides": {
     "jwks-rsa": {

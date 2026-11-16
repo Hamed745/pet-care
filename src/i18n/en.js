@@ -1,4 +1,17 @@
 export default {
+  business: {
+    switch_clinic: "Switch Dashboard · Clinic",
+    add_clinic_role: "Add Clinic Manager Role",
+    clinic_application: "Clinic Application Status",
+  },
+  clinics: {
+    our_clinics: "Our Verified Clinics",
+    our_clinics_desc: "Book with PetCare-approved veterinary clinics.",
+    register: "Register Your Clinic",
+    register_desc: "Apply to join PetCare as a clinic manager.",
+    portal: "Clinic Manager Portal",
+    portal_desc: "Manage your clinic application, services and bookings.",
+  },
   // Navigation & Header
   nav: {
     home: "Home",

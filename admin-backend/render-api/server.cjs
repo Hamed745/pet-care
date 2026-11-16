@@ -4,21 +4,32 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const multer = require("multer");
+const { createClient } = require("@supabase/supabase-js");
 const { createHash, createHmac, randomUUID } = require("node:crypto");
 const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
+const { registerClinicRoutes } = require("./clinics.cjs");
 const { registerOwnerPetRoutes } = require("./ownerPets.cjs");
 const { readAdminSettings, registerAdminSettingsRoutes } = require("./adminSettings.cjs");
+const { createClinicDocumentStorage, MAX_DOCUMENT_BYTES } = require("./clinicDocumentStorage.cjs");
+const { normalizeStoreOrderItems, assertPurchasableProduct, stockAfterPurchase, stockAfterCancellation } = require("./storeCommerce.cjs");
+const { resolveFirebaseEmulatorConfig, assertEmulatorServicesReachable } = require("./firebaseEmulators.cjs");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
+const { getAppCheck } = require("firebase-admin/app-check");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getStorage } = require("firebase-admin/storage");
+const { createClinicAppCheckMiddleware } = require("./clinicAppCheck.cjs");
 
 const PORT = Number(process.env.PORT || 10000);
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "";
 const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
-const emulatorMode = Boolean(
-  process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST
-);
+if (process.env.SUPABASE_ALLOW_SYNTHETIC_UPLOADS === "true") {
+  throw new Error("SUPABASE_ALLOW_SYNTHETIC_UPLOADS is test-only and cannot be enabled on the API server.");
+}
+const firebaseEmulatorConfig = resolveFirebaseEmulatorConfig(process.env);
+const emulatorMode = firebaseEmulatorConfig.enabled;
 
 function initializeFirebaseAdmin() {
   if (getApps().length) return;
@@ -59,6 +70,22 @@ initializeFirebaseAdmin();
 
 const auth = getAuth();
 const db = getFirestore();
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || "";
+const supabaseBucketName = process.env.SUPABASE_BUCKET || "";
+const supabaseClient = !emulatorMode && supabaseUrl && supabaseSecretKey && supabaseBucketName
+  ? createClient(supabaseUrl, supabaseSecretKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  })
+  : null;
+const clinicDocumentStorage = createClinicDocumentStorage({
+  db,
+  emulatorMode,
+  supabaseClient,
+  bucketName: supabaseBucketName,
+  productionUploadsEnabled: false,
+  FieldValue,
+});
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -67,9 +94,11 @@ const defaultOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
+  "http://localhost:5190",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
   "http://127.0.0.1:5175",
+  "http://127.0.0.1:5190",
 ];
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultOrigins.join(","))
   .split(",")
@@ -82,7 +111,7 @@ const corsOptions = {
     return callback(new Error("Origin not allowed by CORS"));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Authorization", "Content-Type"],
+  allowedHeaders: ["Authorization", "Content-Type", "X-Firebase-AppCheck"],
   optionsSuccessStatus: 204,
 };
 
@@ -110,6 +139,37 @@ class HttpError extends Error {
 
 const asyncRoute = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
+
+const requireClinicAppCheck = createClinicAppCheckMiddleware({
+  emulatorMode,
+  verifyToken: (token) => getAppCheck().verifyToken(token),
+  HttpError,
+});
+const clinicSignedInRoute = (handler) => [
+  authenticate, requireClinicAppCheck, asyncRoute(handler),
+];
+const clinicAdminRoute = (handler) => [
+  authenticate, requireAdmin, requireClinicAppCheck, asyncRoute(handler),
+];
+
+const clinicDocumentRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many document requests. Please try again later." },
+});
+const parseClinicDocument = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_DOCUMENT_BYTES, files: 1, fields: 0, parts: 1 },
+}).single("document");
+const parseClinicDocumentSafely = (req, res, next) => parseClinicDocument(req, res, (error) => {
+  if (!error) return next();
+  if (error.code === "LIMIT_FILE_SIZE") {
+    return next(new HttpError(413, "Each verification document must be no larger than 5 MB."));
+  }
+  return next(new HttpError(400, "Upload exactly one file using the document field."));
+});
 
 const sanitize = (value, max = 200) =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -270,14 +330,35 @@ const requireAdmin = (req, res, next) => {
 
 const adminRoute = (handler) => [authenticate, requireAdmin, asyncRoute(handler)];
 const signedInRoute = (handler) => [authenticate, asyncRoute(handler)];
+const signedInDocumentRoute = (handler) => [
+  authenticate, requireClinicAppCheck, clinicDocumentRateLimit, parseClinicDocumentSafely, asyncRoute(handler),
+];
 
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "petcare-admin-api" });
+registerClinicRoutes({
+  app, db, signedInRoute: clinicSignedInRoute, signedInDocumentRoute,
+  adminRoute: clinicAdminRoute, HttpError, FieldValue, audit,
+  documentStorage: clinicDocumentStorage,
 });
-
-// Settings are persisted in Firestore and require Firebase Admin authorization.
-// Public checkout policy exposes no private configuration.
+// Preserve existing audited admin settings and public checkout policy.
 registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpError, FieldValue });
+app.get("/health", (_req, res) => {
+  const health = {
+    ok: true,
+    service: "petcare-admin-api",
+    firebase: emulatorMode ? { mode: "emulator", projectId: firebaseEmulatorConfig.projectId } : { mode: "configured" },
+  };
+  if (!emulatorMode) {
+    res.json(health);
+    return;
+  }
+  assertEmulatorServicesReachable(firebaseEmulatorConfig)
+    .then(() => res.json(health))
+    .catch(() => res.status(503).json({
+      ok: false,
+      service: "petcare-admin-api",
+      firebase: { mode: "emulator", ready: false },
+    }));
+});
 
 // The public shop is intentionally empty until an administrator publishes products.
 app.get(
@@ -329,19 +410,9 @@ app.post(
       throw new HttpError(400, "Invalid checkout details. Sign in and use cash on delivery.");
     }
 
-    const ids = new Set();
-    const items = rawItems.map((item) => {
-      const id = sanitize(item?.id, 120);
-      const qty = Number(item?.qty);
-      if (!/^[A-Za-z0-9_-]{1,120}$/.test(id) || !Number.isInteger(qty) ||
-          qty < 1 || qty > 100 || ids.has(id)) {
-        throw new HttpError(400, "Invalid order items.");
-      }
-      ids.add(id);
-      return { id, qty };
-    });
-
+    const items = normalizeStoreOrderItems(rawItems, HttpError, sanitize);
     const operationalSettings = (await readAdminSettings(db)).settings;
+
     const orderId = `PC-${createHash("sha256").update(`${uid}:${requestId}`).digest("hex").slice(0, 24)}`;
     const orderRef = db.collection("adminOrders").doc(orderId);
     const created = await db.runTransaction(async (transaction) => {
@@ -360,11 +431,7 @@ app.post(
       const orderItems = productSnaps.map((snap, index) => {
         const product = snap.data();
         const { qty } = items[index];
-        if (!snap.exists || product.published !== true ||
-            !Number.isInteger(product.price) || product.price < 0 ||
-            !Number.isInteger(product.stock) || product.stock < qty) {
-          throw new HttpError(409, "A product is unavailable or has insufficient stock. Refresh the cart.");
-        }
+        assertPurchasableProduct(snap.exists ? product : null, qty, HttpError);
         subtotal += product.price * qty;
         if (Number.isInteger(product.costPrice) && product.costPrice >= 0) {
           costOfGoods += product.costPrice * qty;
@@ -379,15 +446,14 @@ app.post(
       });
 
       const deliveryFee = subtotal >= operationalSettings.checkout.freeDeliveryThreshold ? 0 : operationalSettings.checkout.deliveryFee;
-      if (Number.isInteger(req.body.expectedDeliveryFee) &&
-          req.body.expectedDeliveryFee !== deliveryFee) {
+      if (Number.isInteger(req.body.expectedDeliveryFee) && req.body.expectedDeliveryFee !== deliveryFee) {
         throw new HttpError(409, "Delivery rules changed. Refresh the cart before checkout.");
       }
       if (subtotal !== req.body.expectedSubtotal) {
         throw new HttpError(409, "Prices have changed. Refresh the cart before checkout.");
       }
       productRefs.forEach((ref, index) => transaction.update(ref, {
-        stock: productSnaps[index].data().stock - items[index].qty,
+        stock: stockAfterPurchase(productSnaps[index].data().stock, items[index].qty),
         updatedAt: FieldValue.serverTimestamp(),
       }));
       transaction.create(orderRef, {
@@ -433,7 +499,7 @@ app.post(
       const products = await Promise.all(refs.map((ref) => transaction.get(ref)));
       refs.forEach((ref, index) => {
         if (products[index].exists) transaction.update(ref, {
-          stock: products[index].data().stock + order.items[index].qty,
+          stock: stockAfterCancellation(products[index].data().stock, order.items[index].qty),
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
@@ -838,7 +904,7 @@ app.post(
         productRefs.forEach((productRef, index) => {
           if (productSnaps[index].exists && Number.isInteger(items[index].qty)) {
             transaction.update(productRef, {
-              stock: productSnaps[index].data().stock + items[index].qty,
+              stock: stockAfterCancellation(productSnaps[index].data().stock, items[index].qty),
               updatedAt: FieldValue.serverTimestamp(),
             });
           }
@@ -1085,8 +1151,7 @@ app.delete(
   })
 );
 
-// Full pet profiles belong to the authenticated user, not to a shared browser
-// store. These routes do not change the admin-only summary endpoints.
+// Full pet profiles belong to the authenticated owner, never a shared browser store.
 registerOwnerPetRoutes({ app, db, signedInRoute, HttpError, FieldValue });
 
 app.use((req, res) => {
@@ -1111,9 +1176,18 @@ app.use((error, _req, res, _next) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`PetCare Admin API listening on port ${PORT}`);
-  });
+  assertEmulatorServicesReachable(firebaseEmulatorConfig)
+    .then(() => {
+      const onListening = () => console.log(
+        `PetCare Admin API listening on ${emulatorMode ? "127.0.0.1:" : ":"}${PORT}${emulatorMode ? " (Firebase emulators)" : ""}`
+      );
+      if (emulatorMode) app.listen(PORT, "127.0.0.1", onListening);
+      else app.listen(PORT, onListening);
+    })
+    .catch((error) => {
+      console.error("[petcare-admin-api startup]", error.message);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = app;
