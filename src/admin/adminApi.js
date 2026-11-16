@@ -48,10 +48,6 @@ export const adminApi = {
   testPushNotification: () => request("/api/admin/push/test", { method: "POST" }),
   reports: (days = "30") => request(`/api/admin/reports?days=${encodeURIComponent(days)}`),
   geography: () => request("/api/admin/geography"),
-  settings: () => request("/api/admin/settings"),
-  updateSettings: (settings, version) =>
-    request("/api/admin/settings", { method: "PUT", payload: { settings, version } }),
-  systemStatus: () => request("/api/admin/system-status"),
   setSuspended: (uid, disabled, reason) =>
     request(`/api/admin/users/${encodeURIComponent(uid)}/suspension`, {
       method: "POST",
@@ -64,10 +60,6 @@ export const adminApi = {
     }),
   saveProduct: (product) =>
     request("/api/admin/products", { method: "POST", payload: { product } }),
-  imageKitUploadAuth: () =>
-    request("/api/admin/imagekit/upload-auth", { method: "POST" }),
-  deleteImageKitFile: (fileId) =>
-    request(`/api/admin/imagekit/files/${encodeURIComponent(fileId)}`, { method: "DELETE" }),
   syncProfile: (profile) =>
     request("/api/profile/sync", { method: "POST", payload: { profile } }),
   syncPet: (pet) =>

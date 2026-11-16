@@ -4,21 +4,30 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { createHash, createHmac, randomUUID } = require("node:crypto");
+const multer = require("multer");
+const { createClient } = require("@supabase/supabase-js");
+const { createHash } = require("node:crypto");
 const { summarizeOrders, summarizeGeography, makeOrderNotifications, hideInternalOrderCosts } = require("./adminInsights.cjs");
-const { registerOwnerPetRoutes } = require("./ownerPets.cjs");
-const { readAdminSettings, registerAdminSettingsRoutes } = require("./adminSettings.cjs");
+const { registerClinicRoutes } = require("./clinics.cjs");
+const { createClinicDocumentStorage, MAX_DOCUMENT_BYTES } = require("./clinicDocumentStorage.cjs");
+const { normalizeStoreOrderItems, assertPurchasableProduct, stockAfterPurchase, stockAfterCancellation } = require("./storeCommerce.cjs");
+const { resolveFirebaseEmulatorConfig, assertEmulatorServicesReachable } = require("./firebaseEmulators.cjs");
 const { initializeApp, cert, applicationDefault, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
+const { getAppCheck } = require("firebase-admin/app-check");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getStorage } = require("firebase-admin/storage");
+const { createClinicAppCheckMiddleware } = require("./clinicAppCheck.cjs");
 
 const PORT = Number(process.env.PORT || 10000);
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "";
 const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
-const emulatorMode = Boolean(
-  process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST
-);
+if (process.env.SUPABASE_ALLOW_SYNTHETIC_UPLOADS === "true") {
+  throw new Error("SUPABASE_ALLOW_SYNTHETIC_UPLOADS is test-only and cannot be enabled on the API server.");
+}
+const firebaseEmulatorConfig = resolveFirebaseEmulatorConfig(process.env);
+const emulatorMode = firebaseEmulatorConfig.enabled;
 
 function initializeFirebaseAdmin() {
   if (getApps().length) return;
@@ -59,6 +68,22 @@ initializeFirebaseAdmin();
 
 const auth = getAuth();
 const db = getFirestore();
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || "";
+const supabaseBucketName = process.env.SUPABASE_BUCKET || "";
+const supabaseClient = !emulatorMode && supabaseUrl && supabaseSecretKey && supabaseBucketName
+  ? createClient(supabaseUrl, supabaseSecretKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  })
+  : null;
+const clinicDocumentStorage = createClinicDocumentStorage({
+  db,
+  emulatorMode,
+  supabaseClient,
+  bucketName: supabaseBucketName,
+  productionUploadsEnabled: false,
+  FieldValue,
+});
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -67,9 +92,11 @@ const defaultOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
+  "http://localhost:5190",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
   "http://127.0.0.1:5175",
+  "http://127.0.0.1:5190",
 ];
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultOrigins.join(","))
   .split(",")
@@ -82,7 +109,7 @@ const corsOptions = {
     return callback(new Error("Origin not allowed by CORS"));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Authorization", "Content-Type"],
+  allowedHeaders: ["Authorization", "Content-Type", "X-Firebase-AppCheck"],
   optionsSuccessStatus: 204,
 };
 
@@ -110,6 +137,37 @@ class HttpError extends Error {
 
 const asyncRoute = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
+
+const requireClinicAppCheck = createClinicAppCheckMiddleware({
+  emulatorMode,
+  verifyToken: (token) => getAppCheck().verifyToken(token),
+  HttpError,
+});
+const clinicSignedInRoute = (handler) => [
+  authenticate, requireClinicAppCheck, asyncRoute(handler),
+];
+const clinicAdminRoute = (handler) => [
+  authenticate, requireAdmin, requireClinicAppCheck, asyncRoute(handler),
+];
+
+const clinicDocumentRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many document requests. Please try again later." },
+});
+const parseClinicDocument = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_DOCUMENT_BYTES, files: 1, fields: 0, parts: 1 },
+}).single("document");
+const parseClinicDocumentSafely = (req, res, next) => parseClinicDocument(req, res, (error) => {
+  if (!error) return next();
+  if (error.code === "LIMIT_FILE_SIZE") {
+    return next(new HttpError(413, "Each verification document must be no larger than 5 MB."));
+  }
+  return next(new HttpError(400, "Upload exactly one file using the document field."));
+});
 
 const sanitize = (value, max = 200) =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -270,14 +328,33 @@ const requireAdmin = (req, res, next) => {
 
 const adminRoute = (handler) => [authenticate, requireAdmin, asyncRoute(handler)];
 const signedInRoute = (handler) => [authenticate, asyncRoute(handler)];
+const signedInDocumentRoute = (handler) => [
+  authenticate, requireClinicAppCheck, clinicDocumentRateLimit, parseClinicDocumentSafely, asyncRoute(handler),
+];
 
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "petcare-admin-api" });
+registerClinicRoutes({
+  app, db, signedInRoute: clinicSignedInRoute, signedInDocumentRoute,
+  adminRoute: clinicAdminRoute, HttpError, FieldValue, audit,
+  documentStorage: clinicDocumentStorage,
 });
-
-// Settings are persisted in Firestore and require Firebase Admin authorization.
-// Public checkout policy exposes no private configuration.
-registerAdminSettingsRoutes({ app, db, adminRoute, asyncRoute, HttpError, FieldValue });
+app.get("/health", (_req, res) => {
+  const health = {
+    ok: true,
+    service: "petcare-admin-api",
+    firebase: emulatorMode ? { mode: "emulator", projectId: firebaseEmulatorConfig.projectId } : { mode: "configured" },
+  };
+  if (!emulatorMode) {
+    res.json(health);
+    return;
+  }
+  assertEmulatorServicesReachable(firebaseEmulatorConfig)
+    .then(() => res.json(health))
+    .catch(() => res.status(503).json({
+      ok: false,
+      service: "petcare-admin-api",
+      firebase: { mode: "emulator", ready: false },
+    }));
+});
 
 // The public shop is intentionally empty until an administrator publishes products.
 app.get(
@@ -329,19 +406,8 @@ app.post(
       throw new HttpError(400, "Invalid checkout details. Sign in and use cash on delivery.");
     }
 
-    const ids = new Set();
-    const items = rawItems.map((item) => {
-      const id = sanitize(item?.id, 120);
-      const qty = Number(item?.qty);
-      if (!/^[A-Za-z0-9_-]{1,120}$/.test(id) || !Number.isInteger(qty) ||
-          qty < 1 || qty > 100 || ids.has(id)) {
-        throw new HttpError(400, "Invalid order items.");
-      }
-      ids.add(id);
-      return { id, qty };
-    });
+    const items = normalizeStoreOrderItems(rawItems, HttpError, sanitize);
 
-    const operationalSettings = (await readAdminSettings(db)).settings;
     const orderId = `PC-${createHash("sha256").update(`${uid}:${requestId}`).digest("hex").slice(0, 24)}`;
     const orderRef = db.collection("adminOrders").doc(orderId);
     const created = await db.runTransaction(async (transaction) => {
@@ -360,11 +426,7 @@ app.post(
       const orderItems = productSnaps.map((snap, index) => {
         const product = snap.data();
         const { qty } = items[index];
-        if (!snap.exists || product.published !== true ||
-            !Number.isInteger(product.price) || product.price < 0 ||
-            !Number.isInteger(product.stock) || product.stock < qty) {
-          throw new HttpError(409, "A product is unavailable or has insufficient stock. Refresh the cart.");
-        }
+        assertPurchasableProduct(snap.exists ? product : null, qty, HttpError);
         subtotal += product.price * qty;
         if (Number.isInteger(product.costPrice) && product.costPrice >= 0) {
           costOfGoods += product.costPrice * qty;
@@ -378,16 +440,12 @@ app.post(
         };
       });
 
-      const deliveryFee = subtotal >= operationalSettings.checkout.freeDeliveryThreshold ? 0 : operationalSettings.checkout.deliveryFee;
-      if (Number.isInteger(req.body.expectedDeliveryFee) &&
-          req.body.expectedDeliveryFee !== deliveryFee) {
-        throw new HttpError(409, "Delivery rules changed. Refresh the cart before checkout.");
-      }
+      const deliveryFee = subtotal >= 1200 ? 0 : 35;
       if (subtotal !== req.body.expectedSubtotal) {
         throw new HttpError(409, "Prices have changed. Refresh the cart before checkout.");
       }
       productRefs.forEach((ref, index) => transaction.update(ref, {
-        stock: productSnaps[index].data().stock - items[index].qty,
+        stock: stockAfterPurchase(productSnaps[index].data().stock, items[index].qty),
         updatedAt: FieldValue.serverTimestamp(),
       }));
       transaction.create(orderRef, {
@@ -405,7 +463,7 @@ app.post(
       await audit(uid, "order.placed", orderId).catch((err) => console.error("[order audit]", err?.message));
     }
     const savedOrder = await orderRef.get();
-    if (created && operationalSettings.notifications.newOrderPush) {
+    if (created) {
       await sendNewOrderPush({ id: orderId, total: Number(savedOrder.data()?.total) || 0 }).catch((err) =>
         console.warn("[order push] Delivery attempt failed:", err?.code || err?.message || "unknown")
       );
@@ -433,7 +491,7 @@ app.post(
       const products = await Promise.all(refs.map((ref) => transaction.get(ref)));
       refs.forEach((ref, index) => {
         if (products[index].exists) transaction.update(ref, {
-          stock: products[index].data().stock + order.items[index].qty,
+          stock: stockAfterCancellation(products[index].data().stock, order.items[index].qty),
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
@@ -838,7 +896,7 @@ app.post(
         productRefs.forEach((productRef, index) => {
           if (productSnaps[index].exists && Number.isInteger(items[index].qty)) {
             transaction.update(productRef, {
-              stock: productSnaps[index].data().stock + items[index].qty,
+              stock: stockAfterCancellation(productSnaps[index].data().stock, items[index].qty),
               updatedAt: FieldValue.serverTimestamp(),
             });
           }
@@ -867,64 +925,6 @@ app.post(
 );
 
 app.post(
-  "/api/admin/imagekit/upload-auth",
-  ...adminRoute(async (_req, res) => {
-    const publicKey = process.env.IMAGEKIT_PUBLIC_KEY || "";
-    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY || "";
-    if (!publicKey.startsWith("public_") || !privateKey.startsWith("private_")) {
-      throw new HttpError(503, "Image uploads are not configured. Ask the platform administrator to configure ImageKit.");
-    }
-
-    const token = randomUUID();
-    const expire = Math.floor(Date.now() / 1000) + 10 * 60;
-    const signature = createHmac("sha1", privateKey)
-      .update(token + expire)
-      .digest("hex");
-
-    res.set("Cache-Control", "no-store");
-    res.json({ token, expire, signature, publicKey });
-  })
-);
-
-app.delete(
-  "/api/admin/imagekit/files/:fileId",
-  ...adminRoute(async (req, res) => {
-    const actorUid = req.authUser.uid;
-    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY || "";
-    const fileId = sanitize(req.params.fileId, 128);
-    if (!privateKey.startsWith("private_")) {
-      throw new HttpError(503, "ImageKit deletion is not configured.");
-    }
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(fileId)) {
-      throw new HttpError(400, "Invalid ImageKit file ID.");
-    }
-
-    const response = await fetch(
-      `https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${privateKey}:`).toString("base64")}`,
-        },
-        signal: AbortSignal.timeout(15000),
-      }
-    );
-
-    if (response.status === 404) {
-      res.json({ ok: true, alreadyDeleted: true });
-      return;
-    }
-    if (!response.ok) {
-      console.warn("[imagekit] File deletion failed:", response.status);
-      throw new HttpError(502, "ImageKit could not delete the product image. Try again.");
-    }
-
-    await audit(actorUid, "product.image.delete", fileId);
-    res.json({ ok: true });
-  })
-);
-
-app.post(
   "/api/admin/products",
   ...adminRoute(async (req, res) => {
     const actorUid = req.authUser.uid;
@@ -934,8 +934,7 @@ app.post(
     const petType = sanitize(product.petType, 40);
     const description = sanitize(product.description, 1500);
     const imageUrl = sanitize(product.imageUrl, 1000);
-    const imageKitFileId = sanitize(product.imageKitFileId, 128);
-    const imageKitFilePath = sanitize(product.imageKitFilePath, 500);
+    const imageStoragePath = sanitize(product.imageStoragePath, 500);
     const price = Number(product.price);
     const rawCostPrice = product.costPrice;
     const costPrice = rawCostPrice === "" || rawCostPrice == null ? null : Number(rawCostPrice);
@@ -956,18 +955,12 @@ app.post(
     if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
       throw new HttpError(400, "Product image must be an HTTPS URL.");
     }
-    if (imageKitFileId) {
-      let endpoint = process.env.IMAGEKIT_URL_ENDPOINT || "";
-      while (endpoint.endsWith("/")) endpoint = endpoint.slice(0, -1);
-      if (
-        !/^[A-Za-z0-9_-]{1,128}$/.test(imageKitFileId) ||
-        !endpoint ||
-        !imageUrl.startsWith(`${endpoint}/`)
-      ) {
-        throw new HttpError(400, "Invalid ImageKit product image details.");
-      }
-    } else if (imageKitFilePath) {
-      throw new HttpError(400, "ImageKit file path requires a file ID.");
+    const imagePathPrefix = `products/${actorUid}/`;
+    if (imageStoragePath && (
+      !imageStoragePath.startsWith(imagePathPrefix) ||
+      !/^[A-Za-z0-9._-]{1,180}$/.test(imageStoragePath.slice(imagePathPrefix.length))
+    )) {
+      throw new HttpError(400, "Product image must be uploaded to this administrator's product folder.");
     }
 
     const suppliedId = Boolean(product.id);
@@ -987,9 +980,7 @@ app.post(
       petType,
       description,
       imageUrl,
-      imageKitFileId,
-      imageKitFilePath,
-      imageStoragePath: FieldValue.delete(),
+      imageStoragePath,
       price,
       costPrice,
       stock,
@@ -1085,10 +1076,6 @@ app.delete(
   })
 );
 
-// Full pet profiles belong to the authenticated user, not to a shared browser
-// store. These routes do not change the admin-only summary endpoints.
-registerOwnerPetRoutes({ app, db, signedInRoute, HttpError, FieldValue });
-
 app.use((req, res) => {
   res.status(404).json({ error: "Endpoint not found." });
 });
@@ -1111,9 +1098,18 @@ app.use((error, _req, res, _next) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`PetCare Admin API listening on port ${PORT}`);
-  });
+  assertEmulatorServicesReachable(firebaseEmulatorConfig)
+    .then(() => {
+      const onListening = () => console.log(
+        `PetCare Admin API listening on ${emulatorMode ? "127.0.0.1:" : ":"}${PORT}${emulatorMode ? " (Firebase emulators)" : ""}`
+      );
+      if (emulatorMode) app.listen(PORT, "127.0.0.1", onListening);
+      else app.listen(PORT, onListening);
+    })
+    .catch((error) => {
+      console.error("[petcare-admin-api startup]", error.message);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = app;

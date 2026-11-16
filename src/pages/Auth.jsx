@@ -8,7 +8,7 @@ import Media from "../components/Media.jsx";
 import PhotoUpload from "../components/PhotoUpload.jsx";
 import { Button, Modal } from "../components/ui.jsx";
 import { getCurrentAuthUser, loginWithEmail, logoutUser, registerWithEmail, sendPasswordReset, updateAuthDisplayName } from "../services/authService.js";
-import { getStoredAccountProfile, transferGuestCart } from "../hooks/useAccountPersistentState.js";
+import { clinicApi } from "../services/clinicApi.js";
 
 function displayNameFromEmail(email) {
   const prefix = email.split("@")[0].replace(/\d+$/, "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
@@ -86,9 +86,43 @@ export function Login() {
   const { t } = useLanguage();
   const nav = useNavigate();
   const location = useLocation();
+  const emailInputRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const [savedAccounts, setSavedAccounts] = useState(() => {
+    try {
+      const stored = localStorage.getItem("petcare_saved_accounts");
+      const accounts = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(accounts)) return [];
+      return [...new Set(accounts.map((account) => account?.email).filter((email) => typeof email === "string" && email.includes("@")))]
+        .map((email) => ({ email }));
+    } catch {
+      return [];
+    }
+  });
+
   const [f, setF] = useState({ email: "", password: "", remember: true });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [showAccounts, setShowAccounts] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("petcare_saved_accounts", JSON.stringify(savedAccounts));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [savedAccounts]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowAccounts(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loginErrorMessage = (error) => {
     switch (error?.code) {
@@ -107,6 +141,20 @@ export function Login() {
     }
   };
 
+  const selectAccount = (acc, event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    setF((prev) => ({ ...prev, email: acc.email, password: "" }));
+    setShowAccounts(false);
+    emailInputRef.current?.blur();
+  };
+
+  const removeAccount = (emailToRemove, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSavedAccounts((prev) => prev.filter((acc) => acc.email !== emailToRemove));
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (saving) return;
@@ -115,10 +163,15 @@ export function Login() {
     try {
       const credential = await loginWithEmail(f.email, f.password, f.remember);
       const firebaseUser = credential.user;
-      // Preserve items added before checkout prompted this login.
-      transferGuestCart(firebaseUser.uid, {});
 
-      const savedProfile = user?.uid === firebaseUser.uid ? user : (getStoredAccountProfile(firebaseUser.uid) || {});
+      if (f.remember) {
+        setSavedAccounts((prev) => {
+          const exists = prev.some((a) => a.email === f.email);
+          return exists ? prev : [...prev, { email: f.email }];
+        });
+      }
+
+      const savedProfile = user?.uid === firebaseUser.uid ? user : {};
       await saveUser({
         uid: firebaseUser.uid,
         name: firebaseUser.displayName || "",
@@ -143,19 +196,61 @@ export function Login() {
       <form className="mt-7 space-y-5" onSubmit={submit}>
         <label htmlFor="login-email" className="block text-[11px] font-bold text-ink-700">
           {t("auth.email_address")}
-          <span className="relative mt-2 block">
-            <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
+          <span ref={dropdownRef} className="relative mt-2 block">
+            <Mail
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500 cursor-pointer"
+              onClick={() => emailInputRef.current?.focus()}
+            />
             <input
+              ref={emailInputRef}
               id="login-email"
               name="email"
               autoComplete="username"
               required
               type="email"
-              className={`${input} pl-10`}
+              className={`${input} pl-10 pr-12`}
               placeholder="you@example.com"
               value={f.email}
+              onFocus={() => setShowAccounts(true)}
               onChange={(event) => setF({ ...f, email: event.target.value })}
             />
+            <button
+              type="button"
+              aria-label="Select saved account"
+              onClick={() => setShowAccounts(!showAccounts)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-lg bg-stone-100 p-1.5 text-ink-700 hover:bg-stone-200 transition"
+            >
+              <Key size={14} />
+              <ChevronDown size={12} />
+            </button>
+
+            {showAccounts && savedAccounts.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1.5 overflow-hidden rounded-xl border border-stone-800 bg-ink-900 p-1 text-white shadow-xl">
+                <div className="flex items-center justify-between border-b border-stone-800 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                  <span>{t("auth.saved_accounts", "SAVED ACCOUNTS:")}</span>
+                  <button type="button" onClick={() => setShowAccounts(false)} className="text-stone-400 hover:text-white">✕</button>
+                </div>
+                {savedAccounts.map((acc) => (
+                  <div
+                    key={acc.email}
+                    onMouseDown={(e) => selectAccount(acc, e)}
+                    className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold text-stone-200 hover:bg-stone-800 hover:text-white transition group"
+                  >
+                    <span>{acc.email}</span>
+                    <button
+                      type="button"
+                      aria-label="Delete saved account"
+                      onMouseDown={(e) => removeAccount(acc.email, e)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded p-1 text-stone-400 hover:bg-stone-700 hover:text-red-400 transition"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </span>
         </label>
 
@@ -187,9 +282,10 @@ export function Login() {
 }
 
 export function Register() {
-  const { saveUser, showToast } = useApp();
-  const { t } = useLanguage();
+  const { user, saveUser, showToast } = useApp();
+  const { t, isRussian } = useLanguage();
   const nav = useNavigate();
+  const [selectedRole, setSelectedRole] = useState("");
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [f, setF] = useState({ name: "", email: "", phone: "", city: "", password: "", confirm: "", terms: false });
@@ -214,13 +310,13 @@ export function Register() {
   const submit = async (event) => {
     event.preventDefault();
     setErr("");
+    if (!selectedRole) return setErr("Choose an account type to continue.");
     if (f.password.length < 6) return setErr("Password must be at least 6 characters.");
     if (f.password !== f.confirm) return setErr("Passwords do not match.");
     if (!f.city.trim()) return setErr("City is required.");
     setSaving(true);
     try {
       const credential = await registerWithEmail(f.email, f.password);
-      transferGuestCart(credential.user.uid, {});
       let displayNameSaved = true;
       try {
         await updateAuthDisplayName(credential.user, f.name.trim());
@@ -234,7 +330,7 @@ export function Register() {
         phone: f.phone,
         city: f.city.trim(),
       });
-      nav("/");
+      nav(selectedRole === "clinic" ? "/clinic" : "/");
       if (!displayNameSaved) {
         showToast("Your account was created, but your display name could not be saved to Firebase.", "warning");
       }
@@ -245,9 +341,50 @@ export function Register() {
     }
   };
 
+  const accountTypes = [
+    { id: "owner", title: isRussian ? "Владелец питомца" : "Pet Owner", description: isRussian ? "Управляйте питомцами и записывайтесь на услуги." : "Manage pets and book services." },
+    { id: "clinic", title: isRussian ? "Руководитель клиники" : "Clinic Manager", description: isRussian ? "Зарегистрируйте ветеринарную клинику и управляйте ею." : "Register and manage a veterinary clinic." },
+  ];
+
   return (
-    <AuthShell title={t("auth.create_account")} eyebrow={t("auth.register_eyebrow", "A better day for every pet")}>
-      <form className="mt-6 space-y-4" onSubmit={submit}>
+    <AuthShell title={selectedRole ? t("auth.create_account") : isRussian ? "Выберите тип аккаунта" : "Choose Your Account Type"} eyebrow={t("auth.register_eyebrow", "A better day for every pet")}>
+      {!selectedRole ? (
+        <div className="mt-6 space-y-3" data-testid="account-type-selection">
+          <p className="text-sm leading-6 text-ink-500">{isRussian ? "Выберите, как использовать PetCare. Доступ для бизнеса активируется только после одобрения администрацией." : "Choose how you want to use PetCare. Business access is activated only after administrator approval."}</p>
+          {accountTypes.map((type) => (
+            <button
+              key={type.id}
+              type="button"
+              onClick={() => {
+                if (user) {
+                  nav(type.id === "clinic" ? "/clinic" : "/profile");
+                  return;
+                }
+                setSelectedRole(type.id);
+              }}
+              className="flex w-full items-center justify-between gap-4 rounded-2xl border border-stone-200 p-4 text-left transition hover:border-primary-400 hover:bg-primary-50"
+            >
+              <span>
+                <span className="block font-extrabold text-ink-900">{type.title}</span>
+                <span className="mt-1 block text-sm text-ink-500">{type.description}</span>
+              </span>
+              <span aria-hidden="true" className="text-xl font-bold text-primary-700">→</span>
+            </button>
+          ))}
+          {user && <p className="text-xs text-ink-500">{isRussian ? "Вы вошли в аккаунт. Выбранный тип бизнеса будет добавлен к этому аккаунту, но роль останется ожидающей до одобрения." : "You are signed in. Choosing a business type continues with this account; your business role remains pending until approved."}</p>}
+        </div>
+      ) : (
+      <>
+      <div className="mt-5 flex items-center justify-between rounded-xl bg-primary-50 px-4 py-3">
+        <span><span className="block text-xs text-ink-500">{isRussian ? "Тип аккаунта" : "Account type"}</span><strong className="text-sm text-primary-900">{accountTypes.find((type) => type.id === selectedRole)?.title}</strong></span>
+        <button type="button" className="text-sm font-bold text-primary-700 underline" onClick={() => setSelectedRole("")}>{isRussian ? "Изменить" : "Change"}</button>
+      </div>
+      {user ? (
+        <div className="mt-5 space-y-3">
+          <p className="text-sm text-ink-600">{isRussian ? "Продолжите с существующим аккаунтом PetCare. Выбор типа не предоставляет бизнес-доступ — требуется одобрение." : "Continue with your existing PetCare account. Selecting this type does not grant business access; approval is required."}</p>
+          <button type="button" className={`${btn} w-full`} onClick={() => nav(selectedRole === "clinic" ? "/clinic" : "/profile")}>{isRussian ? "Продолжить" : "Continue"}</button>
+        </div>
+      ) : <form className="mt-6 space-y-4" onSubmit={submit}>
         <label htmlFor="register-name" className="block text-[11px] font-bold text-ink-700">
           {t("cart.full_name")}
           <input id="register-name" name="name" autoComplete="name" required className={`${input} mt-2`} placeholder="Your name" value={f.name} onChange={set("name")} />
@@ -283,8 +420,10 @@ export function Register() {
 
         <Button type="submit" disabled={saving} className="w-full">{saving ? t("auth.creating_account") : t("auth.create_account")}</Button>
       </form>
-
+      }
       <p className="mt-5 text-center text-sm text-ink-500">{t("auth.already_registered")} <Link className="font-bold text-primary-700" to="/login">{t("nav.login")}</Link></p>
+      </>
+      )}
     </AuthShell>
   );
 }
@@ -400,6 +539,45 @@ export function Forgot() {
           <ArrowLeft aria-hidden="true" size={16} /> {t("auth.back_to_login")}
         </Link>
       </div>
+    </section>
+  );
+}
+
+function BusinessRoleSettings() {
+  const { user } = useApp();
+  const { isRussian } = useLanguage();
+  const tr = (en, ru) => isRussian ? ru : en;
+  const [clinic, setClinic] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    clinicApi.mine()
+      .then((result) => { if (active) setClinic(result.clinic || null); })
+      .catch((requestError) => { if (active) setError(requestError.message); });
+    return () => { active = false; };
+  }, [user?.uid]);
+
+  const status = clinic?.status || "not applied";
+  return (
+    <section className="mt-5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm" aria-labelledby="business-roles-title">
+      <div>
+        <h2 id="business-roles-title" className="font-extrabold text-ink-900">{tr("Business roles", "Бизнес-роли")}</h2>
+        <p className="mt-1 text-sm text-ink-500">{tr("Add a business role to this PetCare account. Business dashboards are enabled only after PetCare Admin approves the application.", "Добавьте бизнес-роль к аккаунту PetCare. Бизнес-панели станут доступны после одобрения администрацией PetCare.")}</p>
+      </div>
+      {error && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
+      <div className="mt-4">
+          <div className="rounded-xl border border-stone-200 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <strong>{tr("Clinic Manager", "Руководитель клиники")}</strong>
+              <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold capitalize">{tr(status, status === "not applied" ? "не подана" : status === "approved" ? "одобрено" : status === "pending" ? "на рассмотрении" : status === "changes_requested" ? "требуются изменения" : status === "rejected" ? "отклонено" : "приостановлено")}</span>
+            </div>
+            <Link to="/clinic" className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-primary-50 px-3 text-sm font-bold text-primary-800 hover:bg-primary-100">
+              {status === "approved" ? tr("Switch Dashboard", "Сменить панель") : tr("Add Clinic Manager Role", "Добавить роль руководителя клиники")}
+            </Link>
+          </div>
+      </div>
+      {clinic && <p className="mt-3 text-xs text-ink-500">{tr("Your Pet Owner access and existing data remain available while an application is pending.", "Доступ владельца питомца и существующие данные сохраняются, пока заявка рассматривается.")}</p>}
     </section>
   );
 }
@@ -657,6 +835,7 @@ export function Profile() {
         <main className="min-w-0">
           <header className="mb-5"><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-700">{isSettings ? t("nav.settings") : t("auth.profile_title")}</p><h1 className="mt-1 text-2xl font-extrabold text-ink-900 sm:text-3xl">{isSettings ? t("nav.settings") : t("auth.profile_title")}</h1></header>
           {content}
+          {isSettings && <BusinessRoleSettings />}
           {isSettings && (
             <section className="mt-5 rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-4">

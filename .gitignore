@@ -5,6 +5,16 @@ dist
 .env*.local
 doc_*.env.local
 doc_*.env.server.local
+# Backend-only local Supabase credentials.
+/admin-backend/render-api/.env.supabase.local
+# Source backups made before the local Supabase integration.
+.supabase-integration-backups/
 !.env.example
 .DS_Store
 *.log
+.source-backups/
+test-results/
+playwright-report/
+blob-report/
+coverage/
+*.trace

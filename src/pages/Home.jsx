@@ -10,7 +10,6 @@ import { Button, Card, Rating, SectionTitle } from "../components/ui.jsx";
 import { btn, btn2 } from "../ui.js";
 import PetAvatar from "../components/PetAvatar.jsx";
 import { LOST_FOUND_ENABLED } from "../config.js";
-import { fetchHomepageHero } from "../services/homepageBranding.js";
 
 function Band({ id, tone, children, className = "" }) {
   return <section id={id} aria-labelledby={`${id}-title`} className={`home-band ${tone} ${className}`}><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24 lg:px-8">{children}</div></section>;
@@ -91,15 +90,10 @@ function HeroSelect({ id, label, options, value, onChange, Icon, open, setOpen }
   </div>;
 }
 
-function HeroPhoto({ src, fallbackSrc }) {
-  const [failedUrls, setFailedUrls] = useState([]);
-  const displayed = src && !failedUrls.includes(src) ? src
-    : fallbackSrc && !failedUrls.includes(fallbackSrc) ? fallbackSrc : "";
+function HeroPhoto({ src }) {
+  const [failed, setFailed] = useState(false);
   return <div className="home-hero-photo-wrap">
-    {displayed
-      ? <img key={displayed} src={displayed} alt="PetCare featured pet" loading="eager"
-          onError={() => setFailedUrls((previous) => previous.includes(displayed) ? previous : [...previous, displayed])} className="home-hero-photo" />
-      : <div role="img" aria-label="Pet photo unavailable" className="home-hero-photo-fallback"><PawPrint size={44} aria-hidden="true" /></div>}
+    {failed ? <div role="img" aria-label="Pet photo unavailable" className="home-hero-photo-fallback"><PawPrint size={44} aria-hidden="true" /></div> : <img src={src} alt="A happy dog enjoying time outdoors" loading="eager" onError={() => setFailed(true)} className="home-hero-photo" />}
   </div>;
 }
 
@@ -111,14 +105,6 @@ export default function Home() {
   const [city, setCity] = useState("");
   const [petType, setPetType] = useState("");
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [customHeroImage, setCustomHeroImage] = useState("");
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchHomepageHero({ signal: controller.signal })
-      .then((url) => { if (!controller.signal.aborted) setCustomHeroImage(url); })
-      .catch(() => { /* Keep the existing default photo when the public API is offline. */ });
-    return () => controller.abort();
-  }, []);
 
   const serviceTiles = [
     { to: "/services/vet", title: t("nav.veterinary", "Veterinary"), description: t("services.vet_desc", "Expert health care"), Icon: Stethoscope, color: "bg-primary-50 text-primary-700" },
@@ -270,7 +256,7 @@ export default function Home() {
           </p>
         </div>
         <div className="mx-auto w-full max-w-xl lg:max-w-none">
-          <HeroPhoto src={customHeroImage || adoptions[0]?.image} fallbackSrc={adoptions[0]?.image} />
+          <HeroPhoto src={adoptions[0]?.image} />
         </div>
       </div>
     </section>
@@ -441,7 +427,7 @@ export default function Home() {
             {t("home.view_listings", "View listings")} <ArrowRight size={15} className="inline" />
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           {featuredAdoptions.map((animal) => (
             <Card key={animal.id} className="overflow-hidden !p-0">
               <Link to={`/adoption/${animal.id}`}>
