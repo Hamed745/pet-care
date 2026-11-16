@@ -227,6 +227,9 @@ export function Register() {
     setSaving(true);
     try {
       const credential = await registerWithEmail(f.email, f.password);
+      // Mark the chosen clinic journey immediately: the role resolver may
+      // start as soon as Firebase publishes the newly authenticated user.
+      if (accountType === "clinic") rememberClinicIntent(credential.user.uid);
       transferGuestCart(credential.user.uid, {});
       let displayNameSaved = true;
       try {
@@ -241,7 +244,6 @@ export function Register() {
         phone: f.phone,
         city: f.city.trim(),
       });
-      if (accountType === "clinic") rememberClinicIntent(credential.user.uid);
       nav(accountType === "clinic" ? "/clinic" : "/");
       if (!displayNameSaved) {
         showToast("Your account was created, but your display name could not be saved to Firebase.", "warning");
