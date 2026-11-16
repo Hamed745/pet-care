@@ -1,6 +1,7 @@
 "use strict";
 
 const { defineConfig } = require("@playwright/test");
+const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
 module.exports = defineConfig({
   testDir: "./admin-backend/render-api/tests/browser",
@@ -17,19 +18,19 @@ module.exports = defineConfig({
   },
   webServer: [
     {
-      command: "npm.cmd run dev:emulators -- --only auth,firestore",
+      command: `${npm} run dev:emulators -- --only auth,firestore`,
       url: "http://127.0.0.1:9099",
       timeout: 120000,
       reuseExistingServer: false,
     },
     {
-      command: "npm.cmd run dev:api:emulator",
+      command: `${npm} run dev:api:emulator`,
       url: "http://127.0.0.1:10000/health",
       timeout: 120000,
       reuseExistingServer: false,
     },
     {
-      command: "npm.cmd run dev:maps:web:emulator",
+      command: `${npm} run dev:maps:web:emulator`,
       url: "http://127.0.0.1:5190",
       timeout: 120000,
       reuseExistingServer: false,
