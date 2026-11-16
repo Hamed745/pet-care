@@ -12,7 +12,6 @@ import { ToastStack } from "./ui.jsx";
 import LanguageSwitcher from "./LanguageSwitcher.jsx";
 import AdminEntryLink from "../admin/AdminEntryLink.jsx";
 import { logoutUser } from "../services/authService.js";
-import { clinicApi } from "../services/clinicApi.js";
 
 function Brand() {
   return (
@@ -36,13 +35,11 @@ function Navbar() {
   const [servicesOpen, setServicesOpen] = useState(false);
   const [communityOpen, setCommunityOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const [clinic, setClinic] = useState(null);
   const count = cart.reduce((sum, item) => sum + item.qty, 0);
   const unreadNotifications = notifications.filter((item) => !item.read).length;
 
   const serviceLinks = [
     ["/nearby/emergency", t("services.public_services", "Public Services"), t("services.public_services_nav_desc", "Find nearby veterinary clinics and pet services using 2GIS."), Stethoscope],
-    ["/nearby/our/veterinary", t("clinics.our_clinics", "Our Verified Clinics"), t("clinics.our_clinics_desc", "Book with PetCare-approved veterinary clinics."), Stethoscope],
     ["/services/catalog", t("services.our_services", "Our Services"), t("services.our_services_nav_desc", "Explore services offered through PetCare."), Stethoscope],
     ["/services/grooming", t("nav.grooming", "Grooming"), t("services.grooming_desc", "Thoughtful care from nose to tail."), Scissors],
     ["/services/pet-sitting", t("nav.pet_sitting", "Pet Sitting"), t("services.sitting_desc", "Reliable help at home or outdoors."), Home],
@@ -55,23 +52,6 @@ function Navbar() {
     setCommunityOpen(false);
     setUserOpen(false);
   }, [location.pathname]);
-
-  useEffect(() => {
-    let active = true;
-    if (!user?.uid) {
-      setClinic(null);
-      return () => { active = false; };
-    }
-    clinicApi.mine()
-      .then((result) => { if (active) setClinic(result.clinic || null); })
-      .catch((error) => {
-        if (active) {
-          setClinic(null);
-          console.warn("Unable to load approved clinic dashboard link.", error);
-        }
-      });
-    return () => { active = false; };
-  }, [user?.uid]);
 
   useEffect(() => {
     const onKey = (event) => {
@@ -134,7 +114,7 @@ function Navbar() {
                 <div className="absolute left-0 top-full z-50 mt-3 w-[340px] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
                   {serviceLinks.map(([to, title, description, Icon]) => (
                     <Link
-                      key={`${to}-${title}`}
+                      key={to}
                       to={to}
                       onClick={closeMenus}
                       className="flex gap-3 rounded-xl p-3 transition hover:bg-primary-50"
@@ -295,9 +275,6 @@ function Navbar() {
                       >
                         <CalendarDays size={18} /> {t("nav.bookings", "Bookings")}
                       </Link>
-                      {clinic
-                        ? <Link role="menuitem" to="/clinic" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"><Stethoscope size={18} /> {clinic.status === "approved" ? t("business.switch_clinic", "Switch Dashboard · Clinic") : t("business.clinic_application", "Clinic Application Status")}</Link>
-                        : <Link role="menuitem" to="/register" onClick={closeMenus} className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-stone-50"><Stethoscope size={18} /> {t("business.add_clinic_role", "Add Clinic Manager Role")}</Link>}
                       <Link
                         role="menuitem"
                         to="/calendar"
@@ -412,7 +389,7 @@ function Navbar() {
                 </Link>
                 {serviceLinks.map(([to, title, , Icon]) => (
                   <Link
-                    key={`${to}-${title}`}
+                    key={to}
                     onClick={() => setMobileOpen(false)}
                     to={to}
                     className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-ink-700 hover:bg-stone-50"
@@ -450,9 +427,6 @@ function Navbar() {
                     <Link onClick={() => setMobileOpen(false)} to="/bookings" className={btn2}>
                       {t("nav.bookings", "Bookings")}
                     </Link>
-                    {clinic
-                      ? <Link onClick={() => setMobileOpen(false)} to="/clinic" className={btn2}>{clinic.status === "approved" ? t("business.switch_clinic", "Switch Dashboard · Clinic") : t("business.clinic_application", "Clinic Application Status")}</Link>
-                      : <Link onClick={() => setMobileOpen(false)} to="/register" className={btn2}>{t("business.add_clinic_role", "Add Clinic Manager Role")}</Link>}
                     <Link onClick={() => setMobileOpen(false)} to="/calendar" className={btn2}>
                       {t("nav.calendar", "Calendar")}
                     </Link>

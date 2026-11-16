@@ -7,7 +7,6 @@ import { btn, btn2, btnDanger, card, input } from "../ui.js";
 import { Badge, Button, Modal, Tabs } from "../components/ui.jsx";
 import PetAvatar from "../components/PetAvatar.jsx";
 import { CalendarClock } from "lucide-react";
-import { clinicApi } from "../services/clinicApi.js";
 
 export default function Bookings() {
   const { bookings, updateBookingStatus, updateBookingDetails, submitBookingReview, user, showToast } = useApp();
@@ -32,25 +31,6 @@ export default function Bookings() {
   const [reviewBooking, setReviewBooking] = useState(null);
   const [review, setReview] = useState({ rating: 5, comment: "" });
   const [reviewSaving, setReviewSaving] = useState(false);
-  const [clinicBookings, setClinicBookings] = useState([]);
-  const [clinicBookingsLoading, setClinicBookingsLoading] = useState(false);
-  const [clinicBookingsError, setClinicBookingsError] = useState("");
-
-  const refreshClinicBookings = async () => {
-    if (!user?.uid) return;
-    setClinicBookingsLoading(true); setClinicBookingsError("");
-    try { setClinicBookings((await clinicApi.myBookings()).appointments || []); }
-    catch (error) { setClinicBookingsError(error.message || "Unable to load clinic appointments."); }
-    finally { setClinicBookingsLoading(false); }
-  };
-  useEffect(() => { refreshClinicBookings(); }, [user?.uid]);
-
-  const cancelClinicBooking = async (id) => {
-    setStatusSaving(true); setClinicBookingsError("");
-    try { await clinicApi.cancelBooking(id); await refreshClinicBookings(); }
-    catch (error) { setClinicBookingsError(error.message || "Unable to cancel clinic appointment."); }
-    finally { setStatusSaving(false); }
-  };
 
   const cancelBooking = async () => {
     setStatusSaving(true);
@@ -97,19 +77,6 @@ export default function Bookings() {
         <h1 className="mt-2 text-3xl font-extrabold">{t("bookings.title", "Bookings")}</h1>
         <p className="mt-2 text-sm text-ink-500">{t("bookings.subtitle", "Keep track of every visit and appointment.")}</p>
       </div>
-      <section className={`${card} mb-7 space-y-3`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="text-lg font-extrabold">Verified clinic appointments</h2><p className="mt-1 text-xs text-ink-500">Requests and status updates from PetCare-approved clinics.</p></div>
-          <Link className="text-sm font-bold text-primary-700 underline" to="/nearby/our/veterinary">Find a clinic</Link>
-        </div>
-        {clinicBookingsLoading && <p role="status" className="text-sm text-ink-500">Loading clinic appointments…</p>}
-        {clinicBookingsError && <p role="alert" className="text-sm text-red-700">{clinicBookingsError}</p>}
-        {!clinicBookingsLoading && !clinicBookings.length && <p className="text-sm text-ink-500">No verified clinic requests yet.</p>}
-        {clinicBookings.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 p-3">
-          <div className="min-w-0"><strong className="text-sm">{item.clinicName} · {item.petName}</strong><p className="mt-1 text-xs text-ink-600">{item.serviceName} · {item.date} {item.time} · {item.price} EGP</p>{item.statusReason && <p className="mt-1 text-xs text-amber-900">{item.statusReason}</p>}</div>
-          <div className="flex items-center gap-2"><Badge variant={item.status === "confirmed" || item.status === "completed" ? "success" : item.status === "pending" ? "warning" : "danger"}>{item.status}</Badge>{["pending", "confirmed"].includes(item.status) && <Button size="sm" variant="secondary" disabled={statusSaving} onClick={() => cancelClinicBooking(item.id)}>Cancel</Button>}</div>
-        </article>)}
-      </section>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <section className="min-w-0">
           <div className="mb-6 flex gap-2 border-b border-stone-200">

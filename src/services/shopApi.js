@@ -50,6 +50,7 @@ export const normalizeOrder = (order) => ({
 
 export const shopApi = {
   products: async () => (await request("/api/store/products")).products.map(normalizeProduct),
+  policy: async () => (await request("/api/store/policy")).policy,
   orders: async () => (await request("/api/store/orders", { signedIn: true })).orders.map(normalizeOrder),
   checkout: async (payload) => normalizeOrder((await request("/api/store/orders", {
     method: "POST", body: payload, signedIn: true,

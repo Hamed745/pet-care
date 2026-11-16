@@ -1,9 +1,8 @@
 import {
-  getToken,
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
 } from "firebase/app-check";
-import app, { usingFirebaseEmulators } from "./firebase.js";
+import app from "./firebase.js";
 
 let appCheck;
 
@@ -21,11 +20,4 @@ export function initializeFirebaseAppCheck() {
   });
 
   return appCheck;
-}
-
-export async function getFirebaseAppCheckToken() {
-  if (usingFirebaseEmulators) return null;
-  const result = await getToken(initializeFirebaseAppCheck());
-  if (!result.token) throw new Error("Firebase App Check did not return a token.");
-  return result.token;
 }
