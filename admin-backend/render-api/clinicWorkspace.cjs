@@ -100,6 +100,7 @@ function registerClinicWorkspace({app,db,signedInRoute,HttpError,FieldValue,audi
         completed:completed.length,cancelled:all.filter(x=>["cancelled","rejected"].includes(x.status)).length,
         patients:patients.length,staff:staff.filter(x=>x.status==="active").length,
         revenueEGP:completed.reduce((s,x)=>s+(Number(x.price)||0),0),
+        revenueRUB:completed.reduce((s,x)=>s+(Number(x.price)||0),0),
         completionRate:all.length?Math.round(completed.length*100/all.length):0,
         serviceDistribution:Object.entries(distribution).map(([name,count])=>({name,count}))}});
   }));

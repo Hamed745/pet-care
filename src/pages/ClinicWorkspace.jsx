@@ -69,6 +69,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
   const staff=data?.staff||[],patients=data?.patients||[],records=data?.records||[],
     bookings=(data?.appointments||[]).slice().sort((a,b)=>(b.date+" "+b.time).localeCompare(a.date+" "+a.time));
   const serviceOptions=clinic.services||[];
+  const currency=clinic.currency || (clinic.region ? "RUB" : "EGP");
   const selected=patients.find(p=>p.id===selectedPatient);
   const activeDoctor=staff.find(p=>p.id===selectedStaff);
   const matchingPatients=patients.filter(p=>[p.name,p.ownerName,p.breed].join(" ").toLowerCase().includes(search.toLowerCase()));
@@ -132,7 +133,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
       {data&&tab==="requests"&&<Section title="New booking requests" description="Approve or decline each request before a slot is confirmed.">
         {!pending.length?<p className="text-sm text-ink-500">No pending requests.</p>:pending.map(x=><div key={x.id} className="rounded-xl border p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><strong>{x.petName} · {x.serviceName}</strong><Pill value={x.status}/></div>
-          <p className="mt-2 text-xs text-ink-500">{fmtDate(x.date)} · {x.time} · EGP {x.price||0}</p>
+          <p className="mt-2 text-xs text-ink-500">{fmtDate(x.date)} · {x.time} · {currency} {x.price||0}</p>
           <p className="my-2 text-sm">{x.notes||""}</p>
           <div className="flex flex-wrap gap-2"><Button disabled={busy} size="sm" onClick={()=>run(()=>clinicApi.updateBooking(x.id,"confirmed"),"Appointment confirmed.")}>Accept</Button>
             <Button disabled={busy} size="sm" variant="danger" onClick={()=>{const reason=window.prompt("Reason for rejection (at least 5 characters):");
@@ -164,7 +165,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
           </form>
         </Section>
       </>}
-      {data&&tab==="calendar"&&<Section title="Clinic calendar" description="Times are shown in the clinic's Egypt-local schedule.">
+      {data&&tab==="calendar"&&<Section title="Clinic calendar" description="Times are shown in the clinic's configured local time zone.">
         <div className="max-w-xs"><Field label="Choose day" type="date" value={calendarDate} onChange={setCalendarDate}/></div>
         {!clinicCalendar.length?<p className="text-sm text-ink-500">No appointments on this day.</p>:clinicCalendar.map(x=><div key={x.id} className="flex items-center justify-between gap-3 border-b py-3 text-sm">
           <span>{x.time} — {x.petName} · {x.serviceName}</span><Pill value={x.status}/></div>)}
@@ -275,11 +276,11 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
       </>}
       {data&&tab==="services"&&<>{core.services}
         <Section title="Published services">{!serviceOptions.length?<p className="text-sm text-ink-500">No services yet.</p>:serviceOptions.map(s=><div key={s.id} className="flex items-center justify-between border-b py-2 text-sm">
-          <span>{s.name} · {s.durationMinutes} min</span><span>EGP {s.price} <Pill value={s.available!==false?"active":"inactive"}/></span></div>)}</Section></>}
+          <span>{s.name} · {s.durationMinutes} min</span><span>{currency} {s.price} <Pill value={s.available!==false?"active":"inactive"}/></span></div>)}</Section></>}
       {data&&tab==="analytics"&&<>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Appointments" value={a.bookings||0}/>
           <Metric label="Completed" value={a.completed||0}/><Metric label="Completion rate" value={(a.completionRate||0)+"%"}/>
-          <Metric label="Completed revenue (EGP)" value={a.revenueEGP||0}/></div>
+          <Metric label={"Completed revenue (" + currency + ")"} value={a.revenueRUB ?? a.revenueEGP ?? 0}/></div>
         <Section title="Service distribution">{!a.serviceDistribution?.length?<p className="text-sm text-ink-500">No service activity yet.</p>:
           a.serviceDistribution.map(s=><div key={s.name} className="flex justify-between border-b py-2 text-sm"><span>{s.name}</span><strong>{s.count}</strong></div>)}
           <p className="text-xs text-ink-500">These statistics use actual clinic appointments. No sample ratings or revenue have been invented.</p>
