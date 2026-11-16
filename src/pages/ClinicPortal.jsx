@@ -7,12 +7,11 @@ import { useLanguage } from "../i18n/LanguageContext.jsx";
 import ClinicWorkspace from "./ClinicWorkspace.jsx";
 import { Button, Card, Input, PageHeader, Textarea } from "../components/ui.jsx";
 
-const EMPTY = { name: "", managerName: "", region: "", city: "", address: "", mapUrl: "", timeZone: "Europe/Moscow", phone: "", email: "", description: "", clinicLicenseNumber: "", responsibleVetName: "", responsibleVetLicenseNumber: "" };
+const EMPTY = { name: "", managerName: "", region: "", city: "", address: "", mapUrl: "", phone: "", email: "", description: "", clinicLicenseNumber: "", responsibleVetName: "", responsibleVetLicenseNumber: "" };
 const DOCUMENT_CONSENT_VERSION = "clinic-document-consent-v1";
 const DOCUMENTS = [
   ["clinic_license", "Clinic license"], ["manager_id", "Manager identity document"], ["vet_license", "Responsible veterinarian's license"],
 ];
-const RUSSIAN_TIME_ZONES = ["Europe/Kaliningrad", "Europe/Moscow", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk", "Asia/Krasnoyarsk", "Asia/Irkutsk", "Asia/Yakutsk", "Asia/Vladivostok", "Asia/Magadan", "Asia/Sakhalin", "Asia/Kamchatka"];
 
 function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments, managerName, managerEmail }) {
   const { isRussian } = useLanguage();
@@ -60,7 +59,7 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
     finally { setSaving(false); setSavingAction(""); }
   };
   return <Card className="max-w-4xl p-6 sm:p-8">
-    <div className="mb-6 flex items-center gap-3"><span className="rounded-xl bg-primary-50 p-3 text-primary-700"><Building2 size={23} /></span><div><h2 className="text-xl font-extrabold">{label(current?.status === "draft" ? "Resume clinic application" : "Register your veterinary clinic", current?.status === "draft" ? "Продолжить заявку клиники" : "Регистрация ветеринарной клиники")}</h2><p className="text-sm text-ink-500">{label("One independent manager account per clinic branch. The PetCare team reviews every application.", "Один ответственный менеджер на филиал. Каждая заявка проходит проверку.")}</p></div></div>
+    <div className="mb-6 flex items-center gap-3"><span className="rounded-xl bg-primary-50 p-3 text-primary-700"><Building2 size={23} /></span><div><h2 className="text-xl font-extrabold">{label(current?.status === "draft" ? "Resume clinic application" : "Register your veterinary clinic", current?.status === "draft" ? "Продолжить заявку клиники" : "Регистрация ветеринарной клиники")}</h2><p className="text-sm text-ink-500">{label("One independent manager account per clinic branch. A PetCare administrator personally reviews the application and verification documents, then approves, rejects or requests changes.", "Один менеджер на филиал. Администратор PetCare лично проверяет заявку и документы, затем одобряет, отклоняет или запрашивает исправления.")}</p></div></div>
     {current?.reviewReason && <p role="alert" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">{label("Admin feedback:", "Комментарий администратора:")} {current.reviewReason}</p>}
     <form onSubmit={submit} className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -72,7 +71,6 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
         <Input required label={label("Phone", "Телефон")} type="tel" maxLength={32} value={form.phone} onChange={edit("phone")} />
         <Input required label="Email" type="email" maxLength={180} value={form.email} onChange={edit("email")} />
         <Input required label={label("Clinic map link (2GIS, Yandex Maps, Google Maps…)", "Ссылка на клинику на карте (2ГИС, Яндекс Карты…)")} type="url" maxLength={1800} placeholder="https://2gis.ru/..." value={form.mapUrl} onChange={edit("mapUrl")} />
-        <label className="text-xs font-semibold text-ink-700">{label("Clinic appointment time zone", "Часовой пояс клиники")}<select required className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm" value={form.timeZone} onChange={edit("timeZone")}>{RUSSIAN_TIME_ZONES.map((zone) => <option value={zone} key={zone}>{zone.replaceAll("_", " ")}</option>)}</select></label>
         <p className="text-xs text-ink-500 sm:col-span-2">{label("Paste a share link to your exact clinic address from 2GIS, Yandex Maps, Google Maps or OpenStreetMap. No map picker is needed.", "Вставьте ссылку на точный адрес клиники из 2ГИС, Яндекс Карт, Google Maps или OpenStreetMap. Выбирать точку на карте не нужно.")}</p>
       </div>
       <Textarea label={label("Clinic description (optional)", "Описание клиники (необязательно)")} rows={3} maxLength={700} value={form.description} onChange={edit("description")} />
@@ -124,7 +122,7 @@ function ClinicProfileEditor({ clinic, onSaved }) {
     name: clinic.name || "", description: clinic.description || "",
     phone: clinic.phone || "", city: clinic.city || "", address: clinic.address || "",
     region: clinic.region || clinic.governorate || "",
-    mapUrl: clinic.mapUrl || "", timeZone: clinic.timeZone || "Europe/Moscow",
+    mapUrl: clinic.mapUrl || "",
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -147,7 +145,6 @@ function ClinicProfileEditor({ clinic, onSaved }) {
       <Input required label={tr("Street address", "Адрес")} maxLength={250} value={profile.address} onChange={edit("address")} />
         <Input required label={tr("Region / Federal subject", "Регион / субъект РФ")} maxLength={120} value={profile.region} onChange={edit("region")} />
         <Input required type="url" label={tr("Clinic map link (HTTPS)", "Ссылка на клинику на карте (HTTPS)")} maxLength={1800} value={profile.mapUrl} onChange={edit("mapUrl")} />
-      <label className="text-xs font-semibold text-ink-700">{tr("Appointment time zone", "Часовой пояс для записи")}<select required className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm" value={profile.timeZone} onChange={edit("timeZone")}>{RUSSIAN_TIME_ZONES.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}</select></label>
       <div className="sm:col-span-2"><Textarea label={tr("Description", "Описание")} rows={3} maxLength={700} value={profile.description} onChange={edit("description")} /></div>
       {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2"><Button type="submit" loading={saving}>{tr("Save profile", "Сохранить профиль")}</Button></div>

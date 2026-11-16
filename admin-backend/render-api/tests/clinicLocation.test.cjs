@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   validateMapUrl, safeMapUrl, validateClinicTimeZone,
-  clinicTimeZone, clinicCurrency, clinicRegion,
+  inferRussianTimeZone, clinicTimeZone, clinicCurrency, clinicRegion,
 } = require("../clinicLocation.cjs");
 const { validateApplication, validateClinicDraft, validateClinicProfile, publicClinic } = require("../clinics.cjs");
 
@@ -62,4 +62,21 @@ test("Russian clinic timezone is configured per branch, not forced to Cairo",()=
   assert.equal(clinicTimeZone({region:"Приморский край",timeZone:"Asia/Vladivostok"}),"Asia/Vladivostok");
   assert.equal(clinicCurrency({region:"Приморский край"}),"RUB");
   assert.equal(clinicRegion({region:"Москва"}),"Москва");
+});
+
+test("Russian application can omit the time-zone field and rely on the server",()=>{
+  const {timeZone: _removed,...withoutZone}=russian;
+  assert.equal(validateApplication(withoutZone).timeZone,"Europe/Moscow");
+  assert.equal(validateApplication({...withoutZone,region:"Калининградская область",city:"Калининград"}).timeZone,"Europe/Kaliningrad");
+  assert.equal(validateApplication({...withoutZone,region:"Приморский край",city:"Владивосток"}).timeZone,"Asia/Vladivostok");
+  assert.equal(inferRussianTimeZone("Самарская область","Самара"),"Europe/Samara");
+  assert.equal(inferRussianTimeZone("Иркутская область","Иркутск"),"Asia/Irkutsk");
+  assert.equal(clinicTimeZone({region:"Приморский край",city:"Владивосток"}),"Asia/Vladivostok");
+});
+test("new draft and edited clinic region derive time zone; unrelated profile update does not change it",()=>{
+  const draft=validateClinicDraft({region:"Калининградская область",city:"Калининград",name:"Northern Vet"});
+  const profile=validateClinicProfile({region:"Приморский край",city:"Владивосток"});
+  assert.equal(draft.timeZone,"Europe/Kaliningrad");
+  assert.equal(profile.timeZone,"Asia/Vladivostok");
+  assert.equal(validateClinicProfile({name:"Same clinic"}).timeZone,undefined);
 });

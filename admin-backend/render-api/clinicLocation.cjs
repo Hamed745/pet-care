@@ -45,10 +45,34 @@ function validateClinicTimeZone(value) {
   }
   return value;
 }
+/**
+ * Best-effort clinic time zone inference: hides technical IANA controls from applicants.
+ * Some Russian regions span multiple zones. Ambiguous or unknown regions use Moscow
+ * until an administrator can verify the correct booking-local time zone.
+ */
+function inferRussianTimeZone(region, city = "") {
+  const place = (String(region || "") + " " + String(city || "")).toLowerCase().replace(/ё/g, "е");
+  const rules = [
+    ["Europe/Kaliningrad", /калининград|kaliningrad/],
+    ["Asia/Kamchatka", /камчат|чукот|kamchat|chukot/],
+    ["Asia/Sakhalin", /сахалин|sakhalin/],
+    ["Asia/Magadan", /магадан|magadan/],
+    ["Asia/Vladivostok", /приморск|владивосток|хабаровск|еврейск.*автоном|primorsk|vladivostok|khabarovsk/],
+    ["Asia/Yakutsk", /якут|саха|забайкал|амурск|благовещенск|yakut|sakha|zabaykal|amur/],
+    ["Asia/Irkutsk", /иркутск|бурят|улан-удэ|irkutsk|buryat/],
+    ["Asia/Krasnoyarsk", /красноярск|хакас|тыва|тува|кызыл|krasnoyarsk|khakass|tyva|tuva/],
+    ["Asia/Novosibirsk", /новосибирск|томск|кемеров|алтай|барнаул|novosibirsk|tomsk|kemerovo|altai/],
+    ["Asia/Omsk", /омск|omsk/],
+    ["Asia/Yekaterinburg", /екатеринбург|свердловск|челябинск|тюмен|пермск|пермь|курган|башкортостан|уфа|ханты|ямал|yekaterinburg|sverdlov|chelyabinsk|tyumen|perm|kurgan|bashkort|yamalo/],
+    ["Europe/Samara", /самар|ульяновск|саратов|астрахан|удмурт|ижевск|samara|ulyanovsk|saratov|astrakhan|udmurt/],
+  ];
+  for (const [zone, pattern] of rules) if (pattern.test(place)) return zone;
+  return "Europe/Moscow";
+}
 function clinicTimeZone(data) {
   return RUSSIAN_TIME_ZONES.includes(data?.timeZone)
     ? data.timeZone
-    : data?.region ? "Europe/Moscow" : "Africa/Cairo";
+    : data?.region ? inferRussianTimeZone(data.region, data.city) : "Africa/Cairo";
 }
 function clinicCurrency(data) {
   return data?.currency === "RUB" ? "RUB" : data?.region ? "RUB" : "EGP";
@@ -58,5 +82,5 @@ function clinicRegion(data) {
 }
 module.exports = {
   RUSSIAN_TIME_ZONES, validateMapUrl, safeMapUrl,
-  validateClinicTimeZone, clinicTimeZone, clinicCurrency, clinicRegion,
+  validateClinicTimeZone, inferRussianTimeZone, clinicTimeZone, clinicCurrency, clinicRegion,
 };

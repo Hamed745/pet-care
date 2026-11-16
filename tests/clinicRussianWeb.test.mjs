@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const source=(path)=>readFileSync(new URL("../"+path,import.meta.url),"utf8");
-test("new clinic registration uses share link, region and time zone rather than manual coordinates",()=>{
+test("new clinic registration uses region and map link without a technical time zone selector",()=>{
   const portal=source("src/pages/ClinicPortal.jsx");
   assert.match(portal,/Clinic map link/);
   assert.match(portal,/form\.mapUrl/);
   assert.match(portal,/form\.region/);
-  assert.match(portal,/form\.timeZone/);
+  assert.doesNotMatch(portal,/form\.timeZone|profile\.timeZone|RUSSIAN_TIME_ZONES|Clinic appointment time zone|Appointment time zone/);
   assert.doesNotMatch(portal,/form\.(latitude|longitude)/);
   assert.doesNotMatch(portal,/GOVERNORATES/);
 });
@@ -24,4 +24,10 @@ test("admin can review the clinic share link instead of manually entered coordin
   assert.match(admin,/selected\.mapUrl/);
   assert.match(admin,/Open clinic location/);
   assert.doesNotMatch(admin,/selected\.latitude.*selected\.longitude/);
+});
+
+test("applicant sees human PetCare administrator review instead of automatic license approval",()=>{
+  const portal=source("src/pages/ClinicPortal.jsx");
+  assert.match(portal,/administrator personally reviews/);
+  assert.match(portal,/approves, rejects or requests changes/);
 });
