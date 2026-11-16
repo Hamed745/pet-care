@@ -13,7 +13,7 @@ const DOCUMENTS = [
   ["clinic_license", "Clinic license"], ["manager_id", "Manager identity document"], ["vet_license", "Responsible veterinarian's license"],
 ];
 
-function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments, managerName, managerEmail }) {
+function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments, demoUploads, managerName, managerEmail }) {
   const { isRussian } = useLanguage();
   const [form, setForm] = useState(() => ({
     ...EMPTY,
@@ -43,7 +43,7 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
   const submit = async (event) => {
     event.preventDefault(); setError(""); setSaving(true); setSavingAction("submit");
     try {
-      if (!uploadEnabled) throw new Error("Clinic applications are paused until private verification-document storage is configured.");
+      if (!uploadEnabled) throw new Error("Clinic document storage is not connected. Ask the project administrator to configure private Supabase Storage.");
       for (const [kind] of DOCUMENTS) {
         if (!files[kind]) throw new Error("Please attach all three verification documents.");
         if (!(["application/pdf", "image/jpeg", "image/png"].includes(files[kind].type)) || files[kind].size > 5 * 1024 * 1024) {
@@ -81,8 +81,8 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
       </div>
       <section className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
         <h3 className="flex items-center gap-2 font-extrabold"><FileCheck2 size={19} className="text-primary-700" /> {label("Verification documents", "Документы для проверки")}</h3>
-        <p className="mt-1 text-xs leading-5 text-ink-600">{emulatorDocuments
-          ? label("Use synthetic or redacted PDF, JPG or PNG files only (max 5 MB each). Never upload real identity documents to emulator storage.", "Используйте только тестовые или отредактированные PDF, JPG или PNG до 5 МБ. Не загружайте реальные документы в эмулятор.")
+        <p className="mt-1 text-xs leading-5 text-ink-600">{demoUploads || emulatorDocuments
+          ? label("Graduation project demo: attach sample or completely fictional PDF, JPG or PNG files (max 5 MB each). A PetCare administrator will examine them manually. Do NOT upload real passports, IDs, licences or personal documents.", "Демонстрация дипломного проекта: прикрепите вымышленные или тестовые PDF, JPG или PNG (до 5 МБ). Администратор PetCare проверит их вручную. НЕ загружайте реальные паспорта, удостоверения или лицензии.")
           : label("PDF, JPG or PNG only (max 5 MB each). Documents are private and available only through the authenticated Admin API.", "Только PDF, JPG или PNG до 5 МБ. Документы закрыты и доступны только через защищённый API администратора.")}</p>
         {!uploadEnabled && <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">{label("Document uploads are disabled until private storage and required security controls are ready. You can save a draft in the meantime.", "Загрузка отключена до настройки приватного хранилища и обязательных мер безопасности. Пока можно сохранить черновик.")}</p>}
         <div className="mt-4 grid gap-3 sm:grid-cols-3">{DOCUMENTS.map(([kind, title]) => <label key={kind} className="block rounded-xl border border-stone-200 bg-white p-3 text-xs font-semibold text-ink-800">{title}<input required={uploadEnabled} disabled={!uploadEnabled} type="file" accept="application/pdf,image/jpeg,image/png" className="mt-2 block w-full text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:font-bold file:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50" onChange={(event) => setFiles((old) => ({ ...old, [kind]: event.target.files?.[0] || null }))}/></label>)}</div>
@@ -103,8 +103,8 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
           )}</span>
         </label>
         <p className="mt-2 text-xs font-semibold">{label(
-          "Consent and retention wording is a draft pending legal review. Production identity-document uploads remain disabled.",
-          "Текст согласия и сроков хранения является проектом и ожидает юридической проверки. Загрузка реальных документов в production отключена.",
+          demoUploads ? "Demo documents only. The admin reviews submitted samples manually; real identity documents must not be uploaded. Consent wording is not legally reviewed." : "Consent and retention wording is a draft pending legal review. Production identity-document uploads remain disabled.",
+          demoUploads ? "Только тестовые документы. Администратор проверяет примеры вручную; настоящие документы загружать нельзя. Текст согласия не проходил юридическую проверку." : "Текст согласия и сроков хранения является проектом и ожидает юридической проверки. Загрузка реальных документов в production отключена.",
         )}</p>
       </section>
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
@@ -259,6 +259,7 @@ export default function ClinicPortal() {
   const [error, setError] = useState("");
   const [uploadEnabled, setUploadEnabled] = useState(false);
   const [emulatorDocuments, setEmulatorDocuments] = useState(false);
+  const [demoUploads, setDemoUploads] = useState(false);
   useEffect(() => {
     setClinic(null);
     if (!user?.uid) { setLoading(false); setError(""); return; }
@@ -272,6 +273,7 @@ export default function ClinicPortal() {
         if (active) {
           setUploadEnabled(result.uploadEnabled === true);
           setEmulatorDocuments(result.emulatorDocuments === true);
+          setDemoUploads(result.demoUploads === true);
         }
       })
       .catch(() => { if (active) setUploadEnabled(false); });
@@ -282,7 +284,7 @@ export default function ClinicPortal() {
     {!user && <Card className="flex flex-col items-start gap-4"><h2 className="text-lg font-extrabold">Sign in to register a clinic</h2><p className="text-sm text-ink-500">Your existing PetCare account can be both a pet owner account and a clinic manager account.</p><Link to="/login" state={{ from: "/clinic" }} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white">Sign in</Link><Link to="/register?next=%2Fclinic" className="text-sm font-bold text-primary-700 underline">Create clinic manager account</Link></Card>}
     {user && loading && <p role="status" className="text-sm text-ink-500">Checking your clinic registration…</p>}
     {user && error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
-    {user && !loading && !error && (!clinic || ["draft", "rejected", "changes_requested"].includes(clinic.status)) && <ClinicApplication current={clinic} onSaved={setClinic} uploadEnabled={uploadEnabled} emulatorDocuments={emulatorDocuments} managerName={user.name} managerEmail={user.email}/>}
+    {user && !loading && !error && (!clinic || ["draft", "rejected", "changes_requested"].includes(clinic.status)) && <ClinicApplication current={clinic} onSaved={setClinic} uploadEnabled={uploadEnabled} emulatorDocuments={emulatorDocuments} demoUploads={demoUploads} managerName={user.name} managerEmail={user.email}/>}
     {user && clinic?.status === "pending" && <Card className="max-w-3xl"><Clock3 size={28} className="text-amber-600"/><h2 className="mt-3 text-xl font-extrabold">Your clinic is pending approval</h2><p className="mt-2 text-sm text-ink-600">The PetCare administrator must verify your clinic and documents before it becomes public or receives bookings. Return here to check the decision.</p><p className="mt-3 text-sm font-semibold">{clinic.name} · {clinic.city}</p><Button className="mt-4" variant="secondary" onClick={() => clinicApi.mine().then((r) => setClinic(r.clinic)).catch((err) => setError(err.message))}><RefreshCw size={16}/> Refresh status</Button></Card>}
     {user && clinic?.status === "suspended" && <Card><h2 className="font-extrabold">Clinic access is suspended</h2><p className="text-sm text-ink-600">{clinic.reviewReason || "Contact PetCare support for details."}</p></Card>}
     {user && clinic?.status === "approved" && <ClinicWorkspace clinic={clinic} onSaved={setClinic} core={{profile:<ClinicProfileEditor clinic={clinic} onSaved={setClinic}/>,availability:<ClinicAvailability clinic={clinic} onSaved={setClinic}/>,services:<ServicesEditor clinic={clinic} onSaved={setClinic}/>,bookings:<ClinicAppointments/>}}/>}
