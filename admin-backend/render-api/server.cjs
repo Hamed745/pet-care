@@ -64,8 +64,8 @@ initializeFirebaseAdmin();
 
 const auth = getAuth();
 const db = getFirestore();
-// Clinic identity files are private and remain disabled until a malware scanner,
-// approved privacy wording and safe quarantine/promotion are configured.
+// Live scanned uploads remain gated; optional DEMO uploads are handled as unscanned
+// test fixtures and must not be used for genuine IDs or veterinary licenses.
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || "";
 const supabaseBucket = process.env.SUPABASE_BUCKET || "";
@@ -73,7 +73,12 @@ const supabaseClient = supabaseUrl && supabaseSecretKey && supabaseBucket
   ? createClient(supabaseUrl,supabaseSecretKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
   : null;
 const clinicDocumentStorage = createClinicDocumentStorage({
-  db,supabaseClient,bucketName:supabaseBucket,productionUploadsEnabled:false,FieldValue
+  db,supabaseClient,bucketName:supabaseBucket,
+  productionUploadsEnabled:false,
+  // Demo uploads are restricted to the private bucket and authenticated clinic workflow.
+  // Turn off instantly with CLINIC_DEMO_UPLOADS_ENABLED=false in Vercel.
+  demoUploadsEnabled:process.env.CLINIC_DEMO_UPLOADS_ENABLED !== "false",
+  FieldValue
 });
 const app = express();
 app.disable("x-powered-by");
