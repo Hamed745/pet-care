@@ -191,6 +191,11 @@ export function Register() {
   const { t } = useLanguage();
   const nav = useNavigate();
   const location = useLocation();
+  // Account type chooses the signup journey only; clinic privileges are granted
+  // exclusively by the server after PetCare admin approves a branch.
+  const [accountType, setAccountType] = useState(() =>
+    new URLSearchParams(location.search).get("next") === "/clinic" ? "clinic" : "pet-owner"
+  );
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [f, setF] = useState({ name: "", email: "", phone: "", city: "", password: "", confirm: "", terms: false });
@@ -235,7 +240,7 @@ export function Register() {
         phone: f.phone,
         city: f.city.trim(),
       });
-      nav(new URLSearchParams(location.search).get("next") === "/clinic" ? "/clinic" : "/");
+      nav(accountType === "clinic" ? "/clinic" : "/");
       if (!displayNameSaved) {
         showToast("Your account was created, but your display name could not be saved to Firebase.", "warning");
       }
@@ -249,6 +254,36 @@ export function Register() {
   return (
     <AuthShell title={t("auth.create_account")} eyebrow={t("auth.register_eyebrow", "A better day for every pet")}>
       <form className="mt-6 space-y-4" onSubmit={submit}>
+        <fieldset className="space-y-2">
+          <legend className="text-[11px] font-bold text-ink-700">Create an account as</legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition ${accountType === "pet-owner" ? "border-primary-600 bg-primary-50" : "border-stone-200 hover:border-primary-300"}`}>
+              <input
+                type="radio"
+                name="accountType"
+                value="pet-owner"
+                checked={accountType === "pet-owner"}
+                onChange={() => setAccountType("pet-owner")}
+                className="mt-1 accent-primary-600"
+              />
+              <span><strong className="block text-sm text-ink-900">Pet Owner</strong>
+                <small className="mt-1 block text-xs text-ink-500">Manage pets, shop and request services.</small></span>
+            </label>
+            <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition ${accountType === "clinic" ? "border-primary-600 bg-primary-50" : "border-stone-200 hover:border-primary-300"}`}>
+              <input
+                type="radio"
+                name="accountType"
+                value="clinic"
+                checked={accountType === "clinic"}
+                onChange={() => setAccountType("clinic")}
+                className="mt-1 accent-primary-600"
+              />
+              <span><strong className="block text-sm text-ink-900">Clinic Branch Manager</strong>
+                <small className="mt-1 block text-xs text-ink-500">Register a clinic and request admin approval.</small></span>
+            </label>
+          </div>
+          {accountType === "clinic" && <p className="text-xs text-ink-600">After account creation, you will enter your clinic details in the Clinic Manager Portal. Your clinic cannot accept bookings until approved by PetCare Admin.</p>}
+        </fieldset>
         <label htmlFor="register-name" className="block text-[11px] font-bold text-ink-700">
           {t("cart.full_name")}
           <input id="register-name" name="name" autoComplete="name" required className={`${input} mt-2`} placeholder="Your name" value={f.name} onChange={set("name")} />
@@ -285,7 +320,7 @@ export function Register() {
         <Button type="submit" disabled={saving} className="w-full">{saving ? t("auth.creating_account") : t("auth.create_account")}</Button>
       </form>
 
-      <p className="mt-5 text-center text-sm text-ink-500">{t("auth.already_registered")} <Link className="font-bold text-primary-700" to="/login">{t("nav.login")}</Link></p>
+      <p className="mt-5 text-center text-sm text-ink-500">{t("auth.already_registered")} <Link className="font-bold text-primary-700" to="/login" state={{ from: accountType === "clinic" ? "/clinic" : "/" }}>{t("nav.login")}</Link></p>
     </AuthShell>
   );
 }
