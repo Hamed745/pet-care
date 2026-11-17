@@ -26,6 +26,6 @@ test("map only renders markers from exact server-resolved coordinates",()=>{
  assert.match(map,/clinic-location\?clinicId=/);
  assert.match(map,/Number\.isFinite\(point\.lon\)/);
  assert.match(map,/Number\.isFinite\(point\.lat\)/);
- assert.match(server,/clinic\.verified/);
+ assert.match(server,/clinic\?\.verified/);
  assert.match(server,/no_precise_match/);
 });
