@@ -173,7 +173,7 @@ export default function NearbyPlaces({ mode = "public" }) {
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary-700"><MapPin size={22} /></span>
         <span className="min-w-0"><strong className="block text-sm font-extrabold text-ink-900 sm:text-lg">{tr("Public Services", "Общедоступные услуги")}</strong><span className="mt-1 block text-xs text-ink-500">{tr("Live 2GIS search", "Поиск в 2ГИС")}</span></span>
       </Link>
-      <Link to={`/nearby/our/${kind}`} aria-current={isOur ? "page" : undefined}
+      <Link to="/nearby/our/veterinary" aria-current={isOur ? "page" : undefined}
         className={`flex min-h-20 items-center gap-3 rounded-2xl border p-3 text-left transition sm:p-5 ${isOur ? "border-primary-700 bg-primary-50 shadow-sm" : "border-stone-200 bg-white hover:border-primary-200"}`}>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary-700"><CalendarCheck2 size={22} /></span>
         <span className="min-w-0"><strong className="block text-sm font-extrabold text-ink-900 sm:text-lg">{tr("Our Services", "Наши услуги")}</strong><span className="mt-1 block text-xs text-primary-700">{tr("Approved PetCare partners", "Одобренные партнёры PetCare")}</span></span>
