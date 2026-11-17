@@ -1,12 +1,15 @@
-import { mapLinkCityConflict } from "../src/services/clinicDiscovery.js";
+import { mapLinkCityConflict, isPlausibleClinicPoint, addressMentionsClinicCity } from "../src/services/clinicDiscovery.js";
 // Geocode an APPROVED PetCare clinic by ID; never fetch an arbitrary URL
 // provided by a visitor. This endpoint does not approve clinics or modify data.
 const API_BASE = (process.env.CLINIC_PUBLIC_API_BASE_URL || "https://petcare-api-brown.vercel.app").replace(/\/+$/, "");
 const DGIS_ORIGIN = "https://catalog.api.2gis.com";
 const HOSTS = ["2gis.ru","2gis.com","yandex.ru","yandex.com","yandex.kz","yandex.by",
   "google.com","google.ru","google.co.uk","maps.app.goo.gl","maps.apple.com","openstreetmap.org"];
-const validCoord = (lon,lat) => Number.isFinite(+lon) && Number.isFinite(+lat) &&
-  +lon >= -180 && +lon <= 180 && +lat >= -90 && +lat <= 90;
+const isNumeric = v => typeof v === "number" || (typeof v === "string" && v.trim().length > 0);
+const validCoord = (lon,lat) => isNumeric(lon) && isNumeric(lat) &&
+  Number.isFinite(Number(lon)) && Number.isFinite(Number(lat)) &&
+  Number(lon) >= -180 && Number(lon) <= 180 && Number(lat) >= -90 && Number(lat) <= 90 &&
+  !(Number(lon) === 0 && Number(lat) === 0);
 const responsePoint = (point, source) =>
   point && validCoord(point.lon,point.lat) ? {lon:+point.lon,lat:+point.lat,source} : null;
 const normalized = (v) => String(v||"").toLocaleLowerCase("ru").replace(/ё/g,"е")
@@ -67,7 +70,7 @@ function addressMatch(clinic, item) {
   const full=normalized(item.full_address_name||"");
   // When the provider supplies a city, reject a result explicitly named for
   // another city; do not pin at a city center if only a vague match is returned.
-  if(city && full && !full.includes(city))return false;
+  if(city && full && !addressMentionsClinicCity(clinic.city,item.full_address_name))return false;
   return true;
 }
 async function catalog(path,params,key,fetcher=fetch){
@@ -85,7 +88,7 @@ async function resolveApprovedClinic(clinic,key,fetcher=fetch){
   if(!clinic?.verified) return null;
   // A contradictory 2GIS city slug is not an authoritative clinic pin.
   if(mapLinkCityConflict(clinic.city,clinic.mapUrl))return null;
-  if(validCoord(clinic.longitude,clinic.latitude) && clinic.longitude!=null && clinic.latitude!=null){
+  if(isPlausibleClinicPoint(clinic,{lon:clinic.longitude,lat:clinic.latitude})){
     return responsePoint({lon:clinic.longitude,lat:clinic.latitude},"verified_coordinates");
   }
   const parsed=parseClinicMapLink(clinic.mapUrl);
@@ -96,7 +99,7 @@ async function resolveApprovedClinic(clinic,key,fetcher=fetch){
       id:parsed.firmId,locale:"ru_RU",fields:"items.point,items.full_address_name"
     },key,fetcher);
     const point=responsePoint(items[0]?.point,"2gis_firm");
-    if(point)return point;
+    if(point && isPlausibleClinicPoint(clinic,point))return point;
   }
   // No reliable coordinates in the share link: geocode the full real address.
   // Do not guess a marker from the city name alone.
@@ -105,7 +108,8 @@ async function resolveApprovedClinic(clinic,key,fetcher=fetch){
   const items=await catalog("/3.0/items/geocode",{
     q,locale:"ru_RU",fields:"items.point,items.full_address_name",page_size:"5"
   },key,fetcher);
-  const result=items.find(item=>responsePoint(item?.point,"address")&&addressMatch(clinic,item));
+  const result=items.find(item=>responsePoint(item?.point,"address")&&
+    isPlausibleClinicPoint(clinic,item.point)&&addressMatch(clinic,item));
   return result ? responsePoint(result.point,"address") : null;
 }
 async function handle(req,res,{fetcher=fetch,key=process.env.DGIS_PLACES_KEY,apiBase=API_BASE}={}){
