@@ -73,6 +73,12 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
         <Input required label={label("Phone", "Телефон")} type="tel" maxLength={32} value={form.phone} onChange={edit("phone")} />
         <Input required label="Email" type="email" maxLength={180} value={form.email} onChange={edit("email")} />
         <Input required label={label("Clinic map link (2GIS, Yandex Maps, Google Maps…)", "Ссылка на клинику на карте (2ГИС, Яндекс Карты…)")} type="url" maxLength={1800} placeholder="https://2gis.ru/..." value={form.mapUrl} onChange={edit("mapUrl")} />
+        {mapLinkCityConflict(form.city,form.mapUrl) && <p role="alert" className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {label(
+            "The city selected for this clinic does not match its 2GIS URL. Correct the city or paste the map link for the actual clinic before requesting verification.",
+            "Город клиники не совпадает с городом по ссылке 2ГИС. Исправьте город или вставьте ссылку на фактический адрес перед проверкой."
+          )}
+        </p>}
         <p className="text-xs text-ink-500 sm:col-span-2">{label("Paste a share link to your exact clinic address from 2GIS, Yandex Maps, Google Maps or OpenStreetMap. No map picker is needed.", "Вставьте ссылку на точный адрес клиники из 2ГИС, Яндекс Карт, Google Maps или OpenStreetMap. Выбирать точку на карте не нужно.")}</p>
       </div>
       <Textarea label={label("Clinic description (optional)", "Описание клиники (необязательно)")} rows={3} maxLength={700} value={form.description} onChange={edit("description")} />
