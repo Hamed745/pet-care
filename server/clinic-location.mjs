@@ -92,7 +92,7 @@ async function resolveApprovedClinic(clinic,key,fetcher=fetch){
     return responsePoint({lon:clinic.longitude,lat:clinic.latitude},"verified_coordinates");
   }
   const parsed=parseClinicMapLink(clinic.mapUrl);
-  if(parsed?.lat!==undefined)return parsed;
+  if(parsed?.lat!==undefined && isPlausibleClinicPoint(clinic,parsed))return parsed;
   if(!key)return null;
   if(parsed?.firmId){
     const items=await catalog("/3.0/items/byid",{
