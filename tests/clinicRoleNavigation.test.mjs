@@ -35,7 +35,7 @@ test("clinic manager never sees owner routes, store, adoption or the public navb
 });
 
 test("Home, appointments, requests, calendar, services and settings stay inside the clinic workspace",()=>{
-  for(const route of ["dashboard","requests","appointments","calendar","services","settings"]) {
+  for(const route of ["dashboard","requests","appointments","calendar","services","team","settings"]) {
     assert.match(shell,new RegExp('"'+route+'"'));
     assert.match(workspace,new RegExp('"'+route+'"'));
   }
