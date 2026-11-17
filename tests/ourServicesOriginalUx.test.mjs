@@ -7,7 +7,7 @@ test("Public and Our Services use the identical NearbyPlaces layout and only cha
  const app=read("src/App.jsx"),nearby=read("src/features/nearby/NearbyPlaces.jsx");
  assert.match(app,/path="\/nearby\/our\/:kind" element=\{<NearbyPlaces mode="our"/);
  assert.match(app,/path="\/nearby\/:kind" element=\{<NearbyPlaces mode="public"/);
- assert.match(nearby,/<TwoGisMap center=\{center\} places=\{places\} onSelectPlace=\{setSelectedPlace\}/);
+ assert.match(nearby,/<TwoGisMap center=\{mapFocus \|\| center\} places=\{places\} onSelectPlace=\{setSelectedPlace\}/);
  assert.match(nearby,/isOur \? fetchPetCarePlaces/);
  assert.match(nearby,/: fetchNearbyPlaces/);
  assert.match(nearby,/aria-label="Search options"/);
@@ -48,8 +48,9 @@ test("Clinic-only search still relies on approved API and distance or city, neve
  assert.match(adapter,/clinicApi\.list\(\)/);
  assert.match(adapter,/if \(!clinic\?\.verified\) return false/);
  assert.match(adapter,/\/api\/clinic-location\?clinicId=/);
- assert.match(adapter,/distanceKm\*1000>radius/);
- assert.match(adapter,/if\(distanceKm==null && !sameCity\)return null/);
+ assert.match(adapter,/clinicSearchPlacement/);
+ assert.match(adapter,/mapCityConflict:mapLinkCityConflict/);
  assert.match(adapter,/lon:coord\?\.lon\?\?null/);
  assert.match(adapter,/lat:coord\?\.lat\?\?null/);
+ assert.match(adapter,/nearby: placement\.nearby/);
 });

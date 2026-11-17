@@ -1,4 +1,5 @@
 import { clinicApi } from "./clinicApi.js";
+import { clinicSearchPlacement, mapLinkCityConflict } from "./clinicDiscovery.js";
 
 // These are approved clinic records from our own server, never external 2GIS
 // businesses. Preserve the existing public search UI in NearbyPlaces.
@@ -58,6 +59,9 @@ const resolvedLocations=new Map();
 const signature=c=>[c.id,c.mapUrl,c.address,c.city,c.latitude,c.longitude].join("|");
 
 async function resolvedPoint(clinic, signal) {
+  // A link to a different city is not evidence of the clinic\'s address.
+  // Keep the approved clinic visible as a card, but avoid a misleading pin.
+  if (mapLinkCityConflict(clinic.city, clinic.mapUrl)) return null;
   if (Number.isFinite(clinic.latitude) && Number.isFinite(clinic.longitude)) {
     return {lat:clinic.latitude,lon:clinic.longitude};
   }
@@ -93,16 +97,17 @@ export async function fetchPetCarePlaces({kind,lon,lat,radius=10000,hours="any",
       try{coord=await resolvedPoint(clinic,signal);}catch(e){if(e.name==="AbortError")return null;}
       if(signal?.aborted)return null;
       const distanceKm=coord?straightLineKm({lat,lon},coord):null;
-      const sameCity=!gps && matchesCity(clinic,cityName);
-      // Strict radius for known coordinates, city-only fallback for unresolved
-      // share links. A missing coordinate never creates a speculative marker.
-      if(distanceKm!=null && distanceKm*1000>radius && !sameCity)return null;
-      if(distanceKm==null && !sameCity)return null;
+      const sameCity=matchesCity(clinic,cityName);
+      const placement=clinicSearchPlacement({distanceKm,radius,sameCity,gps});
+      // All approved partner clinics remain discoverable in Our Services.
+      // Radius controls the Nearby vs Other label, not clinic approval.
+      // Pins still require exact verified coordinates; never use a city center.
       return {
         id:clinic.id,name:clinic.name,
         address:[clinic.address,clinic.city].filter(Boolean).join(", "),
         lon:coord?.lon??null,lat:coord?.lat??null,
-        distanceKm,
+        distanceKm, nearby: placement.nearby,
+        mapCityConflict:mapLinkCityConflict(clinic.city,clinic.mapUrl),
         url:clinic.mapUrl||null,
         opening:hours==="now"?"open_now":null,
         clinic,verified:true,
@@ -110,5 +115,6 @@ export async function fetchPetCarePlaces({kind,lon,lat,radius=10000,hours="any",
     }));
     places.push(...batch.filter(Boolean));
   }
-  return places.sort((a,b)=>(a.distanceKm??Infinity)-(b.distanceKm??Infinity) || a.name.localeCompare(b.name));
+  return places.sort((a,b)=>Number(b.nearby)-Number(a.nearby) ||
+    (a.distanceKm??Infinity)-(b.distanceKm??Infinity) || a.name.localeCompare(b.name));
 }

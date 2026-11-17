@@ -1,3 +1,4 @@
+import { mapLinkCityConflict } from "../src/services/clinicDiscovery.js";
 // Geocode an APPROVED PetCare clinic by ID; never fetch an arbitrary URL
 // provided by a visitor. This endpoint does not approve clinics or modify data.
 const API_BASE = (process.env.CLINIC_PUBLIC_API_BASE_URL || "https://petcare-api-brown.vercel.app").replace(/\/+$/, "");
@@ -82,6 +83,8 @@ async function catalog(path,params,key,fetcher=fetch){
 }
 async function resolveApprovedClinic(clinic,key,fetcher=fetch){
   if(!clinic?.verified) return null;
+  // A contradictory 2GIS city slug is not an authoritative clinic pin.
+  if(mapLinkCityConflict(clinic.city,clinic.mapUrl))return null;
   if(validCoord(clinic.longitude,clinic.latitude) && clinic.longitude!=null && clinic.latitude!=null){
     return responsePoint({lon:clinic.longitude,lat:clinic.latitude},"verified_coordinates");
   }
