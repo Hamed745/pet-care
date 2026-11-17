@@ -17,10 +17,20 @@ export default function OurClinicBookingModal({ place, onClose, onBooked }) {
   const [loadingDoctors,setLoadingDoctors] = useState(false);
   const [doctorError,setDoctorError] = useState("");
   const [form,setForm] = useState({petId:"",serviceId:"",doctorId:"",date:"",time:"",contactPhone:"",notes:""});
+  const [petCategory,setPetCategory] = useState("");
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const requestId = useRef(null);
   const ownedPets = useMemo(() => pets.filter(p => Boolean(user?.uid) && p.ownerUid === user.uid),[pets,user?.uid]);
+  // Category is a view filter only; real booking requests still identify a
+  // specific pet belonging to the signed-in owner, never a generic species.
+  const petKind = pet => {
+    const value = String(pet?.species || pet?.type || "").toLowerCase().trim();
+    if (["dog", "dogs", "собака", "собаки"].includes(value)) return "dog";
+    if (["cat", "cats", "кошка", "кот", "кошки"].includes(value)) return "cat";
+    return "other";
+  };
+  const filteredPets = petCategory ? ownedPets.filter(p => petKind(p) === petCategory) : [];
   const availableServices = (clinic?.services || []).filter(s => s.available !== false);
   const update = field => event => setForm(old => ({...old,[field]:event.target.value}));
   useEffect(() => {
@@ -28,6 +38,7 @@ export default function OurClinicBookingModal({ place, onClose, onBooked }) {
     let active=true;
     const controller=new AbortController();
     setDoctors([]);setDoctorError("");setLoadingDoctors(true);setError("");
+    setPetCategory("");
     setForm({petId:"",serviceId:"",doctorId:"",date:"",time:"",
       contactPhone:user?.phone || user?.phoneNumber || "",notes:""});
     requestId.current=crypto.randomUUID();
@@ -105,11 +116,23 @@ export default function OurClinicBookingModal({ place, onClose, onBooked }) {
         <h3 className="flex items-center gap-2 text-base font-extrabold"><CalendarDays size={18}/>{tr("Request an appointment","Заявка на приём")}</h3>
         <p className="text-xs text-ink-600">{tr("The clinic manager will review your request and confirm or suggest a time. No payment is collected.","Менеджер клиники проверит заявку и подтвердит или предложит время. Оплата не взимается.")}</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-bold">{tr("Your pet","Ваш питомец")}
-            <select className={inputClass} required disabled={busy} value={form.petId} onChange={update("petId")}>
-              <option value="">{tr("Choose pet","Выберите питомца")}</option>
-              {ownedPets.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+          <label className="text-xs font-bold">{tr("Pet type","Тип питомца")}
+            <select className={inputClass} disabled={busy} value={petCategory}
+              onChange={event => {setPetCategory(event.target.value);setForm(old => ({...old,petId:""}));}}>
+              <option value="">{tr("Choose type","Выберите тип")}</option>
+              <option value="dog">{tr("Dogs","Собаки")}</option>
+              <option value="cat">{tr("Cats","Кошки")}</option>
+              <option value="other">{tr("Others","Другие")}</option>
             </select>
+          </label>
+          <label className="text-xs font-bold">{tr("Your registered pet","Ваш питомец")}
+            <select className={inputClass} required disabled={busy || !petCategory} value={form.petId} onChange={update("petId")}>
+              <option value="">{tr("Choose pet","Выберите питомца")}</option>
+              {filteredPets.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {petCategory && filteredPets.length===0 && <span className="mt-1 block font-normal text-amber-800">
+              {tr("No registered pets of this type. Add a pet to your profile first.", "Нет зарегистрированных питомцев этого типа. Сначала добавьте питомца в профиль.")}
+            </span>}
           </label>
           <label className="text-xs font-bold">{tr("Service","Услуга")}
             <select className={inputClass} required disabled={busy} value={form.serviceId} onChange={update("serviceId")}>
