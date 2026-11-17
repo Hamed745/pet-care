@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Building2, CalendarCheck2, CheckCircle2, ClipboardCheck, Clock3, FileCheck2, RefreshCw, ShieldCheck, Stethoscope } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { clinicApi } from "../services/clinicApi.js";
+import { mapLinkCityConflict } from "../services/clinicDiscovery.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import ClinicWorkspace from "./ClinicWorkspace.jsx";
 import { useClinicAudience } from "../clinic/ClinicAudienceContext.jsx";
@@ -146,6 +147,16 @@ function ClinicProfileEditor({ clinic, onSaved }) {
       <Input required label={tr("Street address", "Адрес")} maxLength={250} value={profile.address} onChange={edit("address")} />
         <Input required label={tr("Region / Federal subject", "Регион / субъект РФ")} maxLength={120} value={profile.region} onChange={edit("region")} />
         <Input required type="url" label={tr("Clinic map link (HTTPS)", "Ссылка на клинику на карте (HTTPS)")} maxLength={1800} value={profile.mapUrl} onChange={edit("mapUrl")} />
+      {mapLinkCityConflict(profile.city, profile.mapUrl) && <p role="alert" className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        {tr(
+          `Clinic city is ${profile.city}, but this 2GIS link points to ${mapLinkCityConflict(profile.city, profile.mapUrl)}. Please correct the city or paste the link to your actual clinic. PetCare won't place an inaccurate map pin until they match.`,
+          `Город клиники: ${profile.city}, но ссылка 2ГИС указывает на ${mapLinkCityConflict(profile.city, profile.mapUrl)}. Исправьте город или ссылку на фактический адрес клиники. До исправления неточной метки на карте не будет.`
+        )}
+      </p>}
+      <p className="text-xs text-ink-500 sm:col-span-2">{tr(
+        "Use the real street and building number, not only the city, so the map can locate the clinic precisely.",
+        "Укажите настоящий адрес с улицей и номером дома, а не только город, чтобы клинику можно было найти на карте."
+      )}</p>
       <div className="sm:col-span-2"><Textarea label={tr("Description", "Описание")} rows={3} maxLength={700} value={profile.description} onChange={edit("description")} /></div>
       {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2"><Button type="submit" loading={saving}>{tr("Save profile", "Сохранить профиль")}</Button></div>
