@@ -240,7 +240,7 @@ export default function NearbyPlaces({ mode = "public" }) {
       </p>
       {locationError && <p className="text-sm text-amber-800 md:col-span-4" role="status">{locationError}</p>}
     </section>
-    {bookingNotice && isOur && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-900">{bookingNotice}</div>}
+    {bookingNotice && isOur && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-900">{bookingNotice}{" "}<Link to="/bookings" className="underline underline-offset-2">{tr("Track your request", "Отследить заявку")}</Link></div>}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,1fr)]">
       <div className="relative">
         <TwoGisMap center={center} places={places} onSelectPlace={setSelectedPlace} />

@@ -6,6 +6,7 @@ import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { btn, btn2, btnDanger, card, input } from "../ui.js";
 import { Badge, Button, Modal, Tabs } from "../components/ui.jsx";
 import PetAvatar from "../components/PetAvatar.jsx";
+import MyClinicAppointments from "../features/nearby/MyClinicAppointments.jsx";
 import { CalendarClock } from "lucide-react";
 
 export default function Bookings() {
@@ -77,6 +78,7 @@ export default function Bookings() {
         <h1 className="mt-2 text-3xl font-extrabold">{t("bookings.title", "Bookings")}</h1>
         <p className="mt-2 text-sm text-ink-500">{t("bookings.subtitle", "Keep track of every visit and appointment.")}</p>
       </div>
+      <MyClinicAppointments ownerUid={user?.uid} />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <section className="min-w-0">
           <div className="mb-6 flex gap-2 border-b border-stone-200">
