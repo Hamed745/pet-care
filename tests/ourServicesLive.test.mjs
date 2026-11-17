@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
 test("Our Services route serves approved clinics, map and existing booking flow",()=>{
- const app=read("src/App.jsx"),dir=read("src/pages/ClinicDirectory.jsx");
- assert.match(app,/path="\/nearby\/our\/:kind" element=\{<ClinicDirectory showMap/);
- assert.match(dir,/clinicApi\.list\(\)/);
- assert.match(dir,/clinicApi\.book\(clinic\.id/);
- assert.match(dir,/<VerifiedClinicMap clinics=\{filtered\}/);
- assert.match(dir,/serviceCategoryMatches\(clinic,category\)/);
+ const app=read("src/App.jsx"),nearby=read("src/features/nearby/NearbyPlaces.jsx"),source=read("src/services/approvedClinicPlaces.js");
+ assert.match(app,/path="\/nearby\/our\/:kind" element=\{<NearbyPlaces mode="our"/);
+ assert.match(nearby,/fetchPetCarePlaces/);
+ assert.match(nearby,/<OurClinicBookingModal place=\{selectedPlace\}/);
+ assert.match(source,/clinicApi\.list\(\)/);
+ assert.match(source,/matchesPetCareService/);
+ assert.match(source,/\/api\/clinic-location\?clinicId=/);
 });
 test("public 2GIS search route and search API are preserved",()=>{
  const app=read("src/App.jsx"),nearby=read("src/features/nearby/NearbyPlaces.jsx");
