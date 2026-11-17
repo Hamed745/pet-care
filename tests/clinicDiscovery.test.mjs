@@ -37,15 +37,15 @@ test("mismatched 2GIS link city is explained to clinic manager instead of placin
   assert.match(portal, /Please correct the city or paste the link/);
 });
 
-test("approved clinics outside the range or without coordinates remain cards, with accurate pin focus only", () => {
+test("approved clinics outside the range remain cards, verified pins are drawn automatically", () => {
   const search = read("src/services/approvedClinicPlaces.js");
   const nearby = read("src/features/nearby/NearbyPlaces.jsx");
   assert.match(search, /clinicSearchPlacement\(\{distanceKm,radius,sameCity,gps\}\)/);
   assert.doesNotMatch(search, /if\(distanceKm==null && !sameCity\)return null/);
   assert.match(search, /lon:coord\?\.lon\?\?null/);
   assert.match(nearby, /Showing all approved PetCare clinics/);
-  assert.match(nearby, /setMapFocus\(\{lon:place\.lon, lat:place\.lat\}\)/);
-  assert.match(nearby, /Number\.isFinite\(place\.lon\)/);
+  assert.doesNotMatch(nearby, /Show pin on map|Показать метку на карте|setMapFocus/);
+  assert.match(nearby, /<TwoGisMap center=\{center\} places=\{places\}/);
   assert.match(nearby, /mapCityConflict/);
   assert.match(nearby, /<OurClinicBookingModal place=\{selectedPlace\}/);
 });
