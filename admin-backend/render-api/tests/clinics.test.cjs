@@ -673,3 +673,51 @@ test("legacy status-only confirmation still reserves the owner's requested slot"
   assert.equal(result.data.appointment.time,"11:00");
   assert.equal(f.docs.get("clinicBranches/manager-a/reservedSlots/"+day+"_11:00").appointmentId,"request-a");
 });
+
+
+test("only active doctors from an approved clinic appear in the public selector without staff emails",async()=>{
+ const f=fixture();
+ f.docs.set("clinicBranches/manager-a",{status:"approved",name:"Test clinic"});
+ f.docs.set("clinicBranches/manager-a/staff/vet-a",{
+  role:"veterinarian",status:"active",name:"Dr. Sara",specialty:"Dermatology",email:"private@example.test",yearsExperience:10
+ });
+ f.docs.set("clinicBranches/manager-a/staff/vet-b",{role:"veterinarian",status:"inactive",name:"Dr. Off",email:"off@example.test"});
+ f.docs.set("clinicBranches/manager-a/staff/assistant",{role:"receptionist",status:"active",name:"Reception",email:"front@example.test"});
+ const r=await f.run("GET","/api/clinics/:id/doctors",null,{}, {id:"manager-a"});
+ assert.deepEqual(r.data.doctors,[{id:"vet-a",name:"Dr. Sara",specialty:"Dermatology"}]);
+ assert.equal(JSON.stringify(r.data).includes("private@example.test"),false);
+ f.docs.set("clinicBranches/manager-a",{status:"pending",name:"Test clinic"});
+ await assert.rejects(()=>f.run("GET","/api/clinics/:id/doctors",null,{}, {id:"manager-a"}),{status:404});
+});
+test("owner booking can choose a real doctor and contact phone; clinic sees the name",async()=>{
+ const f=fixture(),owner={uid:"owner-a"},day=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+ f.docs.set("clinicBranches/manager-a",{status:"approved",name:"Demo Clinic",region:"Москва",city:"Moscow",timeZone:"Europe/Moscow",
+  services:[{id:"service-a",name:"Checkup",durationMinutes:30,price:500,available:true}],
+  workingHours:{days:[0,1,2,3,4,5,6],open:"00:00",close:"23:59"}});
+ f.docs.set("users/owner-a/pets/pet-a",{ownerUid:"owner-a",name:"Milo"});
+ f.docs.set("clinicBranches/manager-a/staff/doc-a",{status:"active",role:"veterinarian",name:"Dr. Sara",email:"private@example.test"});
+ const form={petId:"pet-a",serviceId:"service-a",doctorId:"doc-a",contactPhone:"+79991234567",date:day,time:"12:30",notes:"Demo",
+   requestId:randomUUID()};
+ const result=await f.run("POST","/api/clinics/:id/appointments",owner,form,{id:"manager-a"});
+ assert.equal(result.status,201);assert.equal(result.data.appointment.doctorName,"Dr. Sara");
+ assert.equal(result.data.appointment.doctorId,"doc-a");
+ assert.equal(result.data.appointment.contactPhone,"+79991234567");
+ const saved=f.docs.get("clinicAppointments/"+result.data.appointment.id);
+ assert.equal(saved.doctorId,"doc-a");assert.equal(saved.doctorName,"Dr. Sara");
+ assert.equal(saved.ownerUid,owner.uid);
+});
+test("booking rejects an invented, inactive or other-clinic doctor",async()=>{
+ const f=fixture(),owner={uid:"owner-a"},day=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+ f.docs.set("clinicBranches/manager-a",{status:"approved",name:"Demo Clinic",timeZone:"Europe/Moscow",region:"Москва",
+  services:[{id:"service-a",name:"Exam",durationMinutes:30,price:500,available:true}],
+  workingHours:{days:[0,1,2,3,4,5,6],open:"00:00",close:"23:59"}});
+ f.docs.set("users/owner-a/pets/pet-a",{ownerUid:"owner-a",name:"Milo"});
+ f.docs.set("clinicBranches/manager-a/staff/inactive",{status:"inactive",role:"veterinarian",name:"Dr. Off"});
+ f.docs.set("clinicBranches/manager-b/staff/other",{status:"active",role:"veterinarian",name:"Dr. Else"});
+ const base={petId:"pet-a",serviceId:"service-a",date:day,time:"12:30",notes:"",requestId:randomUUID()};
+ const route="/api/clinics/:id/appointments",params={id:"manager-a"};
+ for(const doctorId of ["inactive","other","not-a-doctor"]) {
+   await assert.rejects(()=>f.run("POST",route,owner,{...base,doctorId},params),{status:400});
+ }
+ assert.equal([...f.docs.keys()].filter(k=>k.startsWith("clinicAppointments/")).length,0);
+});
