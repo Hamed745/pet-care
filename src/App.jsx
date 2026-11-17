@@ -75,6 +75,7 @@ export default function App() {
                     <Route path="/services/grooming" element={<Navigate to="/nearby/grooming" replace />} />
           <Route path="/services/pet-sitting" element={<Navigate to="/nearby/pet-sitting" replace />} />
           <Route path="/services/sitting" element={<Navigate to="/nearby/pet-sitting" replace />} />
+          <Route path="/services/catalog/veterinary" element={<Navigate to="/nearby/our/veterinary" replace />} />
           <Route path="/services/catalog/:type" element={<ServiceList />} />
 <Route path="/services/:type" element={<ServiceList />} />
           <Route path="/services/:type/:id" element={<ServiceDetails />} />
@@ -97,8 +98,8 @@ export default function App() {
           <Route path="/adoption/:id" element={<AdoptionDetails />} />
           <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
           <Route path="/clinic" element={<ClinicPortal />} />
-          <Route path="/clinics" element={<ClinicDirectory />} />
-          <Route path="/nearby/our/:kind" element={<NearbyPlaces mode="our" />} />
+          <Route path="/clinics" element={<ClinicDirectory showMap />} />
+          <Route path="/nearby/our/:kind" element={<ClinicDirectory showMap />} />
           <Route path="/nearby/:kind" element={<NearbyPlaces mode="public" />} />
           <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />
           <Route path="/emergency/demo" element={<Emergency />} />
