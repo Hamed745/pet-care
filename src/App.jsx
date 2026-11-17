@@ -66,7 +66,7 @@ export default function App() {
         <Suspense fallback={<LoadingPage />}><Routes>
           <Route path="/" element={<Home />} />
           <Route path="/services" element={<Navigate to="/nearby/veterinary" replace />} />
-          <Route path="/services/catalog" element={<ServicesHome />} />
+          <Route path="/services/catalog" element={<Navigate to="/nearby/our/veterinary" replace />} />
           <Route path="/services/veterinary" element={<Navigate to="/nearby/veterinary" replace />} />
           <Route path="/services/hotels" element={<Navigate to="/nearby/hotels" replace />} />
           <Route path="/services/daycare" element={<Navigate to="/nearby/daycare" replace />} />
