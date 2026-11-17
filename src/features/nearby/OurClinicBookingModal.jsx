@@ -94,6 +94,9 @@ export default function OurClinicBookingModal({ place, onClose, onBooked }) {
         {tr("Sign in as a pet owner to request an appointment.","Войдите как владелец питомца, чтобы записаться.")}
         {" "}<Link className="font-bold underline text-primary-700" to="/login" state={{from:"/nearby/our/veterinary"}}>{tr("Sign in","Войти")}</Link>
       </p>}
+      {user && availableServices.length===0 && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+        {tr("Booking cannot be submitted until the clinic manager publishes at least one service in Services & pricing. Other form fields remain editable.", "Запись нельзя отправить, пока менеджер клиники не опубликует услугу в разделе «Услуги и цены». Остальные поля доступны для заполнения.")}
+      </p>}
       {user && !ownedPets.length && <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
         {tr("Add your pet before requesting an appointment.","Добавьте питомца перед записью.")}
         {" "}<Link className="font-bold underline" to="/pets/new">{tr("Add a pet","Добавить питомца")}</Link>
@@ -103,13 +106,13 @@ export default function OurClinicBookingModal({ place, onClose, onBooked }) {
         <p className="text-xs text-ink-600">{tr("The clinic manager will review your request and confirm or suggest a time. No payment is collected.","Менеджер клиники проверит заявку и подтвердит или предложит время. Оплата не взимается.")}</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-bold">{tr("Your pet","Ваш питомец")}
-            <select className={inputClass} required disabled={!canBook || busy} value={form.petId} onChange={update("petId")}>
+            <select className={inputClass} required disabled={busy} value={form.petId} onChange={update("petId")}>
               <option value="">{tr("Choose pet","Выберите питомца")}</option>
               {ownedPets.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
           <label className="text-xs font-bold">{tr("Service","Услуга")}
-            <select className={inputClass} required disabled={!canBook || busy} value={form.serviceId} onChange={update("serviceId")}>
+            <select className={inputClass} required disabled={busy} value={form.serviceId} onChange={update("serviceId")}>
               <option value="">{tr("Choose service","Выберите услугу")}</option>
               {availableServices.map(s=><option key={s.id} value={s.id}>{s.name} · {s.price} {clinic.currency||"RUB"}</option>)}
             </select>
@@ -123,19 +126,19 @@ export default function OurClinicBookingModal({ place, onClose, onBooked }) {
             {doctorError && <span className="mt-1 block font-normal text-amber-800">{doctorError}</span>}
           </label>
           <label className="text-xs font-bold">{tr("Preferred date","Желаемая дата")}
-            <input className={inputClass} required type="date" min={minimumDate} disabled={!canBook||busy}
+            <input className={inputClass} required type="date" min={minimumDate} disabled={busy}
               value={form.date} onChange={update("date")}/>
           </label>
           <label className="text-xs font-bold">{tr("Preferred time","Желаемое время")}
-            <input className={inputClass} required type="time" disabled={!canBook||busy} value={form.time} onChange={update("time")}/>
+            <input className={inputClass} required type="time" disabled={busy} value={form.time} onChange={update("time")}/>
           </label>
           <label className="text-xs font-bold sm:col-span-2">{tr("Contact phone (optional)","Контактный телефон (необязательно)")}
             <input className={inputClass} type="tel" maxLength={32} autoComplete="tel"
-              disabled={!canBook||busy} value={form.contactPhone} onChange={update("contactPhone")}
+              disabled={busy} value={form.contactPhone} onChange={update("contactPhone")}
               placeholder="+7 999 000 00 00"/>
           </label>
           <label className="text-xs font-bold sm:col-span-2">{tr("Notes for the clinic (optional)","Комментарий клинике (необязательно)")}
-            <textarea className={inputClass+" min-h-24 resize-y"} maxLength={500} disabled={!canBook||busy}
+            <textarea className={inputClass+" min-h-24 resize-y"} maxLength={500} disabled={busy}
               value={form.notes} onChange={update("notes")} rows={3}/>
           </label>
         </div>

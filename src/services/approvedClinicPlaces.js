@@ -1,5 +1,5 @@
 import { clinicApi } from "./clinicApi.js";
-import { clinicSearchPlacement, mapLinkCityConflict } from "./clinicDiscovery.js";
+import { clinicSearchPlacement, mapLinkCityConflict, isPlausibleClinicPoint } from "./clinicDiscovery.js";
 
 // These are approved clinic records from our own server, never external 2GIS
 // businesses. Preserve the existing public search UI in NearbyPlaces.
@@ -62,7 +62,7 @@ async function resolvedPoint(clinic, signal) {
   // A link to a different city is not evidence of the clinic\'s address.
   // Keep the approved clinic visible as a card, but avoid a misleading pin.
   if (mapLinkCityConflict(clinic.city, clinic.mapUrl)) return null;
-  if (Number.isFinite(clinic.latitude) && Number.isFinite(clinic.longitude)) {
+  if (isPlausibleClinicPoint(clinic,{lat:clinic.latitude,lon:clinic.longitude})) {
     return {lat:clinic.latitude,lon:clinic.longitude};
   }
   const key=signature(clinic);
@@ -73,7 +73,7 @@ async function resolvedPoint(clinic, signal) {
   if(!response.ok)throw Error("Unable to load an exact clinic location");
   const data=await response.json();
   const p=data.location;
-  const point=p&&Number.isFinite(p.lon)&&Number.isFinite(p.lat)?{lon:p.lon,lat:p.lat}:null;
+  const point=isPlausibleClinicPoint(clinic,p)?{lon:Number(p.lon),lat:Number(p.lat)}:null;
   // Nulls may change when the clinic updates its share link; only cache pins.
   if(point)resolvedLocations.set(key,point);
   return point;

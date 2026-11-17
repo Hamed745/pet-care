@@ -61,7 +61,6 @@ export default function NearbyPlaces({ mode = "public" }) {
   const [error, setError] = useState("");
   const [bookingNotice, setBookingNotice] = useState("");
   const [searchTarget, setSearchTarget] = useState(null);
-  const [mapFocus, setMapFocus] = useState(null);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const center = useMemo(() => location || customCity || RUSSIAN_CITY_CENTERS[city] || RUSSIAN_CITY_CENTERS.krasnoyarsk, [city, customCity, location]);
   const selectedCityName = location
@@ -69,7 +68,6 @@ export default function NearbyPlaces({ mode = "public" }) {
     : customCity?.name || tr(RUSSIAN_CITY_CENTERS[city]?.label || "Krasnoyarsk", CITY_RU[city] || "Красноярск");
 
   function clearResults() {
-    setMapFocus(null);
     setSelectedPlace(null);
     setPlaces([]);
     setSearched(false);
@@ -77,7 +75,6 @@ export default function NearbyPlaces({ mode = "public" }) {
     setSearchTarget(null);
   }
   function searchPlaces(nextHours = hoursFilter, chosenCenter = center) {
-    setMapFocus(null);
     setSearchTarget({ kind, lon: chosenCenter.lon, lat: chosenCenter.lat, radius, hours: nextHours,
       cityName: selectedCityName, gps: Boolean(location) });
   }
@@ -246,7 +243,7 @@ export default function NearbyPlaces({ mode = "public" }) {
     {bookingNotice && isOur && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-900">{bookingNotice}{" "}<Link to="/bookings" className="underline underline-offset-2">{tr("Track your request", "Отследить заявку")}</Link></div>}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,1fr)]">
       <div className="relative">
-        <TwoGisMap center={mapFocus || center} places={places} onSelectPlace={setSelectedPlace} />
+        <TwoGisMap center={center} places={places} onSelectPlace={setSelectedPlace} />
       </div>
       <section className="max-h-[480px] space-y-3 overflow-y-auto" aria-label="Nearby results" aria-live="polite">
         {!isOur && kind === "emergency" && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertCircle size={16} className="mr-1 inline" />{tr("Always phone the clinic first: listed opening hours do not guarantee emergency admission.", "Перед поездкой обязательно позвоните: часы работы не гарантируют экстренный приём.")}</div>}
@@ -274,11 +271,6 @@ export default function NearbyPlaces({ mode = "public" }) {
             <button type="button" onClick={() => setSelectedPlace(place)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary-700 px-3 py-2 text-xs font-bold text-white hover:bg-primary-800">
               <Search size={14} /> {isOur ? tr("View clinic & book","Открыть клинику и записаться") : tr("View details & contacts", "Информация и контакты")}
             </button>
-            {isOur && Number.isFinite(place.lon) && Number.isFinite(place.lat) && <button type="button"
-              onClick={() => setMapFocus({lon:place.lon, lat:place.lat})}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 px-3 py-2 text-xs font-bold text-primary-800 hover:bg-primary-50">
-              <MapPin size={14} /> {tr("Show pin on map", "Показать метку на карте")}
-            </button>}
             {place.url && <a href={place.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 px-3 py-2 text-xs font-bold text-primary-800 hover:bg-primary-50"><Navigation size={14} /> {isOur ? tr("Clinic location / Directions", "Местоположение клиники") : tr("2GIS / Directions", "2ГИС / Маршрут")}</a>}
           </div>
         </article>)}
