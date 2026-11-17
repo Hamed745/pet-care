@@ -42,7 +42,7 @@ function Navbar() {
 
   const serviceLinks = [
     ["/nearby/emergency", t("services.public_services", "Public Services"), t("services.public_services_nav_desc", "Find nearby veterinary clinics and pet services using 2GIS."), Stethoscope],
-    ["/services/catalog", t("services.our_services", "Our Services"), t("services.our_services_nav_desc", "Explore services offered through PetCare."), Stethoscope],
+    ["/nearby/our/veterinary", t("services.our_services", "Our Services"), t("services.our_services_nav_desc", "Explore services offered through PetCare."), Stethoscope],
     ["/services/grooming", t("nav.grooming", "Grooming"), t("services.grooming_desc", "Thoughtful care from nose to tail."), Scissors],
     ["/services/pet-sitting", t("nav.pet_sitting", "Pet Sitting"), t("services.sitting_desc", "Reliable help at home or outdoors."), Home],
     ["/ai", t("nav.ai_assistant", "AI Assistant"), t("ai.tag", "Get quick answers for everyday care."), Bot],

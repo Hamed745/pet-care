@@ -66,7 +66,7 @@ export default function App() {
         <Suspense fallback={<LoadingPage />}><Routes>
           <Route path="/" element={<Home />} />
           <Route path="/services" element={<Navigate to="/nearby/veterinary" replace />} />
-          <Route path="/services/catalog" element={<ServicesHome />} />
+          <Route path="/services/catalog" element={<Navigate to="/nearby/our/veterinary" replace />} />
           <Route path="/services/veterinary" element={<Navigate to="/nearby/veterinary" replace />} />
           <Route path="/services/hotels" element={<Navigate to="/nearby/hotels" replace />} />
           <Route path="/services/daycare" element={<Navigate to="/nearby/daycare" replace />} />
@@ -99,7 +99,7 @@ export default function App() {
           <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
           <Route path="/clinic" element={<ClinicPortal />} />
           <Route path="/clinics" element={<ClinicDirectory showMap />} />
-          <Route path="/nearby/our/:kind" element={<ClinicDirectory showMap />} />
+          <Route path="/nearby/our/:kind" element={<NearbyPlaces mode="our" />} />
           <Route path="/nearby/:kind" element={<NearbyPlaces mode="public" />} />
           <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />
           <Route path="/emergency/demo" element={<Emergency />} />

@@ -148,6 +148,8 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
         {!pending.length?<p className="text-sm text-ink-500">No pending requests.</p>:pending.map(x=><div key={x.id} className="rounded-xl border p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><strong>{x.petName} · {x.serviceName}</strong><Pill value={x.status}/></div>
           <p className="mt-2 text-xs text-ink-500">{fmtDate(x.date)} · {x.time} · {currency} {x.price||0}</p>
+          {x.doctorName && <p className="mt-2 text-sm font-semibold">Requested doctor: {x.doctorName}</p>}
+          {x.contactPhone && <p className="mt-1 text-sm">Contact: {x.contactPhone}</p>}
           <p className="my-2 text-sm">{x.notes||""}</p>
           <p className="mb-3 text-xs text-ink-600">Choose the appointment day and time before accepting. The pet owner will see the confirmed slot.</p>
           <div className="mb-3 grid gap-3 sm:grid-cols-2">
@@ -167,7 +169,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
       {data&&tab==="appointments"&&<>
         <Section title="All clinic appointments" description="Pending, confirmed, completed, cancelled and rejected.">
           {!bookings.length?<p className="text-sm text-ink-500">No appointments recorded.</p>:bookings.map(x=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 text-sm">
-            <div><strong>{x.petName||"Patient"} · {x.serviceName}</strong><p className="text-xs text-ink-500">{fmtDate(x.date)} · {x.time}</p></div>
+            <div><strong>{x.petName||"Patient"} · {x.serviceName}</strong><p className="text-xs text-ink-500">{fmtDate(x.date)} · {x.time}{x.doctorName?" · "+x.doctorName:""}</p></div>
             <div className="flex gap-2"><Pill value={x.status}/>{x.status==="confirmed"&&<Button size="sm" disabled={busy} onClick={()=>run(()=>clinicApi.updateBooking(x.id,"completed"),"Visit completed.")}>Complete</Button>}</div>
           </div>)}
         </Section>
@@ -177,7 +179,11 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
         {!clinicCalendar.length?<p className="text-sm text-ink-500">No appointments on this day.</p>:clinicCalendar.map(x=><div key={x.id} className="flex items-center justify-between gap-3 border-b py-3 text-sm">
           <span>{x.time} — {x.petName} · {x.serviceName}</span><Pill value={x.status}/></div>)}
       </Section>}
-      {data&&(tab==="team"||tab==="shifts")&&<>
+      {data&&(tab==="team"||tab==="shifts"||tab==="settings")&&<details className="rounded-xl border border-stone-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-bold text-primary-800">
+          {language==="ru"?"Врачи клиники и сотрудники":"Clinic doctors and staff (shown in booking)"}
+        </summary>
+        <div className="mt-4 space-y-4">
         <Section title={tab==="team"?"Doctors and receptionists":"Weekly shift availability"} description="Staff profiles and shift schedules are managed by this clinic branch.">
           {!staff.length?<p className="text-sm text-ink-500">Add your first team member.</p>:staff.map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3">
             <button type="button" className="text-left text-sm" onClick={()=>setSelectedStaff(s.id)}><strong>{s.name}</strong><p className="text-xs text-ink-500">{s.role} · {s.specialty||s.email}</p>
@@ -216,7 +222,8 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
             </div>
           </form>
         </Section>
-      </>}
+        </div>
+      </details>}
       {data&&(tab==="patients"||tab==="records"||tab==="newVisit")&&<>
         <Section title="Patient directory" description="Medical data is private to your approved clinic branch.">
           <div className="max-w-sm"><Field label="Search patient or owner" value={search} onChange={setSearch}/></div>

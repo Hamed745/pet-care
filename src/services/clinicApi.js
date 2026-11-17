@@ -71,6 +71,7 @@ async function downloadAdminDocument(id, kind) {
 export const clinicApi = {
   verificationConfig: () => request("/api/clinics/verification-config"),
   list: () => request("/api/clinics"),
+  doctors: (clinicId) => request(`/api/clinics/${encodeURIComponent(clinicId)}/doctors`),
   mine: () => request("/api/clinics/mine", { authenticated: true }),
   saveDraft: (clinic) => request("/api/clinics/mine/draft", { method: "PUT", authenticated: true, payload: { clinic } }),
   acceptDocumentConsent: (version) => request("/api/clinics/mine/document-consent", {
