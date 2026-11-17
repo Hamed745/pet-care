@@ -99,7 +99,7 @@ export default function App() {
           <Route path="/lost-found/*" element={LOST_FOUND_ENABLED ? <LostFound /> : <LostFoundComingSoon />} />
           <Route path="/clinic" element={<ClinicPortal />} />
           <Route path="/clinics" element={<ClinicDirectory showMap />} />
-          <Route path="/nearby/our/:kind" element={<ClinicDirectory showMap />} />
+          <Route path="/nearby/our/:kind" element={<NearbyPlaces mode="our" />} />
           <Route path="/nearby/:kind" element={<NearbyPlaces mode="public" />} />
           <Route path="/emergency" element={<Navigate to="/nearby/emergency" replace />} />
           <Route path="/emergency/demo" element={<Emergency />} />
