@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, BellOff, CheckCircle2, LoaderCircle, Volume2 } from "lucide-react";
+import { AlertCircle, BellRing, BellOff, CheckCircle2, LoaderCircle, Volume2 } from "lucide-react";
 import { adminApi } from "./adminApi.js";
 import { isAdminPushSupported, registerAdminPush, sendAdminPushTest, unregisterAdminPush } from "./adminPush.js";
 
@@ -9,6 +9,7 @@ export default function AdminPushSettings() {
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
 
   useEffect(() => {
     const handlePush = () => setMessage("A new PetCare notification has arrived.");
@@ -19,6 +20,7 @@ export default function AdminPushSettings() {
   const enable = useCallback(async () => {
     setBusy(true);
     setMessage("");
+    setMessageIsError(false);
     try {
       await registerAdminPush();
       localStorage.setItem("petcare-admin-push-disabled", "false");
@@ -26,6 +28,9 @@ export default function AdminPushSettings() {
       setPermission(Notification.permission);
       setMessage("Push notifications are enabled on this device.");
     } catch (error) {
+      setEnabled(false);
+      setPermission(Notification.permission);
+      setMessageIsError(true);
       setMessage(error?.message || "Could not enable push notifications.");
     } finally {
       setBusy(false);
@@ -35,12 +40,14 @@ export default function AdminPushSettings() {
   const disable = useCallback(async () => {
     setBusy(true);
     setMessage("");
+    setMessageIsError(false);
     try {
       await unregisterAdminPush();
       localStorage.setItem("petcare-admin-push-disabled", "true");
       setEnabled(false);
       setMessage("Push notifications were disabled on this device.");
     } catch (error) {
+      setMessageIsError(true);
       setMessage(error?.message || "Could not disable push notifications.");
     } finally {
       setBusy(false);
@@ -50,10 +57,12 @@ export default function AdminPushSettings() {
   const test = useCallback(async () => {
     setBusy(true);
     setMessage("");
+    setMessageIsError(false);
     try {
       await sendAdminPushTest();
       setMessage("Test notification sent. Check your browser or system notifications.");
     } catch (error) {
+      setMessageIsError(true);
       setMessage(error?.message || "Test notification could not be sent.");
     } finally {
       setBusy(false);
@@ -69,7 +78,9 @@ export default function AdminPushSettings() {
         registerAdminPush().then(() => {
           localStorage.setItem("petcare-admin-push-disabled", "false");
           if (active) setEnabled(true);
-        }).catch(() => {});
+        }).catch((error) => {
+          if (active) {setMessageIsError(true);setMessage(error?.message || "Browser push registration failed.");}
+        });
       }
     });
     return () => {
@@ -89,7 +100,7 @@ export default function AdminPushSettings() {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {!enabled ? (
           <button type="button" className="pa-primary-button" disabled={busy || supported === false} onClick={enable}>
-            {busy ? <LoaderCircle size={16} className="animate-spin"/> : <BellRing size={16}/>} Enable notifications
+            {busy ? <LoaderCircle size={16} className="animate-spin"/> : <BellRing size={16}/>} {messageIsError ? "Retry notifications" : "Enable notifications"}
           </button>
         ) : (
           <>
@@ -102,7 +113,12 @@ export default function AdminPushSettings() {
           </>
         )}
       </div>
-      {message && <p className="mt-3 text-sm text-ink-600" role="status"><CheckCircle2 size={15} className="mr-1 inline"/>{message}</p>}
+      {message && <p className={`mt-3 rounded-lg p-3 text-sm ${messageIsError ? "bg-amber-50 text-amber-900" : "bg-green-50 text-green-800"}`}
+        role={messageIsError ? "alert" : "status"}>
+        {messageIsError ? <AlertCircle size={15} className="mr-1 inline"/> : <CheckCircle2 size={15} className="mr-1 inline"/>}
+        {message}
+      </p>}
+      {messageIsError && <p className="mt-2 text-xs text-ink-600">If the browser push service is unavailable, the website cannot override its registration error. You can retry, check browser notification permissions and extensions, or try another browser profile. Existing in-dashboard notifications remain available.</p>}
       <p className="mt-2 text-xs text-ink-500">Permission: {permission}. Enable this separately on each browser or device.</p>
     </section>
   );

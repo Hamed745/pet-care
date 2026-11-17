@@ -30,7 +30,7 @@ test("Both map marker and result-card click open a service-specific modal",()=>{
 test("Booking modal has real owner pet, verified doctor picker, date/time and notes without fabricating doctors",()=>{
  const modal=read("src/features/nearby/OurClinicBookingModal.jsx");
  const api=read("src/services/clinicApi.js");
- for(const name of ["Your pet","Service","Veterinarian","Preferred date","Preferred time","Contact phone","Notes for the clinic"]){
+ for(const name of ["Pet type","Your registered pet","Service","Veterinarian","Preferred date","Preferred time","Contact phone","Notes for the clinic"]){
   assert.ok(modal.includes(name),name);
  }
  assert.match(modal,/clinicApi\.doctors\(clinic\.id\)/);

@@ -1,6 +1,7 @@
 import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 import { app } from "../firebase.js";
 import { adminApi } from "./adminApi.js";
+import { explainAdminPushError } from "./adminPushErrors.js";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,6 +13,29 @@ const firebaseConfig = {
 };
 
 const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+
+async function waitForActiveWorker(registration) {
+  if (registration.active?.state === "activated") return;
+  // navigator.serviceWorker.ready may point to an older registration; wait
+  // for THIS Firebase worker rather than asking PushManager to subscribe early.
+  const worker = registration.installing || registration.waiting || registration.active;
+  if (!worker) throw new Error("Firebase notification service worker is missing.");
+  await new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      worker.removeEventListener("statechange", onChange);
+      reject(new Error("Firebase notification service worker activation timed out."));
+    }, 12000);
+    function onChange() {
+      if (worker.state === "activated" || worker.state === "redundant") {
+        worker.removeEventListener("statechange", onChange);
+        window.clearTimeout(timeout);
+        worker.state === "activated" ? resolve() : reject(new Error("Firebase service worker became redundant."));
+      }
+    }
+    worker.addEventListener("statechange", onChange);
+    onChange();
+  });
+}
 
 const serviceWorkerUrl = () => {
   const url = new URL("/firebase-messaging-sw.js", window.location.origin);
@@ -44,20 +68,34 @@ export async function registerAdminPush() {
     : await Notification.requestPermission();
   if (permission !== "granted") throw new Error("Notification permission was not granted.");
 
-  const registration = await navigator.serviceWorker.register(serviceWorkerUrl(), {
-    scope: "/",
-    updateViaCache: "none",
-  });
-  await navigator.serviceWorker.ready;
+  let registration;
+  try {
+    registration = await navigator.serviceWorker.register(serviceWorkerUrl(), {
+      scope: "/",
+      updateViaCache: "none",
+    });
+    await waitForActiveWorker(registration);
+  } catch (error) {
+    throw explainAdminPushError(error, "Service worker activation");
+  }
 
-  const messaging = getMessaging(app);
-  const token = await getToken(messaging, {
-    vapidKey,
-    serviceWorkerRegistration: registration,
-  });
-  if (!token) throw new Error("Firebase did not return a browser push token.");
+  let token;
+  try {
+    const messaging = getMessaging(app);
+    token = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: registration,
+    });
+    if (!token) throw new Error("Firebase did not return a browser push token.");
+  } catch (error) {
+    throw explainAdminPushError(error, "Browser/Firebase token subscription");
+  }
 
-  await adminApi.registerPushToken(token);
+  try {
+    await adminApi.registerPushToken(token);
+  } catch (error) {
+    throw explainAdminPushError(error, "PetCare admin token registration");
+  }
   return { token, registration };
 }
 

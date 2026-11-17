@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { UsersRound } from "lucide-react";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { Button, Card, Input, PageHeader, Select, Textarea } from "../components/ui.jsx";
 import { clinicApi } from "../services/clinicApi.js";
@@ -13,6 +14,7 @@ const menuItems=[
   ["appointments","Appointments","Записи"],
   ["calendar","Calendar","Календарь"],
   ["services","Services & pricing","Услуги и цены"],
+  ["team","Doctors & staff","Врачи и персонал"],
   ["settings","Settings","Настройки"],
 ];
 const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -116,7 +118,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
       <nav aria-label="Clinic manager sections" className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
         {menu.map(([key,label])=><button key={key} type="button" aria-current={tab===key?"page":undefined}
           className={"rounded-lg p-3 text-left text-xs font-bold "+(tab===key?"bg-primary-700 text-white":"text-ink-700 hover:bg-primary-50")}
-          onClick={()=>navigate(key)}>{label}{key==="requests"&&pending.length>0?" ("+pending.length+")":""}</button>)}
+          onClick={()=>navigate(key)}>{key==="team"&&<UsersRound size={16} className="mr-2 inline" aria-hidden="true"/>}{label}{key==="requests"&&pending.length>0?" ("+pending.length+")":""}</button>)}
       </nav>
     </aside>
     <div className="min-w-0 space-y-5">
@@ -142,6 +144,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
           <Button onClick={()=>navigate("requests")}>{language==="ru"?"Рассмотреть заявки":"Review booking requests"}</Button>
           <Button variant="secondary" onClick={()=>navigate("appointments")}>{language==="ru"?"Все записи":"View appointments"}</Button>
           <Button variant="secondary" onClick={()=>navigate("services")}>{language==="ru"?"Управление услугами":"Manage services"}</Button>
+          <Button variant="secondary" onClick={()=>navigate("team")}><UsersRound size={16}/>{language==="ru"?"Управление врачами":"Manage doctors"}</Button>
         </div>
       </>}
       {data&&tab==="requests"&&<Section title="New booking requests" description="Approve or decline each request before a slot is confirmed.">
@@ -179,11 +182,9 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
         {!clinicCalendar.length?<p className="text-sm text-ink-500">No appointments on this day.</p>:clinicCalendar.map(x=><div key={x.id} className="flex items-center justify-between gap-3 border-b py-3 text-sm">
           <span>{x.time} — {x.petName} · {x.serviceName}</span><Pill value={x.status}/></div>)}
       </Section>}
-      {data&&(tab==="team"||tab==="shifts"||tab==="settings")&&<details className="rounded-xl border border-stone-200 bg-white p-4">
-        <summary className="cursor-pointer text-sm font-bold text-primary-800">
-          {language==="ru"?"Врачи клиники и сотрудники":"Clinic doctors and staff (shown in booking)"}
-        </summary>
-        <div className="mt-4 space-y-4">
+      {data&&tab==="team"&&<div className="space-y-4" aria-label={language==="ru"?"Управление врачами и персоналом":"Clinic doctors and staff management"}>
+        <p className="text-sm text-ink-600">{language==="ru"?"Добавляйте активных ветеринаров здесь: они появятся в списке врачей при записи в клинику.":"Add active veterinarians here: they will appear in the doctor selector when pet owners book."}</p>
+        <div className="space-y-4">
         <Section title={tab==="team"?"Doctors and receptionists":"Weekly shift availability"} description="Staff profiles and shift schedules are managed by this clinic branch.">
           {!staff.length?<p className="text-sm text-ink-500">Add your first team member.</p>:staff.map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3">
             <button type="button" className="text-left text-sm" onClick={()=>setSelectedStaff(s.id)}><strong>{s.name}</strong><p className="text-xs text-ink-500">{s.role} · {s.specialty||s.email}</p>
@@ -223,7 +224,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
           </form>
         </Section>
         </div>
-      </details>}
+      </div>}
       {data&&(tab==="patients"||tab==="records"||tab==="newVisit")&&<>
         <Section title="Patient directory" description="Medical data is private to your approved clinic branch.">
           <div className="max-w-sm"><Field label="Search patient or owner" value={search} onChange={setSearch}/></div>

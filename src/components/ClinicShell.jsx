@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { CalendarDays, ClipboardCheck, Home, LogOut, Settings, Stethoscope } from "lucide-react";
+import { CalendarDays, ClipboardCheck, Home, LogOut, Settings, Stethoscope, UsersRound } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { logoutUser } from "../services/authService.js";
@@ -15,6 +15,7 @@ const links = [
   ["appointments", CalendarDays, "Appointments", "Записи"],
   ["calendar", CalendarDays, "Calendar", "Календарь"],
   ["services", Stethoscope, "Services", "Услуги"],
+  ["team", UsersRound, "Doctors & Staff", "Врачи и персонал"],
   ["settings", Settings, "Settings", "Настройки"],
 ];
 export default function ClinicShell({ children, toastItems, onDismiss }) {
