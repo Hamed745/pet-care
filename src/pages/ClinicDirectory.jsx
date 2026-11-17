@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Building2, CalendarDays, MapPin, RefreshCw, ShieldCheck, Stethoscope } from "lucide-react";
 import { useApp } from "../store.jsx";
 import { clinicApi } from "../services/clinicApi.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { Badge, Button, Card, Input, PageHeader, Select, Textarea } from "../components/ui.jsx";
+import VerifiedClinicMap from "../components/VerifiedClinicMap.jsx";
+import { NEARBY_CATEGORIES } from "../features/nearby/nearbyCategories.js";
 
 function BookingForm({ clinic, pets, onBooked }) {
   const [form, setForm] = useState({ petId: "", serviceId: "", date: "", time: "", notes: "" });
@@ -44,7 +46,21 @@ function BookingForm({ clinic, pets, onBooked }) {
   </form>;
 }
 
-export default function ClinicDirectory() {
+const serviceCategoryMatches = (clinic, category) => {
+  if(!category || category === "veterinary")return true;
+  const all = (clinic.services || []).map(s=>s.name).join(" ").toLocaleLowerCase("ru");
+  const terms = {
+    emergency:/emergency|urgent|экстрен|неотлож|скорая/,
+    grooming:/groom|грум|стриж|купани/,
+    hotels:/hotel|boarding|гостиниц|отел|передерж/,
+    daycare:/day.?care|дневн|передерж/,
+    "pet-sitting":/sitting|walk|няня|присмотр|выгул/,
+  };
+  return Boolean(terms[category]?.test(all));
+};
+export default function ClinicDirectory({ showMap = false }) {
+  const { kind: requestedKind } = useParams();
+  const category = showMap ? requestedKind || "veterinary" : "veterinary";
   const { user, pets } = useApp();
   const { isRussian } = useLanguage();
   const tr = (en, ru) => isRussian ? ru : en;
@@ -78,11 +94,12 @@ export default function ClinicDirectory() {
     .map((clinic) => clinic.city).filter(Boolean))].sort(), [clinics, region]);
   const services = useMemo(() => [...new Set(clinics.flatMap((clinic) => clinic.services.map((service) => service.name)).filter(Boolean))].sort(), [clinics]);
   const filtered = useMemo(() => clinics.filter((clinic) =>
+    serviceCategoryMatches(clinic,category) &&
     `${clinic.name} ${clinic.city} ${clinic.region || clinic.governorate || ""} ${clinic.address} ${clinic.description}`.toLowerCase().includes(search.trim().toLowerCase()) &&
     (!region || (clinic.region || clinic.governorate) === region) &&
     (!city || clinic.city === city) &&
     (!serviceName || clinic.services.some((service) => service.name === serviceName))
-  ), [clinics, search, region, city, serviceName]);
+  ), [clinics, category, search, region, city, serviceName]);
   const ownedPets = useMemo(() => pets.filter((pet) => pet.ownerUid === user?.uid), [pets, user?.uid]);
   const cancel = async (id) => {
     setBusy(id);
@@ -91,8 +108,16 @@ export default function ClinicDirectory() {
     finally { setBusy(""); }
   };
   return <div className="space-y-6 py-5">
-    <PageHeader eyebrow={tr("Verified PetCare partners", "Проверенные партнёры PetCare")} title={tr("Our Veterinary Clinics", "Наши ветеринарные клиники")} description={tr("Book directly with approved PetCare clinics. For external 2GIS results, use the Public Services directory.", "Запись доступна только в клиники, проверенные PetCare. Внешние организации 2ГИС находятся в общем каталоге.")} />
-    <nav className="grid grid-cols-2 gap-3"><Link className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-4 text-sm font-semibold" to="/nearby/veterinary"><MapPin className="text-primary-700"/>{tr("Public directory (2GIS)", "Общий каталог (2ГИС)")}</Link><div className="flex items-center gap-3 rounded-2xl border border-primary-700 bg-primary-50 p-4 text-sm font-extrabold"><ShieldCheck className="text-primary-700"/>{tr("Our verified clinics", "Наши проверенные клиники")}</div></nav>
+    <PageHeader eyebrow={tr("Verified PetCare partners", "Проверенные партнёры PetCare")} title={showMap ? tr("Our Services — Approved PetCare Clinics", "Наши услуги — одобренные клиники PetCare") : tr("Our Veterinary Clinics", "Наши ветеринарные клиники")} description={tr("Book directly with approved PetCare clinics. For external 2GIS results, use the Public Services directory.", "Запись доступна только в клиники, проверенные PetCare. Внешние организации 2ГИС находятся в общем каталоге.")} />
+    <nav className="grid grid-cols-2 gap-3"><Link className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-4 text-sm font-semibold" to="/nearby/veterinary"><MapPin className="text-primary-700"/>{tr("Public directory (2GIS)", "Общий каталог (2ГИС)")}</Link><Link to="/nearby/our/veterinary" className="flex items-center gap-3 rounded-2xl border border-primary-700 bg-primary-50 p-4 text-sm font-extrabold"><ShieldCheck className="text-primary-700"/>{tr("Our Services — approved clinics", "Наши услуги — одобренные клиники")}</Link></nav>
+    {showMap && <nav className="flex flex-wrap gap-2" aria-label={tr("Our service categories","Категории наших услуг")}>
+      {Object.entries(NEARBY_CATEGORIES).map(([id,info])=>
+        <Link key={id} to={"/nearby/our/"+id} aria-current={category===id?"page":undefined}
+          className={"rounded-lg border px-3 py-2 text-xs font-bold "+(category===id?"border-primary-700 bg-primary-700 text-white":"border-stone-200 bg-white text-ink-700 hover:bg-primary-50")}>
+          {isRussian ? (info.ruLabel || info.label) : info.label}
+        </Link>
+      )}
+    </nav>}
     {notice && <p role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-bold text-green-900">{notice}</p>}
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(150px,auto))_auto]">
@@ -102,10 +127,11 @@ export default function ClinicDirectory() {
       <Select label={tr("Service", "Услуга")} value={serviceName} onChange={(event) => setServiceName(event.target.value)}><option value="">{tr("All services", "Все услуги")}</option>{services.map((item) => <option key={item}>{item}</option>)}</Select>
       <Button variant="secondary" type="button" onClick={refresh}><RefreshCw size={16}/> {tr("Refresh", "Обновить")}</Button>
     </div>
+    {showMap && !loading && <VerifiedClinicMap clinics={filtered}/>}
     {loading && <p role="status" className="text-sm text-ink-500">{tr("Loading clinics…", "Загрузка клиник…")}</p>}
-    {!loading && !filtered.length && <Card className="py-12 text-center"><Building2 size={32} className="mx-auto text-primary-700"/><h2 className="mt-3 text-lg font-extrabold">{tr("No verified clinics found yet", "Проверенных клиник пока нет")}</h2><p className="mt-2 text-sm text-ink-500">{tr("Approved PetCare clinics will appear here automatically.", "Одобренные клиники PetCare появятся здесь автоматически.")}</p></Card>}
+    {!loading && !filtered.length && <Card className="py-12 text-center"><Building2 size={32} className="mx-auto text-primary-700"/><h2 className="mt-3 text-lg font-extrabold">{tr("No approved PetCare providers match these filters", "Нет одобренных партнёров PetCare по выбранным фильтрам")}</h2><p className="mt-2 text-sm text-ink-500">{tr("Approved PetCare clinics will appear here automatically.", "Одобренные клиники PetCare появятся здесь автоматически.")}</p></Card>}
     <div className="grid gap-4 lg:grid-cols-2">
-      {filtered.map((clinic) => <Card key={clinic.id} className="flex flex-col gap-3">
+      {filtered.map((clinic) => <Card key={clinic.id} id={"clinic-"+clinic.id} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <span className="rounded-xl bg-primary-50 p-3 text-primary-700"><Stethoscope size={23}/></span>

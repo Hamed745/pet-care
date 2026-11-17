@@ -111,20 +111,11 @@ function ServicesDirectory({ categoryType = "" }) {
       </div>
     </section>
 
-    {categoryType === "vet" && <aside role="note" className="mb-5 flex flex-col items-start gap-3 rounded-xl border border-primary-100 bg-teal-50 px-4 py-3 text-primary-950 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3 sm:items-center">
-        <Info aria-hidden="true" size={18} className="mt-0.5 shrink-0 text-primary-700 sm:mt-0" />
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold">{t("services.veterinary_coming_soon_title", "Veterinary Clinics — Coming Soon")}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-ink-600">{t("services.veterinary_coming_soon_notice", "PetCare veterinary clinics are not available yet. Other services remain available.")}</p>
-        </div>
-      </div>
-      <Link
-        to="/nearby/emergency"
-        className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-700"
-      >
-        {t("services.explore_public_services", "Explore Public Services")}
-        <ArrowRight aria-hidden="true" size={14} />
+    {categoryType === "vet" && <aside role="note" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3">
+      <div><h2 className="text-sm font-bold">{t("services.verified_clinics", "PetCare-approved veterinary clinics are available")}</h2>
+        <p className="mt-1 text-xs text-ink-600">{t("services.verified_clinics_desc", "View partner clinics on the map and request an appointment directly.")}</p></div>
+      <Link className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary-700 px-3 py-2 text-xs font-bold text-white" to="/nearby/our/veterinary">
+        {t("services.browse_our_clinics", "Explore Our Services")} <ArrowRight size={14}/>
       </Link>
     </aside>}
 
