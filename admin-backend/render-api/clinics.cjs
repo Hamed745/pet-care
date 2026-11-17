@@ -274,6 +274,8 @@ function appointmentData(snapshot) {
   return { id: snapshot.id, clinicId: data.clinicId, clinicName: data.clinicName,
     ownerUid: data.ownerUid, petId: data.petId, petName: data.petName,
     serviceId: data.serviceId, serviceName: data.serviceName, price: data.price,
+    doctorId: data.doctorId || "", doctorName: data.doctorName || "",
+    contactPhone: data.contactPhone || "",
     durationMinutes: data.durationMinutes || 30,
     date: data.date, time: data.time, notes: data.notes || "", status: data.status,
     statusReason: data.statusReason || "",
@@ -588,6 +590,26 @@ function registerClinicRoutes({
       const snapshot = await clinics.where("status", "==", "approved").limit(100).get();
       res.set("Cache-Control", "no-store");
       res.json({ clinics: snapshot.docs.map(publicClinic), limited: snapshot.size === 100 });
+    } catch (error) { next(error); }
+  });
+
+  // Public doctor selector: names and specialties only, never staff email,
+  // shift private notes, permissions, medical records or pending clinics.
+  app.get("/api/clinics/:id/doctors", async (req, res, next) => {
+    try {
+      const clinicId = docId(req.params.id);
+      const snapshot = await clinics.doc(clinicId).get();
+      if (!snapshot.exists || snapshot.data()?.status !== "approved") {
+        throw new HttpError(404, "Approved clinic not found.");
+      }
+      const staff = await clinics.doc(clinicId).collection("staff")
+        .where("role", "==", "veterinarian").limit(40).get();
+      res.set("Cache-Control", "no-store");
+      res.json({ doctors: staff.docs.filter(doc => doc.data()?.status === "active")
+        .map(doc => ({
+          id: doc.id, name: String(doc.data()?.name || "").slice(0,120),
+          specialty: String(doc.data()?.specialty || "").slice(0,120),
+        })).filter(doc => doc.name) });
     } catch (error) { next(error); }
   });
 
@@ -944,8 +966,26 @@ function registerClinicRoutes({
       throw new HttpError(400, "Choose a time within this clinic's working hours.");
     }
     const notes = typeof req.body?.notes === "string" ? req.body.notes.trim().slice(0, 500) : "";
+    const doctorId = typeof req.body?.doctorId === "string" ? req.body.doctorId.trim() : "";
+    let doctorName = "";
+    if (doctorId) {
+      docId(doctorId);
+      const doctor = await clinics.doc(clinicId).collection("staff").doc(doctorId).get();
+      if (!doctor.exists || doctor.data()?.role !== "veterinarian" ||
+          doctor.data()?.status !== "active") {
+        throw new HttpError(400, "Choose an active doctor at this clinic.");
+      }
+      doctorName = String(doctor.data()?.name || "").slice(0, 120);
+      if (!doctorName) throw new HttpError(400, "The selected doctor has no public name.");
+    }
+    const contactPhone = typeof req.body?.contactPhone === "string"
+      ? req.body.contactPhone.trim() : "";
+    if (contactPhone && (contactPhone.length > 32 ||
+        !/^[+\d\s()-]{7,32}$/.test(contactPhone))) {
+      throw new HttpError(400, "Provide a valid contact phone number.");
+    }
     const requestHash = createHash("sha256").update(JSON.stringify({
-      clinicId, petId, serviceId, date, time, notes,
+      clinicId, petId, serviceId, doctorId, contactPhone, date, time, notes,
     })).digest("hex");
     const bookingId = createHash("sha256")
       .update(`${req.authUser.uid}:${requestId}`)
@@ -964,6 +1004,7 @@ function registerClinicRoutes({
         petId, petName: String(petSnap.data()?.name || "Pet").slice(0, 100),
         serviceId, serviceName: service.name, price: service.price,
         durationMinutes: service.durationMinutes, date, time, notes,
+        doctorId, doctorName, contactPhone,
         requestHash, status: "pending",
         createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
