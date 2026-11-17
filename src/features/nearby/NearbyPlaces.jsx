@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { AlertCircle, CalendarCheck2, Clock3, HeartPulse, Hotel, House, LocateFixed, MapPin, Navigation, Scissors, Search, ShieldCheck, Stethoscope, Star, Sparkles, Sun } from "lucide-react";
 import TwoGisMap from "./TwoGisMap.jsx";
 import PlaceDetailsModal from "./PlaceDetailsModal.jsx";
@@ -43,6 +43,7 @@ export default function NearbyPlaces({ mode = "public" }) {
   const tr = (english, russian) => isRussian ? russian : english;
   const kind = Object.hasOwn(NEARBY_CATEGORIES, rawKind) ? rawKind : "veterinary";
   const category = NEARBY_CATEGORIES[kind];
+  const ourCategoryUnavailable = isOur && kind !== "veterinary";
   const categoryName = tr(category.label, category.ruLabel || CATEGORY_RU[kind]?.[0] || category.label);
   const [city, setCity] = useState("krasnoyarsk");
   const [customCity, setCustomCity] = useState(null);
@@ -83,7 +84,7 @@ export default function NearbyPlaces({ mode = "public" }) {
     if (searchTarget) searchPlaces(filter, { lon: searchTarget.lon, lat: searchTarget.lat });
   }
   useEffect(() => {
-    if (!searchTarget) return;
+    if (!searchTarget || ourCategoryUnavailable) return;
     const controller = new AbortController();
     setPending(true);
     setSearched(true);
@@ -94,7 +95,7 @@ export default function NearbyPlaces({ mode = "public" }) {
       .catch((err) => { if (!controller.signal.aborted && err.name !== "AbortError") setError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setPending(false); });
     return () => controller.abort();
-  }, [searchTarget, isOur]);
+  }, [searchTarget, isOur, ourCategoryUnavailable]);
   useEffect(() => { clearResults(); setHoursFilter("any"); setBookingNotice(""); }, [kind, isOur]);
 
   // Query cities from 2GIS instead of maintaining an impossible-to-complete static list.
@@ -161,12 +162,13 @@ export default function NearbyPlaces({ mode = "public" }) {
     });
   }
 
+  if (ourCategoryUnavailable) return <Navigate to={kind === "emergency" ? "/nearby/emergency" : "/nearby/our/veterinary"} replace />;
   return <div className="space-y-5 py-3">
     <nav className="flex flex-wrap items-center gap-2 text-xs text-ink-500" aria-label="Breadcrumb">
       <Link to="/services" className="hover:underline">{tr("Services", "Услуги")}</Link><span>/</span><span>{categoryName}</span>
     </nav>
     <nav className="grid grid-cols-2 gap-3" aria-label={tr("Services mode", "Режим услуг")}>
-      <Link to={`/nearby/${kind}`} aria-current={!isOur ? "page" : undefined}
+      <Link to={isOur ? "/nearby/veterinary" : `/nearby/${kind}`} aria-current={!isOur ? "page" : undefined}
         className={`flex min-h-20 items-center gap-3 rounded-2xl border p-3 text-left transition sm:p-5 ${!isOur ? "border-primary-700 bg-primary-50 shadow-sm" : "border-stone-200 bg-white hover:border-primary-200"}`}>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary-700"><MapPin size={22} /></span>
         <span className="min-w-0"><strong className="block text-sm font-extrabold text-ink-900 sm:text-lg">{tr("Public Services", "Общедоступные услуги")}</strong><span className="mt-1 block text-xs text-ink-500">{tr("Live 2GIS search", "Поиск в 2ГИС")}</span></span>
@@ -185,11 +187,19 @@ export default function NearbyPlaces({ mode = "public" }) {
     </header>
     <nav className="flex flex-wrap gap-2" aria-label="Nearby place categories">
       {Object.entries(NEARBY_CATEGORIES).map(([id, info]) => {
+        if (isOur && id === "emergency") return null;
         const Icon = CATEGORY_ICONS[id];
-        return <Link key={id} to={isOur ? `/nearby/our/${id}` : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
+        const title = tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label);
+        if (isOur && id !== "veterinary") return <span key={id} aria-disabled="true"
+          className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-sm font-semibold text-ink-400 opacity-70"
+          title={tr("Coming Soon", "Скоро")} >
+          {Icon && <Icon size={17} aria-hidden="true" className="shrink-0" />}
+          {title}<span className="rounded bg-stone-200 px-1.5 py-0.5 text-[10px] font-bold">{tr("Coming Soon", "Скоро")}</span>
+        </span>;
+        return <Link key={id} to={isOur ? "/nearby/our/veterinary" : `/nearby/${id}`} aria-current={kind === id ? "page" : undefined}
           className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 ${kind === id ? "border-primary-700 bg-primary-700 text-white" : "border-stone-200 bg-white text-ink-700 hover:border-primary-300 hover:bg-primary-50"}`}>
           {Icon && <Icon size={17} aria-hidden="true" className="shrink-0" />}
-          {tr(info.label, info.ruLabel || CATEGORY_RU[id]?.[0] || info.label)}
+          {title}
         </Link>;
       })}
     </nav>
