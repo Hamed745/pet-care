@@ -41,8 +41,8 @@ test("clinic manager sees Doctors & Staff in both header and workspace sidebar",
   assert.match(workspace, /\["team","Doctors & staff"/);
   assert.match(workspace, /data&&tab==="team"/);
   assert.match(workspace, /clinicWorkspaceApi\.addStaff\(staffForm\)/);
-  assert.match(workspace, /<option value="veterinarian">Veterinarian/);
-  assert.match(workspace, /<option value="active">Active/);
+  assert.match(workspace, /<option value="veterinarian">\{tr\("Veterinarian"\)\}/);
+  assert.match(workspace, /<option value="active">\{tr\("Active"\)\}/);
   assert.match(doctors, /where\("role", "==", "veterinarian"\)/);
   assert.match(doctors, /doc\.data\(\)\?\.status === "active"/);
   assert.match(backend, /app\.post\("\/api\/clinics\/mine\/staff"/);

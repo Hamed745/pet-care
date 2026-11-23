@@ -36,7 +36,7 @@ export default function ClinicShell({ children, toastItems, onDismiss }) {
       setUser(null);
       navigate("/login", { replace: true });
     } catch {
-      showToast("Unable to sign out. Please try again.", "error");
+      showToast(label("Unable to sign out. Please try again.", "Не удалось выйти. Попробуйте ещё раз."), "error");
     } finally { setSigningOut(false); }
   };
 
