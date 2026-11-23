@@ -66,3 +66,11 @@ test("no untranslated human-facing static labels remain in clinic workspace", ()
   assert.deepEqual(labels.filter(x=>/\b[A-Za-z]{4}\b/.test(x)),[]);
   assert.deepEqual(phrases,[]);
 });
+
+test("legacy approved clinic directory also translates booking fields and status", () => {
+  const directory = read("src/pages/ClinicDirectory.jsx");
+  assert.match(directory, /label=\{tr\("Your pet","Ваш питомец"\)\}/);
+  assert.match(directory, /label=\{tr\("Clinic service","Услуга клиники"\)\}/);
+  assert.match(directory, /clinicText\(isRussian\?"ru":"en",item\.status\)/);
+  assert.match(directory, /tr\("Cancel request","Отменить заявку"\)/);
+});
