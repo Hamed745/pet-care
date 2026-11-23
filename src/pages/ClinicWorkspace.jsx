@@ -174,7 +174,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
       {data&&tab==="appointments"&&<>
         <Section title={tr("All clinic appointments")} description={tr("Pending, confirmed, completed, cancelled and rejected.")}>
           {!bookings.length?<p className="text-sm text-ink-500">{tr("No appointments recorded.")}</p>:bookings.map(x=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 text-sm">
-            <div><strong>{x.petName||"Patient"} · {x.serviceName}</strong><p className="text-xs text-ink-500">{fmtDate(x.date,language)} · {x.time}{x.doctorName?" · "+x.doctorName:""}</p></div>
+            <div><strong>{x.petName||tr("Patient")} · {x.serviceName}</strong><p className="text-xs text-ink-500">{fmtDate(x.date,language)} · {x.time}{x.doctorName?" · "+x.doctorName:""}</p></div>
             <div className="flex gap-2"><Pill value={x.status}/>{x.status==="confirmed"&&<Button size="sm" disabled={busy} onClick={()=>run(()=>clinicApi.updateBooking(x.id,"completed"),"Visit completed.")}>{tr("Complete")}</Button>}</div>
           </div>)}
         </Section>
@@ -206,10 +206,10 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
             <Field required label={tr("Full name")} value={staffForm.name} onChange={v=>setStaffForm({...staffForm,name:v})}/>
             <Field required label={tr("Work email")} type="email" value={staffForm.email} onChange={v=>setStaffForm({...staffForm,email:v})}/>
             <Select label={tr("Role")} value={staffForm.role} onChange={e=>setStaffForm({...staffForm,role:e.target.value})}>
-              <option value="veterinarian">Veterinarian</option><option value="receptionist">Receptionist</option>
+              <option value="veterinarian">{tr("Veterinarian")}</option><option value="receptionist">{tr("Receptionist")}</option>
             </Select>
             <Select label={tr("Status")} value={staffForm.status} onChange={e=>setStaffForm({...staffForm,status:e.target.value})}>
-              <option value="active">Active</option><option value="inactive">Inactive</option>
+              <option value="active">{tr("Active")}</option><option value="inactive">{tr("Inactive")}</option>
             </Select>
             <Field label={tr("Specialty")} value={staffForm.specialty} onChange={v=>setStaffForm({...staffForm,specialty:v})}/>
             <Field label={tr("Experience (years)")} type="number" min="0" max="70" value={staffForm.yearsExperience} onChange={v=>setStaffForm({...staffForm,yearsExperience:v})}/>
@@ -217,7 +217,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
             <Field label={tr("Shift end")} type="time" value={staffForm.shiftEnd} onChange={v=>setStaffForm({...staffForm,shiftEnd:v})}/>
             <fieldset className="sm:col-span-2"><legend className="mb-2 text-xs font-bold">{tr("Working days")}</legend>
               <div className="flex flex-wrap gap-3">{days.map((d,i)=><label key={d} className="text-sm"><input type="checkbox" checked={staffForm.workingDays.includes(i)}
-                onChange={e=>setStaffForm({...staffForm,workingDays:e.target.checked?[...staffForm.workingDays,i]:staffForm.workingDays.filter(v=>v!==i)})}/> {d}</label>)}</div>
+                onChange={e=>setStaffForm({...staffForm,workingDays:e.target.checked?[...staffForm.workingDays,i]:staffForm.workingDays.filter(v=>v!==i)})/> {tr(d)}</label>)}</div>
             </fieldset>
             <div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={busy}>{tr(editingStaff?"Save changes":"Add member")}</Button>
               {editingStaff&&<Button type="button" variant="secondary" onClick={()=>{setStaffForm(blankStaff);setEditingStaff("");}}>{tr("Cancel edit")}</Button>}
@@ -232,11 +232,11 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
           <div className="max-w-sm"><Field label={tr("Search patient or owner")} value={search} onChange={setSearch}/></div>
           {!matchingPatients.length?<p className="text-sm text-ink-500">{tr("No patients match your search.")}</p>:matchingPatients.map(p=><button key={p.id} type="button"
             className={"block w-full border-b p-3 text-left text-sm hover:bg-primary-50 "+(selectedPatient===p.id?"bg-primary-50":"")}
-            onClick={()=>setSelectedPatient(p.id)}><strong>{p.name}</strong> · {p.species} · {p.breed}
+            onClick={()=>setSelectedPatient(p.id)}><strong>{p.name}</strong> · {tr(p.species)} · {p.breed}
             <p className="text-xs text-ink-500">{tr("Owner:")} {p.ownerName} · {p.ownerPhone||tr("Phone not provided")}</p></button>)}
           {selected&&<div className="rounded-xl border bg-stone-50 p-4 text-sm">
             <h3 className="font-extrabold">{tr("Patient overview:")} {selected.name}</h3>
-            <p>{selected.breed||selected.species} · {selected.gender||tr("Gender not recorded")} · {tr("Birth date:")} {selected.birthDate||tr("Unknown")}</p>
+            <p>{selected.breed||selected.species} · {tr(selected.gender||"Gender not recorded")} · {tr("Birth date:")} {selected.birthDate||tr("Unknown")}</p>
             <p>{tr("Weight:")} {selected.weight??tr("Unknown")} kg · {tr("Blood type:")} {selected.bloodType||tr("Unknown")}</p>
             <p>{tr("Allergies:")} {selected.allergies||tr("None reported")} · {tr("Health:")} {selected.healthStatus||tr("Not assessed")}</p>
             <p>{tr("Last visit:")} {visitList(selected.id)[0]?.visitDate||tr("None")}</p>
