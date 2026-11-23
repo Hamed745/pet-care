@@ -6,6 +6,7 @@ import { clinicApi } from "../services/clinicApi.js";
 import { mapLinkCityConflict } from "../services/clinicDiscovery.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import ClinicWorkspace from "./ClinicWorkspace.jsx";
+import { clinicText } from "../clinic/clinicTranslations.js";
 import { useClinicAudience } from "../clinic/ClinicAudienceContext.jsx";
 import { Button, Card, Input, PageHeader, Textarea } from "../components/ui.jsx";
 
@@ -32,6 +33,7 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
     current?.documentConsent?.version === DOCUMENT_CONSENT_VERSION,
   );
   const label = (en, ru) => isRussian ? ru : en;
+  const tr = en => clinicText(isRussian ? "ru" : "en", en);
   const edit = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
   const applicationFields = () => Object.fromEntries(Object.keys(EMPTY).map((key) => [key, form[key] ?? ""]));
   const saveDraft = async () => {
@@ -93,7 +95,7 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
           ? label("Graduation project demo: attach sample or completely fictional PDF, JPG or PNG files (max 5 MB each). A PetCare administrator will examine them manually. Do NOT upload real passports, IDs, licences or personal documents.", "Демонстрация дипломного проекта: прикрепите вымышленные или тестовые PDF, JPG или PNG (до 5 МБ). Администратор PetCare проверит их вручную. НЕ загружайте реальные паспорта, удостоверения или лицензии.")
           : label("PDF, JPG or PNG only (max 5 MB each). Documents are private and available only through the authenticated Admin API.", "Только PDF, JPG или PNG до 5 МБ. Документы закрыты и доступны только через защищённый API администратора.")}</p>
         {!uploadEnabled && <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">{label("Document uploads are disabled until private storage and required security controls are ready. You can save a draft in the meantime.", "Загрузка отключена до настройки приватного хранилища и обязательных мер безопасности. Пока можно сохранить черновик.")}</p>}
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">{DOCUMENTS.map(([kind, title]) => <label key={kind} className="block rounded-xl border border-stone-200 bg-white p-3 text-xs font-semibold text-ink-800">{title}<input required={uploadEnabled} disabled={!uploadEnabled} type="file" accept="application/pdf,image/jpeg,image/png" className="mt-2 block w-full text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:font-bold file:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50" onChange={(event) => setFiles((old) => ({ ...old, [kind]: event.target.files?.[0] || null }))}/></label>)}</div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">{DOCUMENTS.map(([kind, title]) => <label key={kind} className="block rounded-xl border border-stone-200 bg-white p-3 text-xs font-semibold text-ink-800">{tr(title)}<input required={uploadEnabled} disabled={!uploadEnabled} type="file" accept="application/pdf,image/jpeg,image/png" className="mt-2 block w-full text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:font-bold file:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50" onChange={(event) => setFiles((old) => ({ ...old, [kind]: event.target.files?.[0] || null }))}/></label>)}</div>
       </section>
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
         <h3 className="font-extrabold">{label("Document privacy and retention", "Конфиденциальность и хранение документов")}</h3>
@@ -115,7 +117,7 @@ function ClinicApplication({ current, onSaved, uploadEnabled, emulatorDocuments,
           demoUploads ? "Только тестовые документы. Администратор проверяет примеры вручную; настоящие документы загружать нельзя. Текст согласия не проходил юридическую проверку." : "Текст согласия и сроков хранения является проектом и ожидает юридической проверки. Загрузка реальных документов в production отключена.",
         )}</p>
       </section>
-      {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{tr(error)}</p>}
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" disabled={saving} loading={savingAction === "draft"} onClick={saveDraft}>{label("Save draft", "Сохранить черновик")}</Button>
         <Button type="submit" disabled={!uploadEnabled || saving} loading={savingAction === "submit"} className="w-full sm:w-auto"><ShieldCheck size={17}/>{label("Submit for admin review", "Отправить на проверку")}</Button>
@@ -135,6 +137,7 @@ function ClinicProfileEditor({ clinic, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const tr = (en, ru) => isRussian ? ru : en;
+  const errorText = en => clinicText(isRussian ? "ru" : "en",en);
   const edit = (key) => (event) => setProfile((current) => ({ ...current, [key]: event.target.value }));
   const save = async (event) => {
     event.preventDefault(); setSaving(true); setError("");
@@ -164,7 +167,7 @@ function ClinicProfileEditor({ clinic, onSaved }) {
         "Укажите настоящий адрес с улицей и номером дома, а не только город, чтобы клинику можно было найти на карте."
       )}</p>
       <div className="sm:col-span-2"><Textarea label={tr("Description", "Описание")} rows={3} maxLength={700} value={profile.description} onChange={edit("description")} /></div>
-      {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{errorText(error)}</p>}
       <div className="sm:col-span-2"><Button type="submit" loading={saving}>{tr("Save profile", "Сохранить профиль")}</Button></div>
     </form>
     <p className="mt-3 text-xs text-ink-500">{tr("Verified legal names and license numbers can only be changed through administrator review.", "Юридическое название и номера лицензий можно изменить только через проверку администратора.")}</p>
@@ -184,6 +187,7 @@ function ClinicAvailability({ clinic, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const tr = (en, ru) => isRussian ? ru : en;
+  const errorText = en => clinicText(isRussian ? "ru" : "en",en);
   const toggleDay = (day) => setWorkingHours((current) => ({
     ...current,
     days: current.days.includes(day)
@@ -212,13 +216,15 @@ function ClinicAvailability({ clinic, onSaved }) {
         <Input required label={tr("Opens", "Открытие")} type="time" value={workingHours.open} onChange={(event) => setWorkingHours((current) => ({ ...current, open: event.target.value }))} />
         <Input required label={tr("Closes", "Закрытие")} type="time" value={workingHours.close} onChange={(event) => setWorkingHours((current) => ({ ...current, close: event.target.value }))} />
       </div>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{errorText(error)}</p>}
       <Button type="submit" loading={saving}>{tr("Save availability", "Сохранить расписание")}</Button>
     </form>
   </Card>;
 }
 
 function ServicesEditor({ clinic, onSaved }) {
+  const { language } = useLanguage();
+  const tr = english => clinicText(language, english);
   const [services, setServices] = useState(clinic.services || []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -229,15 +235,17 @@ function ServicesEditor({ clinic, onSaved }) {
     catch (err) { setError(err.message); }
     finally { setSaving(false); }
   };
-  return <Card className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-extrabold">Clinic services · RUB (₽)</h2><Button size="sm" variant="secondary" type="button" disabled={services.length >= 15} onClick={() => setServices((current) => [...current, { id: crypto.randomUUID(), name: "", price: "", durationMinutes: 30 }])}>+ Add service</Button></div>
-    {!services.length && <p className="text-sm text-ink-500">Add at least one service to let pet owners book this clinic.</p>}
-    {services.map((service, index) => <div key={service.id} className="grid items-end gap-3 rounded-xl border border-stone-100 p-3 sm:grid-cols-[1fr_120px_110px_auto]"><Input label="Service name" value={service.name} onChange={(e) => edit(index,"name",e.target.value)}/><Input label="Price (RUB)" type="number" min="0" max="100000" value={service.price} onChange={(e) => edit(index,"price",e.target.value)}/><Input label="Minutes" type="number" min="10" max="480" value={service.durationMinutes} onChange={(e) => edit(index,"durationMinutes",e.target.value)}/><label className="flex min-h-10 items-center gap-2 text-xs"><input type="checkbox" checked={service.available !== false} onChange={(event) => edit(index, "available", event.target.checked)} />Available for booking</label><Button type="button" variant="ghost" onClick={() => setServices((current) => current.filter((_,i) => i !== index))}>Remove</Button></div>)}
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    <Button type="button" loading={saving} onClick={save}>Save services</Button>
+  return <Card className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-extrabold">{tr("Clinic services · RUB (₽)")}</h2><Button size="sm" variant="secondary" type="button" disabled={services.length >= 15} onClick={() => setServices((current) => [...current, { id: crypto.randomUUID(), name: "", price: "", durationMinutes: 30 }])}>{tr("+ Add service")}</Button></div>
+    {!services.length && <p className="text-sm text-ink-500">{tr("Add at least one service to let pet owners book this clinic.")}</p>}
+    {services.map((service, index) => <div key={service.id} className="grid items-end gap-3 rounded-xl border border-stone-100 p-3 sm:grid-cols-[1fr_120px_110px_auto]"><Input label={tr("Service name")} value={service.name} onChange={(e) => edit(index,"name",e.target.value)}/><Input label={tr("Price (RUB)")} type="number" min="0" max="100000" value={service.price} onChange={(e) => edit(index,"price",e.target.value)}/><Input label={tr("Minutes")} type="number" min="10" max="480" value={service.durationMinutes} onChange={(e) => edit(index,"durationMinutes",e.target.value)}/><label className="flex min-h-10 items-center gap-2 text-xs"><input type="checkbox" checked={service.available !== false} onChange={(event) => edit(index, "available", event.target.checked)} />{tr("Available for booking")}</label><Button type="button" variant="ghost" onClick={() => setServices((current) => current.filter((_,i) => i !== index))}>{tr("Remove")}</Button></div>)}
+    {error && <p role="alert" className="text-sm text-red-700">{tr(error)}</p>}
+    <Button type="button" loading={saving} onClick={save}>{tr("Save services")}</Button>
   </Card>;
 }
 
 function ClinicAppointments() {
+  const { language } = useLanguage();
+  const tr = english => clinicText(language, english);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -256,22 +264,23 @@ function ClinicAppointments() {
   const pendingCount = items.filter((item) => item.status === "pending").length;
   const confirmedCount = items.filter((item) => item.status === "confirmed").length;
   const completedCount = items.filter((item) => item.status === "completed").length;
-  return <Card className="space-y-4"><div className="flex items-center justify-between"><h2 className="text-lg font-extrabold">Appointment requests</h2><button type="button" onClick={refresh} aria-label="Refresh appointments"><RefreshCw size={18}/></button></div>
-    {loading && <p role="status" className="text-sm text-ink-500">Loading appointments…</p>}
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+  return <Card className="space-y-4"><div className="flex items-center justify-between"><h2 className="text-lg font-extrabold">{tr("Appointment requests")}</h2><button type="button" onClick={refresh} aria-label={tr("Refresh appointments")}><RefreshCw size={18}/></button></div>
+    {loading && <p role="status" className="text-sm text-ink-500">{tr("Loading appointments…")}</p>}
+    {error && <p role="alert" className="text-sm text-red-700">{tr(error)}</p>}
     <div className="grid gap-3 sm:grid-cols-3">
-      <div className="rounded-xl bg-amber-50 p-3"><strong>{pendingCount}</strong><p className="text-xs text-ink-600">Pending requests</p></div>
-      <div className="rounded-xl bg-primary-50 p-3"><strong>{confirmedCount}</strong><p className="text-xs text-ink-600">Confirmed bookings</p></div>
-      <div className="rounded-xl bg-green-50 p-3"><strong>{completedCount}</strong><p className="text-xs text-ink-600">Completed appointments</p></div>
+      <div className="rounded-xl bg-amber-50 p-3"><strong>{pendingCount}</strong><p className="text-xs text-ink-600">{tr("Pending requests")}</p></div>
+      <div className="rounded-xl bg-primary-50 p-3"><strong>{confirmedCount}</strong><p className="text-xs text-ink-600">{tr("Confirmed bookings")}</p></div>
+      <div className="rounded-xl bg-green-50 p-3"><strong>{completedCount}</strong><p className="text-xs text-ink-600">{tr("Completed appointments")}</p></div>
     </div>
-    {!loading && !items.length && <p className="text-sm text-ink-500">No appointments yet. Approved clinics with services will appear in Our Clinics.</p>}
-    {items.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 p-4"><div><strong>{item.petName} · {item.serviceName}</strong><p className="mt-1 text-xs text-ink-500">{item.date} {item.time} · {item.price} RUB · {item.status}</p>{item.notes && <p className="mt-1 text-xs text-ink-600">{item.notes}</p>}{item.statusReason && <p className="mt-1 text-xs text-amber-900">Feedback: {item.statusReason}</p>}</div><div className="flex flex-wrap items-end gap-2">{item.status === "pending" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"confirmed")}>Accept</Button><div className="w-full sm:w-56"><Textarea label="Rejection reason" rows={1} maxLength={300} value={rejectionReasons[item.id] || ""} onChange={(event) => setRejectionReasons((current) => ({ ...current, [item.id]: event.target.value }))}/></div><Button size="sm" variant="danger" disabled={busy === item.id || (rejectionReasons[item.id] || "").trim().length < 5} onClick={() => update(item.id,"rejected",rejectionReasons[item.id])}>Reject</Button></>}{item.status === "confirmed" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"completed")}>Complete</Button><Button size="sm" variant="secondary" disabled={busy === item.id} onClick={() => update(item.id,"cancelled")}>Cancel</Button></>}</div></div>)}
+    {!loading && !items.length && <p className="text-sm text-ink-500">{tr("No appointments yet. Approved clinics with services will appear in Our Clinics.")}</p>}
+    {items.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 p-4"><div><strong>{item.petName} · {item.serviceName}</strong><p className="mt-1 text-xs text-ink-500">{item.date} {item.time} · {item.price} RUB · {tr(item.status)}</p>{item.notes && <p className="mt-1 text-xs text-ink-600">{item.notes}</p>}{item.statusReason && <p className="mt-1 text-xs text-amber-900">{tr("Feedback:")} {item.statusReason}</p>}</div><div className="flex flex-wrap items-end gap-2">{item.status === "pending" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"confirmed")}>{tr("Accept")}</Button><div className="w-full sm:w-56"><Textarea label={tr("Rejection reason")} rows={1} maxLength={300} value={rejectionReasons[item.id] || ""} onChange={(event) => setRejectionReasons((current) => ({ ...current, [item.id]: event.target.value }))}/></div><Button size="sm" variant="danger" disabled={busy === item.id || (rejectionReasons[item.id] || "").trim().length < 5} onClick={() => update(item.id,"rejected",rejectionReasons[item.id])}>{tr("Reject")}</Button></>}{item.status === "confirmed" && <><Button size="sm" disabled={busy === item.id} onClick={() => update(item.id,"completed")}>{tr("Complete")}</Button><Button size="sm" variant="secondary" disabled={busy === item.id} onClick={() => update(item.id,"cancelled")}>{tr("Cancel")}</Button></>}</div></div>)}
   </Card>;
 }
 
 export default function ClinicPortal() {
   const { user } = useApp();
   const { isRussian } = useLanguage();
+  const tr = en => clinicText(isRussian ? "ru" : "en",en);
   const { markClinic } = useClinicAudience();
   const [clinic, setClinic] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -299,13 +308,13 @@ export default function ClinicPortal() {
     return () => { active = false; };
   }, [user?.uid]);
   return <div className="space-y-6 py-5">
-    {clinic?.status !== "approved" && <PageHeader eyebrow="PetCare for clinics" title={isRussian ? "Кабинет клиники" : "Clinic Manager Portal"} description="Register your clinic, track admin approval, and manage bookings after verification."/>}
-    {!user && <Card className="flex flex-col items-start gap-4"><h2 className="text-lg font-extrabold">Sign in to register a clinic</h2><p className="text-sm text-ink-500">Sign in with your Clinic Branch Manager account to manage clinic applications.</p><Link to="/login" state={{ from: "/clinic" }} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white">Sign in</Link><Link to="/register?next=%2Fclinic" className="text-sm font-bold text-primary-700 underline">Create clinic manager account</Link></Card>}
-    {user && loading && <p role="status" className="text-sm text-ink-500">Checking your clinic registration…</p>}
-    {user && error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
+    {clinic?.status !== "approved" && <PageHeader eyebrow="PetCare for clinics" title={isRussian ? "Кабинет клиники" : "Clinic Manager Portal"} description={tr("Register your clinic, track admin approval, and manage bookings after verification.")}/>}
+    {!user && <Card className="flex flex-col items-start gap-4"><h2 className="text-lg font-extrabold">{tr("Sign in to register a clinic")}</h2><p className="text-sm text-ink-500">{tr("Sign in with your Clinic Branch Manager account to manage clinic applications.")}</p><Link to="/login" state={{ from: "/clinic" }} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white">{tr("Sign in")}</Link><Link to="/register?next=%2Fclinic" className="text-sm font-bold text-primary-700 underline">{tr("Create clinic manager account")}</Link></Card>}
+    {user && loading && <p role="status" className="text-sm text-ink-500">{tr("Checking your clinic registration…")}</p>}
+    {user && error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{tr(error)}</p>}
     {user && !loading && !error && (!clinic || ["draft", "rejected", "changes_requested"].includes(clinic.status)) && <ClinicApplication current={clinic} onSaved={(updated) => { setClinic(updated); markClinic(updated); }} uploadEnabled={uploadEnabled} emulatorDocuments={emulatorDocuments} demoUploads={demoUploads} managerName={user.name} managerEmail={user.email}/>}
-    {user && clinic?.status === "pending" && <Card className="max-w-3xl"><Clock3 size={28} className="text-amber-600"/><h2 className="mt-3 text-xl font-extrabold">Your clinic is pending approval</h2><p className="mt-2 text-sm text-ink-600">The PetCare administrator must verify your clinic and documents before it becomes public or receives bookings. Return here to check the decision.</p><p className="mt-3 text-sm font-semibold">{clinic.name} · {clinic.city}</p><Button className="mt-4" variant="secondary" onClick={() => clinicApi.mine().then((r) => setClinic(r.clinic)).catch((err) => setError(err.message))}><RefreshCw size={16}/> Refresh status</Button></Card>}
-    {user && clinic?.status === "suspended" && <Card><h2 className="font-extrabold">Clinic access is suspended</h2><p className="text-sm text-ink-600">{clinic.reviewReason || "Contact PetCare support for details."}</p></Card>}
+    {user && clinic?.status === "pending" && <Card className="max-w-3xl"><Clock3 size={28} className="text-amber-600"/><h2 className="mt-3 text-xl font-extrabold">{tr("Your clinic is pending approval")}</h2><p className="mt-2 text-sm text-ink-600">{tr("The PetCare administrator must verify your clinic and documents before it becomes public or receives bookings. Return here to check the decision.")}</p><p className="mt-3 text-sm font-semibold">{clinic.name} · {clinic.city}</p><Button className="mt-4" variant="secondary" onClick={() => clinicApi.mine().then((r) => setClinic(r.clinic)).catch((err) => setError(err.message))}><RefreshCw size={16}/>{tr("Refresh status")}</Button></Card>}
+    {user && clinic?.status === "suspended" && <Card><h2 className="font-extrabold">{tr("Clinic access is suspended")}</h2><p className="text-sm text-ink-600">{clinic.reviewReason || tr("Contact PetCare support for details.")}</p></Card>}
     {user && clinic?.status === "approved" && <ClinicWorkspace clinic={clinic} onSaved={(updated) => { setClinic(updated); markClinic(updated); }} core={{profile:<ClinicProfileEditor clinic={clinic} onSaved={setClinic}/>,availability:<ClinicAvailability clinic={clinic} onSaved={setClinic}/>,services:<ServicesEditor clinic={clinic} onSaved={setClinic}/>,bookings:<ClinicAppointments/>}}/>}
   </div>;
 }
