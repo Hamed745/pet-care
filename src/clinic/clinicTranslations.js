@@ -221,7 +221,15 @@ export const CLINIC_RU = Object.freeze({
   "Staff email already listed.": "Сотрудник с таким адресом электронной почты уже добавлен.",
   "Select an active veterinarian.": "Выберите активного ветеринара.",
   "Choose an active veterinarian.": "Выберите активного ветеринара.",
-  "Maximum 40 staff members.": "Можно добавить не более 40 сотрудников."
+  "Maximum 40 staff members.": "Можно добавить не более 40 сотрудников.",
+  "Veterinarian": "Ветеринар",
+  "Receptionist": "Администратор",
+  "Active": "Активен",
+  "Inactive": "Неактивен",
+  "Clinic service failed (": "Ошибка сервиса клиники (",
+  "Sign in first.": "Сначала войдите в аккаунт.",
+  "No clinic found.": "Клиника не найдена.",
+  "No access to clinic.": "Нет доступа к клинике."
 });
 
 export function clinicText(language, english) {
