@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Bot, MessageCircle, Send, X } from "lucide-react";
+import { Bot, ImagePlus, MessageCircle, Send, X } from "lucide-react";
 import { Button } from "./ui.jsx";
 import { input } from "../ui.js";
 import { sendPetCareMessage } from "../services/petAiService.js";
+import { preparePetPhoto, validatePetPhoto } from "../services/petAiPhoto.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 
 const ChatContext = createContext(null);
@@ -23,6 +24,9 @@ const russianChatText = {
   open: "Открыть чат",
   unread: "Новый ответ",
   incomplete: "Соединение прервалось до завершения ответа.",
+  attach: "Прикрепить фото питомца", removePhoto: "Удалить фото",
+  photoHelp: "ИИ может описать видимые признаки, но не поставить диагноз по фото.",
+  photoDefault: "Посмотрите на фото моего питомца: опишите видимые изменения, возможные причины и когда нужен ветеринар.",
   prompts: ["Найти ветеринара поблизости", "График вакцинации", "Советы по уходу"],
 };
 const englishChatText = {
@@ -32,6 +36,9 @@ const englishChatText = {
   placeholder: "Type your question...", send: "Send message", close: "Close chat assistant",
   open: "Open chat assistant", unread: "Unread reply",
   incomplete: "The connection stopped before this answer was complete.",
+  attach: "Attach a pet photo", removePhoto: "Remove photo",
+  photoHelp: "AI can describe visible signs but cannot diagnose a pet from a photo.",
+  photoDefault: "Please review this photo of my pet, describe visible changes, possible causes, and when to see a veterinarian.",
   prompts: suggestions,
 };
 function chatLabels(language) { return language === "ru" ? russianChatText : englishChatText; }
@@ -51,21 +58,25 @@ export function ChatProvider({ children }) {
 
   const openPanel = useCallback(() => { setUnread(0); setPanelOpen(true); }, []);
   const closePanel = useCallback(() => setPanelOpen(false), []);
-  const sendMessage = useCallback(async (rawText, { retry = false } = {}) => {
+  const sendMessage = useCallback(async (rawText, { retry = false, imagePart = null } = {}) => {
     const text = rawText.trim();
-    if (!text || sendingRef.current) return false;
+    if ((!text && !imagePart) || sendingRef.current) return false;
 
     const clickedAt = performance.now();
     const assistantId = ++messageIdRef.current;
     sendingRef.current = true;
     const sentMessages = messages;
-    const userMessage = { id: ++messageIdRef.current, from: "me", text };
+    const imagePreview = imagePart?.inlineData?.data
+      ? `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`
+      : null;
+    const userMessage = { id: ++messageIdRef.current, from: "me", text, imagePreview };
     const assistantMessage = {
       id: assistantId,
       from: "ai",
       text: "",
       pending: true,
       retryText: text,
+      retryImagePart: imagePart,
       startedAt: clickedAt,
     };
     setMessages((current) => [
@@ -77,6 +88,7 @@ export function ChatProvider({ children }) {
     try {
       const reply = await sendPetCareMessage(text, sentMessages, {
         clickedAt,
+        imagePart,
         onChunk: (chunkText) => {
           setMessages((current) => current.map((message) => (
             message.id === assistantId
@@ -97,6 +109,7 @@ export function ChatProvider({ children }) {
               pending: false,
               completedAt: performance.now(),
               retryText: null,
+              retryImagePart: null,
             }
           : message
       )));
@@ -139,12 +152,41 @@ export function ChatConversation({ embedded = false, focusOnMount = false, promp
   const labels = chatLabels(language);
   const activePrompts = prompts === suggestions ? labels.prompts : prompts;
   const [draft, setDraft] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [preparing, setPreparing] = useState(false);
+  const fileInputRef = useRef(null);
   const inputRef = useRef(null);
   const messagesRef = useRef(null);
   const firstRenderLoggedRef = useRef(new Set());
   const completionRenderLoggedRef = useRef(new Set());
 
   useEffect(() => { if (focusOnMount) inputRef.current?.focus(); }, [focusOnMount]);
+  useEffect(() => {
+    if (!imageFile) { setImagePreviewUrl(""); return undefined; }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+  const selectPhoto = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      validatePetPhoto(file);
+      setImageFile(file);
+      setPhotoError("");
+    } catch (error) {
+      setImageFile(null);
+      setPhotoError(error.message);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+  const clearPhoto = () => {
+    setImageFile(null);
+    setPhotoError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
   useEffect(() => {
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
@@ -174,22 +216,48 @@ export function ChatConversation({ embedded = false, focusOnMount = false, promp
     }
   }, [messages]);
 
-  const send = (event) => {
+  const send = async (event) => {
     event.preventDefault();
-    const text = draft.trim();
-    if (!text || typing) return;
-    setDraft("");
-    void sendMessage(text);
+    if (typing || preparing || (!draft.trim() && !imageFile)) return;
+    setPreparing(true);
+    setPhotoError("");
+    try {
+      const imagePart = imageFile ? await preparePetPhoto(imageFile) : null;
+      const text = draft.trim() || (imagePart ? labels.photoDefault : "");
+      setDraft("");
+      clearPhoto();
+      setPreparing(false);
+      void sendMessage(text, { imagePart });
+    } catch (error) {
+      setPhotoError(error.message || "Could not attach this photo.");
+      setPreparing(false);
+    }
   };
   const choosePrompt = (prompt) => { if (!typing) void sendMessage(prompt); };
 
   return <div className={`flex min-h-0 flex-1 flex-col ${embedded ? "overflow-hidden" : ""}`}>
     {embedded && <div className="flex items-center gap-3 border-b border-stone-100 p-5"><span className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700"><Bot size={21} /></span><div><h2 className="font-extrabold">{labels.ask}</h2><p className="text-xs text-ink-500">{labels.assistant}</p></div><span className="ms-auto flex items-center gap-1.5 text-xs font-semibold text-primary-700"><span className="size-2 rounded-full bg-primary-500" /> {labels.ready}</span></div>}
     <div ref={messagesRef} role="log" aria-live="polite" aria-relevant="additions text" aria-label={labels.title} className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-stone-50 p-4 ${embedded ? "h-[360px]" : ""}`}>
-      {messages.map((message) => message.pending && !message.text ? null : <div key={message.id} className={`flex max-w-[90%] gap-2 ${message.from === "me" ? "ms-auto flex-row-reverse" : ""}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full ${message.from === "me" ? "bg-accent-100 text-amber-800" : "bg-primary-100 text-primary-700"}`}>{message.from === "me" ? <MessageCircle size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}</span><div className="min-w-0"><p role={message.error ? "alert" : undefined} className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-5 ${message.from === "me" ? "rounded-tr-sm bg-primary-700 text-white" : message.error ? "rounded-tl-sm border border-red-200 bg-red-50 text-red-800" : "rounded-tl-sm border border-stone-100 bg-white text-ink-700 shadow-sm"}`}>{message.textKey ? labels.welcome : message.text}</p>{message.error && message.retryText && <button type="button" onClick={() => void sendMessage(message.retryText, { retry: true })} disabled={typing} className="mt-1 text-xs font-semibold text-primary-700 underline disabled:opacity-50">{labels.retry}</button>}</div></div>)}
+      {messages.map((message) => message.pending && !message.text ? null : <div key={message.id} className={`flex max-w-[90%] gap-2 ${message.from === "me" ? "ms-auto flex-row-reverse" : ""}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full ${message.from === "me" ? "bg-accent-100 text-amber-800" : "bg-primary-100 text-primary-700"}`}>{message.from === "me" ? <MessageCircle size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}</span><div className="min-w-0">{message.imagePreview && <img src={message.imagePreview} alt={labels.attach} className="mb-1 max-h-40 max-w-48 rounded-xl border border-stone-200 object-contain" />}<p role={message.error ? "alert" : undefined} className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-5 ${message.from === "me" ? "rounded-tr-sm bg-primary-700 text-white" : message.error ? "rounded-tl-sm border border-red-200 bg-red-50 text-red-800" : "rounded-tl-sm border border-stone-100 bg-white text-ink-700 shadow-sm"}`}>{message.textKey ? labels.welcome : message.text}</p>{message.error && message.retryText && <button type="button" onClick={() => void sendMessage(message.retryText, { retry: true, imagePart: message.retryImagePart })} disabled={typing} className="mt-1 text-xs font-semibold text-primary-700 underline disabled:opacity-50">{labels.retry}</button>}</div></div>)}
       {typing && <div className="flex items-center gap-2" aria-label={labels.typing}><span className="grid size-8 place-items-center rounded-full bg-primary-100 text-primary-700"><Bot size={15} aria-hidden="true" /></span><span className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-stone-100 bg-white px-4 py-3 shadow-sm"><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.2s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500 [animation-delay:-0.1s]" /><span className="size-1.5 animate-bounce rounded-full bg-ink-500" /></span></div>}
     </div>
-    <div className="border-t border-stone-100 bg-white p-3 sm:p-4"><div className="mb-3 flex gap-2 overflow-x-auto pb-1">{activePrompts.map((prompt) => <button key={prompt} type="button" disabled={typing} onClick={() => choosePrompt(prompt)} className="min-h-8 shrink-0 rounded-full bg-primary-50 px-3 text-left text-[11px] font-semibold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50">{prompt}</button>)}</div><form onSubmit={send} className="flex gap-2"><label className="sr-only" htmlFor={embedded ? "ai-chat-message" : "floating-chat-message"}>{labels.title}</label><input ref={inputRef} id={embedded ? "ai-chat-message" : "floating-chat-message"} className={input} placeholder={labels.placeholder} autoComplete="off" value={draft} onChange={(event) => setDraft(event.target.value)} /><Button type="submit" aria-label={labels.send} disabled={!draft.trim() || typing} className="size-12 min-h-12 shrink-0 p-0"><Send size={18} /></Button></form></div>
+    <div className="border-t border-stone-100 bg-white p-3 sm:p-4">
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">{activePrompts.map((prompt) => <button key={prompt} type="button" disabled={typing || preparing} onClick={() => choosePrompt(prompt)} className="min-h-8 shrink-0 rounded-full bg-primary-50 px-3 text-left text-[11px] font-semibold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50">{prompt}</button>)}</div>
+      {imageFile && <div className="mb-2 flex items-center gap-2 rounded-xl bg-stone-50 p-2 text-xs">
+        {imagePreviewUrl && <img src={imagePreviewUrl} alt={labels.attach} className="size-14 rounded-lg object-cover" />}
+        <span className="min-w-0 flex-1 truncate">{imageFile.name}</span>
+        <button type="button" aria-label={labels.removePhoto} title={labels.removePhoto} onClick={clearPhoto} disabled={typing || preparing} className="rounded-lg p-2 text-ink-600 hover:bg-stone-200"><X size={16}/></button>
+      </div>}
+      {photoError && <p role="alert" className="mb-2 text-xs text-red-700">{photoError}</p>}
+      {imageFile && <p className="mb-2 text-[11px] text-ink-500">{labels.photoHelp}</p>}
+      <form onSubmit={send} className="flex items-center gap-2">
+        <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={selectPhoto} className="sr-only" tabIndex={-1} aria-label={labels.attach} />
+        <button type="button" aria-label={labels.attach} title={labels.attach} disabled={typing || preparing} onClick={() => fileInputRef.current?.click()} className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 text-primary-700 hover:bg-primary-50 disabled:opacity-50"><ImagePlus size={20}/></button>
+        <label className="sr-only" htmlFor={embedded ? "ai-chat-message" : "floating-chat-message"}>{labels.title}</label>
+        <input ref={inputRef} id={embedded ? "ai-chat-message" : "floating-chat-message"} className={input+" min-w-0 flex-1"} placeholder={labels.placeholder} autoComplete="off" value={draft} onChange={(event) => setDraft(event.target.value)} disabled={typing || preparing}/>
+        <Button type="submit" aria-label={labels.send} disabled={(!draft.trim() && !imageFile) || typing || preparing} className="size-12 min-h-12 shrink-0 p-0"><Send size={18}/></Button>
+      </form>
+    </div>
   </div>;
 }
 
