@@ -217,7 +217,7 @@ export default function ClinicWorkspace({clinic,onSaved,core}){
             <Field label={tr("Shift end")} type="time" value={staffForm.shiftEnd} onChange={v=>setStaffForm({...staffForm,shiftEnd:v})}/>
             <fieldset className="sm:col-span-2"><legend className="mb-2 text-xs font-bold">{tr("Working days")}</legend>
               <div className="flex flex-wrap gap-3">{days.map((d,i)=><label key={d} className="text-sm"><input type="checkbox" checked={staffForm.workingDays.includes(i)}
-                onChange={e=>setStaffForm({...staffForm,workingDays:e.target.checked?[...staffForm.workingDays,i]:staffForm.workingDays.filter(v=>v!==i)})/> {tr(d)}</label>)}</div>
+                onChange={e=>setStaffForm({...staffForm,workingDays:e.target.checked?[...staffForm.workingDays,i]:staffForm.workingDays.filter(v=>v!==i)})}/> {tr(d)}</label>)}</div>
             </fieldset>
             <div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={busy}>{tr(editingStaff?"Save changes":"Add member")}</Button>
               {editingStaff&&<Button type="button" variant="secondary" onClick={()=>{setStaffForm(blankStaff);setEditingStaff("");}}>{tr("Cancel edit")}</Button>}
