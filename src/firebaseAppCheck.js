@@ -1,6 +1,7 @@
 import {
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
+  getToken,
 } from "firebase/app-check";
 import app from "./firebase.js";
 
@@ -20,4 +21,23 @@ export function initializeFirebaseAppCheck() {
   });
 
   return appCheck;
+}
+
+// Firebase AI Logic enforces App Check. Explicitly confirm a valid token before
+// making a model request instead of silently continuing after initialization fails.
+export async function verifyFirebaseAiAppCheck() {
+  let instance;
+  try {
+    instance = initializeFirebaseAppCheck();
+    const result = await getToken(instance);
+    if (!result?.token) throw new Error("Firebase App Check did not issue a token.");
+    return true;
+  } catch (cause) {
+    const error = new Error(
+      "The secure AI connection is not ready. Check the reCAPTCHA Enterprise site key and allowed domain in Firebase App Check, then reload and retry.",
+      { cause },
+    );
+    error.code = "petcare/ai-app-check";
+    throw error;
+  }
 }
