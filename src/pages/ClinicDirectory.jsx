@@ -4,11 +4,14 @@ import { Building2, CalendarDays, MapPin, RefreshCw, ShieldCheck, Stethoscope } 
 import { useApp } from "../store.jsx";
 import { clinicApi } from "../services/clinicApi.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { clinicText } from "../clinic/clinicTranslations.js";
 import { Badge, Button, Card, Input, PageHeader, Select, Textarea } from "../components/ui.jsx";
 import VerifiedClinicMap from "../components/VerifiedClinicMap.jsx";
 import { NEARBY_CATEGORIES } from "../features/nearby/nearbyCategories.js";
 
 function BookingForm({ clinic, pets, onBooked }) {
+  const { isRussian } = useLanguage();
+  const tr = (en,ru) => isRussian ? ru : en;
   const [form, setForm] = useState({ petId: "", serviceId: "", date: "", time: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -19,7 +22,7 @@ function BookingForm({ clinic, pets, onBooked }) {
     setBusy(true); setError("");
     try {
       const pet = pets.find((item) => String(item.id) === form.petId);
-      if (!pet) throw new Error("Choose one of your pets.");
+      if (!pet) throw new Error(tr("Choose one of your pets.", "Выберите одного из своих питомцев."));
       await clinicApi.syncPet(pet);
       await clinicApi.book(clinic.id, { ...form, requestId: requestId.current });
       requestId.current = crypto.randomUUID();
@@ -33,15 +36,15 @@ function BookingForm({ clinic, pets, onBooked }) {
   const todayValues = Object.fromEntries(todayParts.map(({ type, value }) => [type, value]));
   const today = `${todayValues.year}-${todayValues.month}-${todayValues.day}`;
   return <form onSubmit={submit} className="mt-4 grid gap-3 rounded-xl bg-primary-50/50 p-4 sm:grid-cols-2">
-    {!pets.length ? <p className="text-sm text-amber-900 sm:col-span-2">Add a pet to your profile before requesting an appointment. <Link className="font-bold underline" to="/pets/new">Add a pet</Link></p> : <>
-      <Select required label="Your pet" value={form.petId} onChange={edit("petId")}><option value="">Choose a pet</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</Select>
-      <Select required label="Clinic service" value={form.serviceId} onChange={edit("serviceId")}><option value="">Choose a service</option>{clinic.services.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.price} {clinic.currency || "RUB"}</option>)}</Select>
-      <Input required type="date" min={today} label="Appointment date" value={form.date} onChange={edit("date")}/>
-      <Input required type="time" label={"Preferred time (" + (clinic.timeZone || "Europe/Moscow") + ")"} value={form.time} onChange={edit("time")}/>
-      <div className="sm:col-span-2"><Textarea label="Notes (optional)" rows={2} maxLength={500} value={form.notes} onChange={edit("notes")}/></div>
-      <p className="text-xs leading-5 text-ink-600 sm:col-span-2">Your appointment is a request. The clinic manager must approve it before it is confirmed. No payment is collected.</p>
-      {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>}
-      <div className="sm:col-span-2"><Button type="submit" loading={busy}>Request appointment</Button></div>
+    {!pets.length ? <p className="text-sm text-amber-900 sm:col-span-2">{tr("Add a pet to your profile before requesting an appointment.","Добавьте питомца в профиль перед записью на приём.")} <Link className="font-bold underline" to="/pets/new">{tr("Add a pet","Добавить питомца")}</Link></p> : <>
+      <Select required label={tr("Your pet","Ваш питомец")} value={form.petId} onChange={edit("petId")}><option value="">{tr("Choose a pet","Выберите питомца")}</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</Select>
+      <Select required label={tr("Clinic service","Услуга клиники")} value={form.serviceId} onChange={edit("serviceId")}><option value="">{tr("Choose a service","Выберите услугу")}</option>{clinic.services.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.price} {clinic.currency || "RUB"}</option>)}</Select>
+      <Input required type="date" min={today} label={tr("Appointment date","Дата приёма")} value={form.date} onChange={edit("date")}/>
+      <Input required type="time" label={tr("Preferred time", "Желаемое время")+" (" + (clinic.timeZone || "Europe/Moscow") + ")"} value={form.time} onChange={edit("time")}/>
+      <div className="sm:col-span-2"><Textarea label={tr("Notes (optional)","Примечание (необязательно)")} rows={2} maxLength={500} value={form.notes} onChange={edit("notes")}/></div>
+      <p className="text-xs leading-5 text-ink-600 sm:col-span-2">{tr("Your appointment is a request. The clinic manager must approve it before it is confirmed. No payment is collected.","Запись оформляется как заявка. Менеджер клиники должен подтвердить её. Оплата на сайте не взимается.")}</p>
+      {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{clinicText(isRussian?"ru":"en",error)}</p>}
+      <div className="sm:col-span-2"><Button type="submit" loading={busy}>{tr("Request appointment","Отправить заявку")}</Button></div>
     </>}
   </form>;
 }
@@ -140,16 +143,16 @@ export default function ClinicDirectory({ showMap = false }) {
               <p className="mt-1 flex items-center gap-1 text-xs text-ink-600"><MapPin size={14}/>{clinic.address}, {clinic.city}</p>
             </div>
           </div>
-          <Badge variant="success"><ShieldCheck size={13} className="mr-1 inline"/>Verified</Badge>
+          <Badge variant="success"><ShieldCheck size={13} className="mr-1 inline"/>{tr("Verified","Проверена")}</Badge>
         </div>
-        <p className="text-sm text-ink-600">{clinic.description || "Veterinary care from an approved PetCare clinic."}</p>
+        <p className="text-sm text-ink-600">{clinic.description || tr("Veterinary care from an approved PetCare clinic.","Ветеринарные услуги в одобренной клинике PetCare.")}</p>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-ink-600">
           <span>{clinic.phone} · {clinic.region || clinic.governorate}</span>
           {(clinic.mapUrl || (Number.isFinite(clinic.latitude) && Number.isFinite(clinic.longitude))) && <a className="font-bold text-primary-700 underline" href={clinic.mapUrl || `https://maps.google.com/?q=${clinic.latitude},${clinic.longitude}`} target="_blank" rel="noopener noreferrer">{tr("Open clinic location", "Открыть местоположение клиники")}</a>}
         </div>
-        {clinic.workingHours && <p className="text-xs text-ink-600">{tr("Open", "Открыто")}: {clinic.workingHours.open}–{clinic.workingHours.close} · {clinic.workingHours.days.map((day) => ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][day]).join(", ")}</p>}
+        {clinic.workingHours && <p className="text-xs text-ink-600">{tr("Open", "Открыто")}: {clinic.workingHours.open}–{clinic.workingHours.close} · {clinic.workingHours.days.map((day) => clinicText(isRussian?"ru":"en",["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][day])).join(", ")}</p>}
         <div className="space-y-2">
-          {clinic.services.map((service) => <p key={service.id} className="flex justify-between gap-2 border-b border-stone-100 pb-2 text-sm"><span>{service.name} · {service.durationMinutes} min</span><strong>{service.price} {clinic.currency || "RUB"}</strong></p>)}
+          {clinic.services.map((service) => <p key={service.id} className="flex justify-between gap-2 border-b border-stone-100 pb-2 text-sm"><span>{service.name} · {service.durationMinutes} {tr("min","мин")}</span><strong>{service.price} {clinic.currency || "RUB"}</strong></p>)}
         </div>
         <div className="mt-auto">
           {!clinic.services.length
@@ -163,6 +166,6 @@ export default function ClinicDirectory({ showMap = false }) {
         </div>
       </Card>)}
     </div>
-    {user && <Card className="space-y-3"><h2 className="text-lg font-extrabold">Your PetCare clinic appointments</h2>{!bookings.length ? <p className="text-sm text-ink-500">No clinic booking requests yet.</p> : bookings.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 p-3"><div><strong className="text-sm">{item.clinicName} · {item.petName}</strong><p className="text-xs text-ink-600">{item.serviceName} · {item.date} {item.time} · {item.status}</p></div>{["pending","confirmed"].includes(item.status) && <Button size="sm" variant="secondary" disabled={busy === item.id} onClick={() => cancel(item.id)}>Cancel request</Button>}</div>)}</Card>}
+    {user && <Card className="space-y-3"><h2 className="text-lg font-extrabold">{tr("Your PetCare clinic appointments","Мои записи в клиники PetCare")}</h2>{!bookings.length ? <p className="text-sm text-ink-500">{tr("No clinic booking requests yet.","Заявок на запись пока нет.")}</p> : bookings.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 p-3"><div><strong className="text-sm">{item.clinicName} · {item.petName}</strong><p className="text-xs text-ink-600">{item.serviceName} · {item.date} {item.time} · {clinicText(isRussian?"ru":"en",item.status)}</p></div>{["pending","confirmed"].includes(item.status) && <Button size="sm" variant="secondary" disabled={busy === item.id} onClick={() => cancel(item.id)}>{tr("Cancel request","Отменить заявку")}</Button>}</div>)}</Card>}
   </div>;
 }
